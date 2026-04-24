@@ -36,6 +36,11 @@ const deleteSite = document.getElementById("delete-site");
 const formError = document.getElementById("form-error");
 const usageDay = document.getElementById("usage-day");
 const usageTotal = document.getElementById("usage-total");
+const weekTrend = document.getElementById("week-trend");
+const weekSelectedLabel = document.getElementById("week-selected-label");
+const weekSelectedTotal = document.getElementById("week-selected-total");
+const weekAverageTotal = document.getElementById("week-average-total");
+const weekChart = document.getElementById("week-chart");
 const usagePeak = document.getElementById("usage-peak");
 const usageCount = document.getElementById("usage-count");
 const hourChart = document.getElementById("hour-chart");
@@ -369,6 +374,10 @@ async function loadUsageData() {
 
   if (!response?.ok) {
     usageTotal.textContent = "0m";
+    weekTrend.textContent = response?.error || "Could not load usage.";
+    weekSelectedTotal.textContent = "0m";
+    weekAverageTotal.textContent = "0m";
+    weekChart.replaceChildren();
     usagePeak.textContent = response?.error || "Could not load usage.";
     usageCount.textContent = "0 sites";
     hourChart.replaceChildren();
@@ -386,14 +395,18 @@ async function loadUsageData() {
       : {}
   };
 
-  renderUsageDays();
-  renderUsageForDay(usageDay.value || usageData.days[0]);
+  const selectedDay = usageDay.value || usageData.days[0] || dateToDayKey(new Date());
+  renderUsageDays(selectedDay);
+  renderUsageForDay(selectedDay);
 }
 
-function renderUsageDays() {
-  const selectedDay = usageDay.value;
+function renderUsageDays(selectedDay = usageDay.value || dateToDayKey(new Date())) {
+  const optionDays = new Set(usageData.days);
+  getWeekDayKeys(selectedDay).forEach((day) => optionDays.add(day));
+  optionDays.add(selectedDay);
+
   usageDay.replaceChildren(
-    ...usageData.days.map((day) => {
+    ...Array.from(optionDays).sort().reverse().map((day) => {
       const option = document.createElement("option");
       option.value = day;
       option.textContent = formatDayLabel(day);
@@ -401,15 +414,15 @@ function renderUsageDays() {
     })
   );
 
-  if (usageData.days.includes(selectedDay)) {
-    usageDay.value = selectedDay;
-  } else if (usageData.days.length > 0) {
-    usageDay.value = usageData.days[0];
-  }
+  usageDay.value = selectedDay;
 }
 
 function renderUsageForDay(day) {
-  const snapshot = normalizeUsageSnapshot(usageData.usageByDay?.[day]);
+  const selectedDay = day || dateToDayKey(new Date());
+  renderUsageDays(selectedDay);
+  renderWeekOverview(selectedDay);
+
+  const snapshot = normalizeUsageSnapshot(usageData.usageByDay?.[selectedDay]);
   const hourly = Array.from({ length: 24 }, () => 0);
   const sites = Object.entries(snapshot.sites)
     .map(([domain, entry]) => {
@@ -437,6 +450,67 @@ function renderUsageForDay(day) {
   renderHourChart(hourly);
   renderUsagePie(sites, totalSeconds);
   renderUsageSites(sites, totalSeconds);
+}
+
+function renderWeekOverview(selectedDay) {
+  const weekDays = getWeekDayKeys(selectedDay);
+  const previousWeekDays = getPreviousWeekDayKeys(selectedDay);
+  const weekEntries = weekDays.map((day) => ({
+    day,
+    seconds: getDayTotalSeconds(day)
+  }));
+  const previousEntries = previousWeekDays.map((day) => ({
+    day,
+    seconds: getDayTotalSeconds(day)
+  }));
+  const selectedEntry = weekEntries.find((entry) => entry.day === selectedDay) || weekEntries[0];
+  const currentAverage = getWeekAverageSeconds(weekEntries, selectedDay);
+  const previousAverage = getWeekAverageSeconds(previousEntries, previousWeekDays[0], { fullWeek: true });
+
+  weekSelectedLabel.textContent = formatDayLabel(selectedDay);
+  weekSelectedTotal.textContent = formatDuration(selectedEntry?.seconds || 0);
+  weekAverageTotal.textContent = formatDuration(currentAverage);
+  weekTrend.textContent = formatWeekTrend(currentAverage, previousAverage, selectedDay);
+  renderWeekChart(weekEntries, selectedDay, currentAverage);
+}
+
+function renderWeekChart(entries, selectedDay, averageSeconds) {
+  const scaleMax = Math.max(1, averageSeconds, ...entries.map((entry) => entry.seconds));
+  const averageHeight = Math.min(100, averageSeconds / scaleMax * 100);
+  const averageBottom = 24 + averageHeight / 100 * 96;
+  const averageLine = document.createElement("span");
+
+  averageLine.className = "week-average-line";
+  averageLine.style.bottom = `${averageBottom}px`;
+
+  weekChart.replaceChildren(
+    averageLine,
+    ...entries.map((entry) => {
+      const button = document.createElement("button");
+      const track = document.createElement("span");
+      const bar = document.createElement("span");
+      const label = document.createElement("span");
+      const height = entry.seconds > 0 ? Math.max(5, entry.seconds / scaleMax * 100) : 0;
+
+      button.type = "button";
+      button.className = "week-day";
+      button.setAttribute("aria-pressed", String(entry.day === selectedDay));
+      button.setAttribute("aria-label", `${formatDayLabel(entry.day)}: ${formatDuration(entry.seconds)}`);
+      button.addEventListener("click", () => {
+        renderUsageForDay(entry.day);
+      });
+
+      track.className = "week-bar-track";
+      bar.className = "week-bar";
+      bar.style.height = `${height}%`;
+      label.className = "week-day-label";
+      label.textContent = formatShortWeekday(entry.day);
+
+      track.append(bar);
+      button.append(track, label);
+      return button;
+    })
+  );
 }
 
 function renderHourChart(hourly) {
@@ -605,12 +679,7 @@ function formatDuration(value) {
 }
 
 function formatDayLabel(day) {
-  const today = new Date();
-  const todayKey = [
-    today.getFullYear(),
-    String(today.getMonth() + 1).padStart(2, "0"),
-    String(today.getDate()).padStart(2, "0")
-  ].join("-");
+  const todayKey = dateToDayKey(new Date());
   const date = parseDayKey(day);
 
   if (day === todayKey) {
@@ -636,6 +705,94 @@ function parseDayKey(day) {
   }
 
   return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function dateToDayKey(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
+function getDayTotalSeconds(day) {
+  const snapshot = normalizeUsageSnapshot(usageData.usageByDay?.[day]);
+
+  return Object.values(snapshot.sites)
+    .reduce((sum, entry) => sum + Math.max(0, Number(entry.screenSeconds) || 0), 0);
+}
+
+function getWeekDayKeys(day) {
+  const date = parseDayKey(day) || new Date();
+  const start = getWeekStartDate(date);
+
+  return Array.from({ length: 7 }, (_unused, index) => {
+    return dateToDayKey(addDays(start, index));
+  });
+}
+
+function getPreviousWeekDayKeys(day) {
+  const date = parseDayKey(day) || new Date();
+  return getWeekDayKeys(dateToDayKey(addDays(getWeekStartDate(date), -7)));
+}
+
+function getWeekStartDate(date) {
+  const start = new Date(date);
+  const mondayOffset = (start.getDay() + 6) % 7;
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - mondayOffset);
+  return start;
+}
+
+function addDays(date, amount) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function getWeekAverageSeconds(entries, selectedDay, { fullWeek = false } = {}) {
+  const todayKey = dateToDayKey(new Date());
+  const selectedWeekDays = getWeekDayKeys(selectedDay);
+  const isCurrentWeek = selectedWeekDays.includes(todayKey);
+  const eligibleEntries = fullWeek || !isCurrentWeek
+    ? entries
+    : entries.filter((entry) => entry.day <= todayKey);
+  const total = eligibleEntries.reduce((sum, entry) => sum + entry.seconds, 0);
+
+  return total / Math.max(1, eligibleEntries.length);
+}
+
+function formatWeekTrend(currentAverage, previousAverage, selectedDay) {
+  const todayKey = dateToDayKey(new Date());
+  const comparisonLabel = getWeekDayKeys(selectedDay).includes(todayKey)
+    ? "last week"
+    : "the previous week";
+
+  if (previousAverage <= 0 && currentAverage <= 0) {
+    return `Same as ${comparisonLabel}`;
+  }
+
+  if (previousAverage <= 0) {
+    return `No data for ${comparisonLabel}`;
+  }
+
+  const percent = (currentAverage - previousAverage) / previousAverage * 100;
+
+  if (Math.abs(percent) < 1) {
+    return `Same as ${comparisonLabel}`;
+  }
+
+  return `You averaged ${Math.round(Math.abs(percent))}% ${percent > 0 ? "more" : "less"} than ${comparisonLabel}`;
+}
+
+function formatShortWeekday(day) {
+  const date = parseDayKey(day);
+
+  if (!date) {
+    return "";
+  }
+
+  return ["S", "M", "T", "W", "T", "F", "S"][date.getDay()];
 }
 
 function formatHour(hour) {

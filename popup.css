@@ -226,6 +226,95 @@ h2 {
   line-height: 1;
 }
 
+.week-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.week-stats div {
+  display: grid;
+  gap: 4px;
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 10px;
+}
+
+.week-stats span {
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.week-stats strong {
+  color: #1d4ed8;
+  font-size: 1.18rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.week-chart {
+  position: relative;
+  display: grid;
+  height: 120px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+}
+
+.week-average-line {
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 3;
+  border-top: 1px dashed #94a3b8;
+  pointer-events: none;
+}
+
+.week-day {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  min-width: 0;
+  grid-template-rows: 96px 18px;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+}
+
+.week-bar-track {
+  display: flex;
+  height: 96px;
+  align-items: end;
+  border-radius: 6px;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+
+.week-bar {
+  display: block;
+  width: 100%;
+  border-radius: 6px 6px 0 0;
+  background: #cbd5e1;
+}
+
+.week-day[aria-pressed="true"] .week-bar {
+  background: #2563eb;
+}
+
+.week-day-label {
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 18px;
+  text-align: center;
+}
+
+.week-day[aria-pressed="true"] .week-day-label {
+  color: #1d4ed8;
+}
+
 .usage-panel {
   display: grid;
   gap: 10px;
@@ -919,6 +1008,7 @@ button:focus-visible {
   .status,
   .allowance-panel,
   .usage-total,
+  .week-stats div,
   .interval-row,
   .clock-control,
   .clock-face {
@@ -927,10 +1017,23 @@ button:focus-visible {
 
   .view-tabs,
   .hour-bar-track,
+  .week-bar-track,
   .usage-progress,
   .usage-pie,
   .usage-pie.is-empty {
     background: #263244;
+  }
+
+  .week-bar {
+    background: #475569;
+  }
+
+  .week-day[aria-pressed="true"] .week-bar {
+    background: #60a5fa;
+  }
+
+  .week-average-line {
+    border-color: #94a3b8;
   }
 
   .view-tab {
@@ -939,6 +1042,8 @@ button:focus-visible {
 
   .view-tab[aria-pressed="true"],
   .usage-total strong,
+  .week-stats strong,
+  .week-day[aria-pressed="true"] .week-day-label,
   .usage-duration {
     color: #dbeafe;
   }
@@ -972,6 +1077,8 @@ button:focus-visible {
   .day-picker,
   .panel-heading span,
   .usage-total span,
+  .week-stats span,
+  .week-day,
   .hour-label,
   .usage-pie-item strong,
   .toggle-field,

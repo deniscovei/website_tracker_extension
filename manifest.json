@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Scheduled Website Blocker",
   "description": "Blocks websites by schedule and tracks daily website screen time.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "minimum_chrome_version": "101",
   "permissions": [
     "alarms",
