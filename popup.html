@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Scheduled Website Blocker</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="popup">
+      <header class="topbar">
+        <button id="back" class="icon-button" type="button" aria-label="Back" hidden>&larr;</button>
+        <div>
+          <p class="eyebrow">Schedule</p>
+          <h1>Website Blocker</h1>
+        </div>
+      </header>
+
+      <nav class="view-tabs" aria-label="Popup views">
+        <button id="schedule-tab" class="view-tab" type="button" aria-pressed="true">Schedule</button>
+        <button id="usage-tab" class="view-tab" type="button" aria-pressed="false">Usage</button>
+      </nav>
+
+      <section class="status" aria-live="polite">
+        <p id="summary">Loading schedule status...</p>
+        <ul id="active-sites"></ul>
+        <p id="updated"></p>
+      </section>
+
+      <section id="list-view" class="view">
+        <div class="section-heading">
+          <h2>Websites</h2>
+          <button id="new-site" class="primary-button" type="button">New site</button>
+        </div>
+        <ul id="site-list" class="site-list"></ul>
+        <button id="refresh" class="secondary-button" type="button">Refresh rules</button>
+      </section>
+
+      <section id="editor-view" class="view" hidden>
+        <form id="site-form">
+          <label class="field">
+            <span>Website</span>
+            <input id="site-domain" type="text" inputmode="url" autocomplete="off" placeholder="instagram.com" required>
+          </label>
+
+          <section class="allowance-panel" aria-labelledby="allowance-title">
+            <div>
+              <h2 id="allowance-title">Daily allowance</h2>
+              <p>Usable time during blocked slots.</p>
+            </div>
+            <label class="field allowance-field">
+              <span>Minutes</span>
+              <input id="daily-allowance" type="number" min="0" max="1440" step="1" value="0">
+            </label>
+            <label class="toggle-field">
+              <input id="allow-extra-time" type="checkbox">
+              <span>Show extra-time buttons after the allowance runs out</span>
+            </label>
+          </section>
+
+          <div class="section-heading compact">
+            <h2>Blocked slots</h2>
+            <button id="add-interval" class="secondary-button small" type="button">Add slot</button>
+          </div>
+
+          <div id="interval-list" class="interval-list"></div>
+          <p id="form-error" class="form-error" aria-live="polite"></p>
+
+          <div class="form-actions">
+            <button id="delete-site" class="danger-button" type="button">Delete</button>
+            <button class="primary-button" type="submit">Save</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="usage-view" class="view usage-view" hidden>
+        <div class="section-heading">
+          <h2>Screen time</h2>
+          <label class="day-picker">
+            <span>Day</span>
+            <select id="usage-day"></select>
+          </label>
+        </div>
+
+        <section class="usage-total" aria-label="Total screen time">
+          <span>Total</span>
+          <strong id="usage-total">0m</strong>
+        </section>
+
+        <section class="usage-panel" aria-labelledby="hourly-title">
+          <div class="panel-heading">
+            <h2 id="hourly-title">Hourly usage</h2>
+            <span id="usage-peak">No usage yet</span>
+          </div>
+          <div id="hour-chart" class="hour-chart" aria-label="Hourly usage chart"></div>
+        </section>
+
+        <section class="usage-panel" aria-labelledby="share-title">
+          <div class="panel-heading">
+            <h2 id="share-title">Website share</h2>
+            <span>By total time</span>
+          </div>
+          <div class="usage-share">
+            <div id="usage-pie" class="usage-pie" aria-label="Website usage pie chart"></div>
+            <ul id="usage-pie-legend" class="usage-pie-legend"></ul>
+          </div>
+        </section>
+
+        <section class="usage-panel" aria-labelledby="sites-title">
+          <div class="panel-heading">
+            <h2 id="sites-title">Websites</h2>
+            <span id="usage-count">0 sites</span>
+          </div>
+          <ul id="usage-sites" class="usage-sites"></ul>
+        </section>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
