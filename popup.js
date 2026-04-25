@@ -191,6 +191,13 @@ savePin?.addEventListener("click", () => {
   void savePinSettings();
 });
 
+pinGlobal?.addEventListener("change", () => {
+  if (pinGlobal.checked && !settings.hasPin) {
+    pinGlobal.checked = false;
+    pinStatus.textContent = "Set and save a 4-digit PIN first.";
+  }
+});
+
 pinCode?.addEventListener("input", () => {
   pinCode.value = sanitizePinValue(pinCode.value);
   updatePinDraftStatus();
@@ -452,7 +459,7 @@ function syncPinSetupView() {
   const hasPin = Boolean(settings.hasPin);
 
   pinCode.disabled = false;
-  pinGlobal.disabled = !hasPin;
+  pinGlobal.disabled = false;
   togglePinVisibility.disabled = false;
 
   if (!hasPin) {

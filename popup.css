@@ -939,22 +939,22 @@ h2 {
 
 .site-card {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   border: 1px solid rgba(22, 32, 28, 0.12);
   border-radius: 8px;
-  background: #ffffff;
-  padding: 10px;
+  background: #f8fbff;
+  padding: 9px 10px;
 }
 
 .site-card:hover {
   border-color: rgba(37, 99, 235, 0.42);
-  background: #f8fbff;
+  background: #f1f6ff;
 }
 
 .site-row-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 6px;
+  margin-top: 2px;
 }
 
 .site-row {
@@ -962,7 +962,7 @@ h2 {
   grid-template-columns: 1fr auto;
   gap: 4px 10px;
   width: 100%;
-  min-height: 46px;
+  min-height: 40px;
   align-items: center;
   border: 0;
   border-radius: 0;
@@ -1499,6 +1499,7 @@ button:focus-visible {
   .nav-button,
   .secondary-button,
   .eye-button,
+  .site-card,
   .site-row,
   .slot-summary,
   .field input,
@@ -1517,6 +1518,7 @@ button:focus-visible {
   .nav-button:hover,
   .secondary-button:hover,
   .eye-button:hover,
+  .site-card:hover,
   .site-row:hover,
   .category-chip[aria-pressed="true"],
   .category-chip.is-highlighted,
@@ -1525,6 +1527,7 @@ button:focus-visible {
   }
 
   .status,
+  .site-card,
   .site-row,
   .slot-summary,
   .interval-row,
