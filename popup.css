@@ -937,6 +937,20 @@ h2 {
   display: block;
 }
 
+.site-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(22, 32, 28, 0.12);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.site-card:hover {
+  border-color: rgba(37, 99, 235, 0.42);
+  background: #f8fbff;
+}
+
 .site-row-actions {
   display: flex;
   justify-content: flex-end;
@@ -948,20 +962,19 @@ h2 {
   grid-template-columns: 1fr auto;
   gap: 4px 10px;
   width: 100%;
-  min-height: 58px;
+  min-height: 46px;
   align-items: center;
-  border: 1px solid rgba(22, 32, 28, 0.12);
-  border-radius: 8px;
-  background: #ffffff;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #111827;
   cursor: pointer;
-  padding: 10px;
+  padding: 0;
   text-align: left;
 }
 
 .site-row:hover {
-  border-color: rgba(37, 99, 235, 0.42);
-  background: #f8fbff;
+  background: transparent;
 }
 
 .site-domain {

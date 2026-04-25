@@ -143,6 +143,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "cut-off-site") {
     cutOffSite(message.domain)
       .then(() => refreshRules())
+      .then(async (state) => {
+        await enforceActiveTabBlock(state);
+        return state;
+      })
       .then(() => getSiteStatus(message.domain))
       .then((status) => sendResponse({ ok: true, status }))
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
@@ -877,12 +881,11 @@ async function cutOffSite(domain) {
   const site = findSiteForHost(schedule, normalizedDomain);
 
   if (!site) {
-    throw new Error("This website is not in the schedule.");
+    return;
   }
 
   const entry = ensureUsageEntry(usage, site.domain);
   entry.extraSeconds = 0;
-  entry.usedSeconds = Math.max(entry.usedSeconds, site.dailyAllowanceMinutes * 60);
   await saveUsage(usage);
   await chrome.storage.local.remove(TRACKING_KEY);
 }

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Website Tracker",
+  "name": "Focus Tracker",
   "description": "Tracks website usage and blocks distracting sites by schedule.",
   "version": "0.10.2",
   "minimum_chrome_version": "101",
@@ -24,7 +24,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Website Tracker",
+    "default_title": "Focus Tracker",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

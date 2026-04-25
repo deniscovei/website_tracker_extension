@@ -32,6 +32,7 @@ const blockModeRadios = Array.from(document.querySelectorAll('input[name="block-
 const dailyAllowance = document.getElementById("daily-allowance");
 const allowExtraTime = document.getElementById("allow-extra-time");
 const requirePinExtra = document.getElementById("require-pin-extra");
+const requirePinExtraRow = document.getElementById("require-pin-extra-row");
 const slotHeading = document.getElementById("slot-heading");
 const intervalList = document.getElementById("interval-list");
 const addInterval = document.getElementById("add-interval");
@@ -448,9 +449,27 @@ function renderPinSettings(message = "") {
 }
 
 function syncPinSetupView() {
+  const hasPin = Boolean(settings.hasPin);
+
   pinCode.disabled = false;
-  pinGlobal.disabled = !settings.hasPin;
+  pinGlobal.disabled = !hasPin;
   togglePinVisibility.disabled = false;
+
+  if (!hasPin) {
+    pinGlobal.checked = false;
+  }
+
+  if (requirePinExtraRow) {
+    requirePinExtraRow.hidden = !hasPin;
+  }
+
+  if (requirePinExtra) {
+    requirePinExtra.disabled = !hasPin;
+
+    if (!hasPin) {
+      requirePinExtra.checked = false;
+    }
+  }
 }
 
 function updatePinDraftStatus() {
@@ -538,6 +557,8 @@ function renderSiteList() {
       const meta = document.createElement("span");
       const usage = getUsageState(site.domain);
 
+      item.className = "site-card";
+
       button.type = "button";
       button.className = "site-row";
       button.addEventListener("click", () => {
@@ -569,7 +590,7 @@ function renderSiteList() {
         actions.className = "site-row-actions";
         cutOffButton.type = "button";
         cutOffButton.className = "secondary-button small";
-        cutOffButton.textContent = "Cut off";
+        cutOffButton.textContent = "Ignore added minutes";
         cutOffButton.addEventListener("click", async (event) => {
           event.stopPropagation();
           cutOffButton.disabled = true;
@@ -584,7 +605,7 @@ function renderSiteList() {
               throw new Error(response?.error || "Could not cut off website.");
             }
 
-            await loadData();
+            window.location.reload();
           } catch (error) {
             renderError(cleanError(error));
           } finally {
@@ -609,6 +630,7 @@ function openEditor(site) {
   dailyAllowance.value = String(site.dailyAllowanceMinutes || 0);
   allowExtraTime.checked = Boolean(site.allowExtraTime);
   requirePinExtra.checked = Boolean(site.requirePinForExtraTime);
+  syncPinSetupView();
   intervalList.replaceChildren();
 
   const isAlwaysBlocked = isAllDaySite(site);
@@ -2063,7 +2085,7 @@ function readSiteForm() {
     domain,
     dailyAllowanceMinutes,
     allowExtraTime: allowExtraTime.checked,
-    requirePinForExtraTime: requirePinExtra.checked,
+    requirePinForExtraTime: settings.hasPin ? requirePinExtra.checked : false,
     intervals
   };
 }
