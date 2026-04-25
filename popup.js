@@ -28,8 +28,10 @@ const siteList = document.getElementById("site-list");
 const newSite = document.getElementById("new-site");
 const siteForm = document.getElementById("site-form");
 const siteDomain = document.getElementById("site-domain");
+const blockModeRadios = Array.from(document.querySelectorAll('input[name="block-mode"]'));
 const dailyAllowance = document.getElementById("daily-allowance");
 const allowExtraTime = document.getElementById("allow-extra-time");
+const slotHeading = document.getElementById("slot-heading");
 const intervalList = document.getElementById("interval-list");
 const addInterval = document.getElementById("add-interval");
 const deleteSite = document.getElementById("delete-site");
@@ -44,9 +46,23 @@ const weekChart = document.getElementById("week-chart");
 const usagePeak = document.getElementById("usage-peak");
 const usageCount = document.getElementById("usage-count");
 const hourChart = document.getElementById("hour-chart");
+const categoryLegend = document.getElementById("category-legend");
 const usagePie = document.getElementById("usage-pie");
+const usagePieTooltip = document.getElementById("usage-pie-tooltip");
 const usagePieLegend = document.getElementById("usage-pie-legend");
+const shareCompact = document.getElementById("share-compact");
+const shareAll = document.getElementById("share-all");
 const usageSites = document.getElementById("usage-sites");
+const usageShowMore = document.getElementById("usage-show-more");
+
+const ALL_DAY_INTERVAL = {
+  start: "00:00",
+  end: "00:00"
+};
+
+const COMPACT_SITE_LIMIT = 8;
+const WEBSITE_LIST_LIMIT = 8;
+const OTHER_WEBSITES_LABEL = "Other websites";
 
 const PIE_COLORS = [
   "#2563eb",
@@ -59,6 +75,38 @@ const PIE_COLORS = [
   "#64748b"
 ];
 
+const CATEGORY_COLORS = {
+  social: "#2563eb",
+  video: "#7c3aed",
+  work: "#0ea5e9",
+  shopping: "#f59e0b",
+  news: "#ef4444",
+  learning: "#16a34a",
+  games: "#db2777",
+  other: "#64748b"
+};
+
+const CATEGORY_LABELS = {
+  social: "Social",
+  video: "Video",
+  work: "Work",
+  shopping: "Shopping",
+  news: "News",
+  learning: "Learning",
+  games: "Games",
+  other: "Other"
+};
+
+const CATEGORY_MATCHERS = [
+  { id: "social", patterns: ["facebook", "instagram", "tiktok", "twitter", "x.com", "snapchat", "reddit", "pinterest", "threads", "linkedin", "discord", "whatsapp", "telegram"] },
+  { id: "video", patterns: ["youtube", "netflix", "twitch", "hulu", "disney", "primevideo", "max.com", "vimeo", "crunchyroll"] },
+  { id: "work", patterns: ["github", "gitlab", "notion", "slack", "teams.microsoft", "atlassian", "jira", "trello", "asana", "figma", "linear", "docs.google", "drive.google", "calendar.google", "mail.google", "outlook", "office", "zoom"] },
+  { id: "shopping", patterns: ["amazon", "ebay", "etsy", "aliexpress", "walmart", "target", "shopify", "temu", "shein"] },
+  { id: "news", patterns: ["news", "nytimes", "washingtonpost", "bbc", "cnn", "reuters", "apnews", "theguardian", "bloomberg", "wsj", "medium", "substack"] },
+  { id: "learning", patterns: ["wikipedia", "coursera", "udemy", "khanacademy", "stackoverflow", "stackexchange", "mdn", "freecodecamp", "duolingo", "openai", "docs."] },
+  { id: "games", patterns: ["steam", "epicgames", "roblox", "minecraft", "chess", "lichess", "tetr", "pokemon"] }
+];
+
 let schedule = {
   timezone: "local",
   sites: []
@@ -69,6 +117,14 @@ let usageData = {
   days: [],
   usageByDay: {}
 };
+let selectedPieDomain = "";
+let highlightedPieDomain = "";
+let selectedCategory = "";
+let highlightedCategory = "";
+let selectedHour = null;
+let highlightedHour = null;
+let shareMode = "compact";
+let websitesExpanded = false;
 
 scheduleTab?.addEventListener("click", () => {
   showScheduleView();
@@ -80,6 +136,37 @@ usageTab?.addEventListener("click", () => {
 
 usageDay?.addEventListener("change", () => {
   renderUsageForDay(usageDay.value);
+});
+
+blockModeRadios.forEach((radio) => {
+  radio.addEventListener("change", syncBlockingModeView);
+});
+
+shareCompact?.addEventListener("click", () => {
+  shareMode = "compact";
+  renderUsageForDay(usageDay.value);
+});
+
+shareAll?.addEventListener("click", () => {
+  shareMode = "all";
+  renderUsageForDay(usageDay.value);
+});
+
+usageShowMore?.addEventListener("click", () => {
+  websitesExpanded = !websitesExpanded;
+  renderUsageForDay(usageDay.value);
+});
+
+document.addEventListener("click", (event) => {
+  if (usageView.hidden || !(event.target instanceof HTMLElement)) {
+    return;
+  }
+
+  if (event.target.closest("[data-pie-domain], [data-site-domain], [data-category], [data-hour], .week-day, #usage-day, .mini-toggle")) {
+    return;
+  }
+
+  clearUsageSelections();
 });
 
 refresh?.addEventListener("click", async () => {
@@ -324,13 +411,20 @@ function openEditor(site) {
   allowExtraTime.checked = Boolean(site.allowExtraTime);
   intervalList.replaceChildren();
 
-  const intervals = Array.isArray(site.intervals) && site.intervals.length > 0
+  const isAlwaysBlocked = isAllDaySite(site);
+  const intervals = !isAlwaysBlocked && Array.isArray(site.intervals) && site.intervals.length > 0
     ? site.intervals
     : [{ ...DEFAULT_INTERVAL }];
 
-  intervals.forEach((interval) => {
-    appendInterval(interval, { expanded: editingIndex === null });
-  });
+  setBlockMode(isAlwaysBlocked ? "always" : "slots");
+
+  if (!isAlwaysBlocked) {
+    intervals.forEach((interval) => {
+      appendInterval(interval, { expanded: editingIndex === null });
+    });
+  }
+
+  syncBlockingModeView();
 
   listView.hidden = true;
   editorView.hidden = false;
@@ -339,6 +433,43 @@ function openEditor(site) {
   back.hidden = false;
   deleteSite.hidden = editingIndex === null;
   siteDomain.focus();
+}
+
+function getBlockMode() {
+  return blockModeRadios.find((radio) => radio.checked)?.value || "slots";
+}
+
+function setBlockMode(mode) {
+  blockModeRadios.forEach((radio) => {
+    radio.checked = radio.value === mode;
+  });
+}
+
+function syncBlockingModeView() {
+  const isAlwaysBlocked = getBlockMode() === "always";
+  blockModeRadios.forEach((radio) => {
+    radio.closest(".mode-option")?.classList.toggle("is-selected", radio.checked);
+  });
+  slotHeading.hidden = isAlwaysBlocked;
+  intervalList.hidden = isAlwaysBlocked;
+  addInterval.disabled = isAlwaysBlocked;
+
+  if (!isAlwaysBlocked && intervalList.children.length === 0) {
+    appendInterval({ ...DEFAULT_INTERVAL }, { expanded: true });
+  }
+}
+
+function isAllDaySite(site) {
+  const intervals = Array.isArray(site?.intervals) ? site.intervals : [];
+
+  return intervals.length === 1 && isAllDayInterval(intervals[0]);
+}
+
+function isAllDayInterval(interval) {
+  const normalized = normalizeInterval(interval);
+  return normalized.start === ALL_DAY_INTERVAL.start &&
+    normalized.end === ALL_DAY_INTERVAL.end &&
+    (!normalized.days || normalized.days.length === DAYS.length);
 }
 
 function showList() {
@@ -383,6 +514,7 @@ async function loadUsageData() {
     hourChart.replaceChildren();
     usagePie.style.background = "";
     usagePie.classList.add("is-empty");
+    usagePieTooltip.hidden = true;
     usagePieLegend.replaceChildren();
     usageSites.replaceChildren(createEmptyUsageRow("Usage data could not be loaded."));
     return;
@@ -424,16 +556,19 @@ function renderUsageForDay(day) {
 
   const snapshot = normalizeUsageSnapshot(usageData.usageByDay?.[selectedDay]);
   const hourly = Array.from({ length: 24 }, () => 0);
+  const hourlyCategories = Array.from({ length: 24 }, () => ({}));
   const sites = Object.entries(snapshot.sites)
     .map(([domain, entry]) => {
       const screenSeconds = Math.max(0, Number(entry.screenSeconds) || 0);
       const hourlySeconds = normalizeHourlySeconds(entry.hourlySeconds);
+      const category = categorizeDomain(domain);
 
       hourlySeconds.forEach((seconds, index) => {
         hourly[index] += seconds;
+        hourlyCategories[index][category] = (hourlyCategories[index][category] || 0) + seconds;
       });
 
-      return { domain, screenSeconds };
+      return { domain, screenSeconds, category };
     })
     .filter((site) => site.screenSeconds > 0)
     .sort((left, right) => right.screenSeconds - left.screenSeconds);
@@ -441,15 +576,27 @@ function renderUsageForDay(day) {
   const peakSeconds = Math.max(0, ...hourly);
   const peakHour = hourly.indexOf(peakSeconds);
 
+  const compactDomains = new Set(sites.slice(0, COMPACT_SITE_LIMIT).map((site) => site.domain));
+  const hasOtherWebsites = sites.length > COMPACT_SITE_LIMIT;
+  const selectedPieDomainIsVisible = shareMode === "all"
+    ? sites.some((site) => site.domain === selectedPieDomain)
+    : compactDomains.has(selectedPieDomain) || (selectedPieDomain === OTHER_WEBSITES_LABEL && hasOtherWebsites);
+
+  if (selectedPieDomain && !selectedPieDomainIsVisible) {
+    selectedPieDomain = "";
+    highlightedPieDomain = "";
+  }
+
   usageTotal.textContent = formatDuration(totalSeconds);
   usageCount.textContent = `${sites.length} site${sites.length === 1 ? "" : "s"}`;
   usagePeak.textContent = peakSeconds > 0
     ? `Peak ${formatHour(peakHour)}: ${formatDuration(peakSeconds)}`
     : "No usage yet";
 
-  renderHourChart(hourly);
+  renderHourChart(hourly, hourlyCategories);
   renderUsagePie(sites, totalSeconds);
   renderUsageSites(sites, totalSeconds);
+  updatePieHighlight();
 }
 
 function renderWeekOverview(selectedDay) {
@@ -513,33 +660,181 @@ function renderWeekChart(entries, selectedDay, averageSeconds) {
   );
 }
 
-function renderHourChart(hourly) {
+function renderHourChart(hourly, hourlyCategories) {
+  const activeCategories = getActiveCategories(hourlyCategories);
+  if (selectedCategory && !activeCategories.includes(selectedCategory)) {
+    selectedCategory = "";
+    highlightedCategory = "";
+  }
+
   hourChart.replaceChildren(
     ...hourly.map((seconds, hour) => {
-      const column = document.createElement("div");
+      const column = document.createElement("button");
       const barWrap = document.createElement("div");
-      const bar = document.createElement("span");
       const label = document.createElement("span");
 
+      column.type = "button";
       column.className = "hour-column";
+      column.dataset.hour = String(hour);
+      column.setAttribute("aria-pressed", String(selectedHour === hour));
+      column.setAttribute("aria-label", `${formatHour(hour)}: ${formatDuration(seconds)}`);
+      column.title = `${formatHour(hour)} total: ${formatDuration(seconds)}`;
+      column.addEventListener("click", () => {
+        selectedHour = selectedHour === hour ? null : hour;
+        selectedCategory = "";
+        updateCategoryHighlight();
+      });
+
       barWrap.className = "hour-bar-track";
-      bar.className = "hour-bar";
-      bar.style.height = `${Math.min(100, seconds / 3600 * 100)}%`;
-      bar.title = `${formatHour(hour)}: ${formatDuration(seconds)}`;
+
+      activeCategories.forEach((category) => {
+        const categorySeconds = hourlyCategories[hour]?.[category] || 0;
+
+        if (categorySeconds <= 0) {
+          return;
+        }
+
+        const segment = document.createElement("span");
+        segment.className = "hour-segment";
+        segment.dataset.category = category;
+        segment.dataset.hour = String(hour);
+        segment.style.height = `${Math.min(100, categorySeconds / 3600 * 100)}%`;
+        segment.style.background = CATEGORY_COLORS[category] || CATEGORY_COLORS.other;
+        segment.title = `${formatHour(hour)} total: ${formatDuration(seconds)} · ${CATEGORY_LABELS[category]}: ${formatDuration(categorySeconds)}`;
+        segment.addEventListener("mouseenter", () => {
+          highlightedCategory = category;
+          highlightedHour = hour;
+          updateCategoryHighlight();
+        });
+        segment.addEventListener("mouseleave", () => {
+          highlightedCategory = "";
+          highlightedHour = null;
+          updateCategoryHighlight();
+        });
+        segment.addEventListener("click", (event) => {
+          event.stopPropagation();
+          selectedCategory = selectedCategory === category && selectedHour === hour ? "" : category;
+          selectedHour = selectedCategory ? hour : null;
+          updateCategoryHighlight();
+        });
+        barWrap.append(segment);
+      });
+
       label.className = "hour-label";
       label.textContent = hour % 3 === 0 ? String(hour) : "";
 
-      barWrap.append(bar);
       column.append(barWrap, label);
       return column;
     })
   );
+  renderCategoryLegend(activeCategories);
+  updateCategoryHighlight();
+}
+
+function renderCategoryLegend(categories) {
+  if (categories.length === 0) {
+    categoryLegend.replaceChildren();
+    return;
+  }
+
+  categoryLegend.replaceChildren(
+    ...categories.map((category) => {
+      const button = document.createElement("button");
+      const swatch = document.createElement("span");
+      const label = document.createElement("span");
+
+      button.type = "button";
+      button.className = "category-chip";
+      button.dataset.category = category;
+      button.setAttribute("aria-pressed", String(selectedCategory === category && selectedHour === null));
+      button.addEventListener("mouseenter", () => {
+        highlightedCategory = category;
+        highlightedHour = null;
+        updateCategoryHighlight();
+      });
+      button.addEventListener("mouseleave", () => {
+        highlightedCategory = "";
+        highlightedHour = null;
+        updateCategoryHighlight();
+      });
+      button.addEventListener("click", () => {
+        selectedCategory = selectedCategory === category && selectedHour === null ? "" : category;
+        selectedHour = null;
+        updateCategoryHighlight();
+      });
+
+      swatch.className = "category-swatch";
+      swatch.style.background = CATEGORY_COLORS[category] || CATEGORY_COLORS.other;
+      label.textContent = CATEGORY_LABELS[category] || CATEGORY_LABELS.other;
+
+      button.append(swatch, label);
+      return button;
+    })
+  );
+}
+
+function updateCategoryHighlight() {
+  const activeCategory = highlightedCategory || selectedCategory;
+  const activeHour = highlightedHour ?? selectedHour;
+  const hasHighlight = Boolean(activeCategory || activeHour !== null);
+
+  hourChart.classList.toggle("has-highlight", hasHighlight);
+
+  hourChart.querySelectorAll("[data-category]").forEach((segment) => {
+    const categoryMatches = !activeCategory || segment.dataset.category === activeCategory;
+    const hourMatches = activeHour === null || Number(segment.dataset.hour) === activeHour;
+    const isHighlighted = hasHighlight && categoryMatches && hourMatches;
+    segment.classList.toggle("is-highlighted", isHighlighted);
+    segment.classList.toggle("is-muted", hasHighlight && !isHighlighted);
+  });
+
+  hourChart.querySelectorAll(".hour-column").forEach((column) => {
+    const isSelectedHour = selectedHour !== null && Number(column.dataset.hour) === selectedHour;
+    column.setAttribute("aria-pressed", String(isSelectedHour));
+  });
+
+  categoryLegend.querySelectorAll("[data-category]").forEach((button) => {
+    const isSelected = selectedCategory === button.dataset.category && selectedHour === null;
+    const isHighlighted = activeCategory === button.dataset.category;
+    button.setAttribute("aria-pressed", String(isSelected));
+    button.classList.toggle("is-highlighted", isHighlighted);
+  });
+}
+
+function getActiveCategories(hourlyCategories) {
+  const totals = {};
+
+  hourlyCategories.forEach((bucket) => {
+    Object.entries(bucket).forEach(([category, seconds]) => {
+      totals[category] = (totals[category] || 0) + seconds;
+    });
+  });
+
+  return Object.entries(totals)
+    .filter(([, seconds]) => seconds > 0)
+    .sort((left, right) => {
+      if (left[0] === "other") {
+        return 1;
+      }
+
+      if (right[0] === "other") {
+        return -1;
+      }
+
+      return right[1] - left[1];
+    })
+    .map(([category]) => category);
 }
 
 function renderUsagePie(sites, totalSeconds) {
+  updateShareModeButtons();
+
   if (sites.length === 0 || totalSeconds <= 0) {
-    usagePie.style.background = "";
+    selectedPieDomain = "";
+    highlightedPieDomain = "";
+    usagePie.replaceChildren();
     usagePie.classList.add("is-empty");
+    usagePieTooltip.hidden = true;
     usagePieLegend.replaceChildren(createEmptyUsageRow("No website share yet."));
     return;
   }
@@ -547,41 +842,183 @@ function renderUsagePie(sites, totalSeconds) {
   usagePie.classList.remove("is-empty");
 
   const segments = getPieSegments(sites, totalSeconds);
-  let cursor = 0;
-  const gradient = segments.map((segment, index) => {
-    const start = cursor;
-    const end = index === segments.length - 1 ? 100 : cursor + segment.percent;
-    cursor = end;
-    return `${segment.color} ${start}% ${end}%`;
-  }).join(", ");
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  let cursor = -90;
 
-  usagePie.style.background = `conic-gradient(${gradient})`;
+  svg.setAttribute("viewBox", "0 0 100 100");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Website usage share");
+
+  segments.forEach((segment, index) => {
+    const startAngle = cursor;
+    const endAngle = index === segments.length - 1
+      ? 270
+      : cursor + segment.percent / 100 * 360;
+    const slice = createPieSlice(segment, startAngle, endAngle);
+
+    cursor = endAngle;
+    svg.append(slice);
+  });
+
+  usagePie.replaceChildren(svg);
   usagePieLegend.replaceChildren(
     ...segments.map((segment) => {
       const item = document.createElement("li");
+      const button = document.createElement("button");
       const swatch = document.createElement("span");
       const label = document.createElement("span");
       const value = document.createElement("strong");
 
       item.className = "usage-pie-item";
+      button.type = "button";
+      button.className = "usage-pie-button";
+      button.dataset.pieDomain = segment.domain;
+      button.addEventListener("mouseenter", () => {
+        highlightedPieDomain = segment.domain;
+        updatePieHighlight();
+      });
+      button.addEventListener("mouseleave", () => {
+        highlightedPieDomain = "";
+        updatePieHighlight();
+      });
+      button.addEventListener("click", () => {
+        selectedPieDomain = selectedPieDomain === segment.domain ? "" : segment.domain;
+        highlightedPieDomain = "";
+        updatePieHighlight();
+      });
       swatch.className = "usage-pie-swatch";
       swatch.style.background = segment.color;
       label.className = "usage-pie-label";
       label.textContent = segment.domain;
       value.textContent = `${Math.round(segment.percent)}% · ${formatDuration(segment.seconds)}`;
 
-      item.append(swatch, label, value);
+      button.append(swatch, label, value);
+      item.append(button);
       return item;
     })
   );
+  updatePieHighlight();
+}
+
+function createPieSlice(segment, startAngle, endAngle) {
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+  const fullCircle = endAngle - startAngle >= 359.9;
+
+  path.dataset.pieDomain = segment.domain;
+  path.dataset.pieLabel = `${segment.domain}: ${formatDuration(segment.seconds)}`;
+  path.setAttribute("fill", segment.color);
+  path.setAttribute("tabindex", "0");
+  path.setAttribute("role", "button");
+  path.setAttribute("aria-label", path.dataset.pieLabel);
+  path.setAttribute("d", fullCircle ? describePieCircle() : describePieSlice(50, 50, 45, startAngle, endAngle));
+  title.textContent = path.dataset.pieLabel;
+  path.append(title);
+
+  path.addEventListener("mouseenter", (event) => {
+    highlightedPieDomain = segment.domain;
+    showPieTooltip(segment.domain, formatDuration(segment.seconds));
+    movePieTooltip(event);
+    updatePieHighlight();
+  });
+  path.addEventListener("mousemove", (event) => {
+    movePieTooltip(event);
+  });
+  path.addEventListener("mouseleave", () => {
+    highlightedPieDomain = "";
+    usagePieTooltip.hidden = true;
+    updatePieHighlight();
+  });
+  path.addEventListener("click", () => {
+    selectedPieDomain = selectedPieDomain === segment.domain ? "" : segment.domain;
+    highlightedPieDomain = "";
+    usagePieTooltip.hidden = true;
+    updatePieHighlight();
+  });
+  path.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      path.dispatchEvent(new MouseEvent("click"));
+    }
+  });
+
+  return path;
+}
+
+function updatePieHighlight() {
+  const activeDomain = highlightedPieDomain || selectedPieDomain;
+  const hasHighlight = Boolean(activeDomain);
+
+  usagePie.classList.toggle("has-highlight", hasHighlight);
+  usagePie.querySelectorAll("[data-pie-domain]").forEach((slice) => {
+    const isActive = slice.dataset.pieDomain === activeDomain;
+    slice.classList.toggle("is-highlighted", isActive);
+    slice.classList.toggle("is-muted", hasHighlight && !isActive);
+  });
+
+  usagePieLegend.querySelectorAll("[data-pie-domain]").forEach((button) => {
+    const isActive = button.dataset.pieDomain === activeDomain;
+    const isSelected = button.dataset.pieDomain === selectedPieDomain;
+    button.classList.toggle("is-highlighted", isActive);
+    button.setAttribute("aria-pressed", String(isSelected));
+  });
+
+  usageSites.querySelectorAll("[data-site-domain]").forEach((row) => {
+    row.classList.toggle("is-highlighted", row.dataset.siteDomain === activeDomain);
+  });
+}
+
+function showPieTooltip(domain, duration) {
+  usagePieTooltip.textContent = `${domain} · ${duration}`;
+  usagePieTooltip.hidden = false;
+}
+
+function movePieTooltip(event) {
+  const rect = usagePie.parentElement.getBoundingClientRect();
+  usagePieTooltip.style.left = `${event.clientX - rect.left}px`;
+  usagePieTooltip.style.top = `${event.clientY - rect.top}px`;
+}
+
+function describePieCircle() {
+  return [
+    "M 50 50",
+    "m -45 0",
+    "a 45 45 0 1 0 90 0",
+    "a 45 45 0 1 0 -90 0"
+  ].join(" ");
+}
+
+function describePieSlice(cx, cy, radius, startAngle, endAngle) {
+  const start = polarToCartesian(cx, cy, radius, endAngle);
+  const end = polarToCartesian(cx, cy, radius, startAngle);
+  const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+
+  return [
+    `M ${cx} ${cy}`,
+    `L ${start.x} ${start.y}`,
+    `A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`,
+    "Z"
+  ].join(" ");
+}
+
+function polarToCartesian(cx, cy, radius, angleInDegrees) {
+  const angleInRadians = angleInDegrees * Math.PI / 180;
+
+  return {
+    x: cx + radius * Math.cos(angleInRadians),
+    y: cy + radius * Math.sin(angleInRadians)
+  };
 }
 
 function getPieSegments(sites, totalSeconds) {
-  const visibleSites = sites.slice(0, PIE_COLORS.length - 1);
-  const hiddenSeconds = sites.slice(PIE_COLORS.length - 1)
-    .reduce((sum, site) => sum + site.screenSeconds, 0);
-  const segments = hiddenSeconds > 0
-    ? [...visibleSites, { domain: "Other", screenSeconds: hiddenSeconds }]
+  const visibleSites = shareMode === "all"
+    ? sites
+    : sites.slice(0, COMPACT_SITE_LIMIT);
+  const otherSeconds = shareMode === "all"
+    ? 0
+    : sites.slice(COMPACT_SITE_LIMIT).reduce((sum, site) => sum + site.screenSeconds, 0);
+  const segments = otherSeconds > 0
+    ? [...visibleSites, { domain: OTHER_WEBSITES_LABEL, screenSeconds: otherSeconds }]
     : visibleSites;
 
   return segments.map((site, index) => ({
@@ -592,14 +1029,45 @@ function getPieSegments(sites, totalSeconds) {
   }));
 }
 
+function updateShareModeButtons() {
+  shareCompact?.setAttribute("aria-pressed", String(shareMode === "compact"));
+  shareAll?.setAttribute("aria-pressed", String(shareMode === "all"));
+}
+
+function clearUsageSelections() {
+  selectedPieDomain = "";
+  highlightedPieDomain = "";
+  selectedCategory = "";
+  highlightedCategory = "";
+  selectedHour = null;
+  highlightedHour = null;
+  usagePieTooltip.hidden = true;
+  updatePieHighlight();
+  updateCategoryHighlight();
+}
+
+function categorizeDomain(domain) {
+  const value = String(domain || "").toLowerCase();
+  const match = CATEGORY_MATCHERS.find((category) => {
+    return category.patterns.some((pattern) => value.includes(pattern));
+  });
+
+  return match?.id || "other";
+}
+
 function renderUsageSites(sites, totalSeconds) {
   if (sites.length === 0) {
     usageSites.replaceChildren(createEmptyUsageRow("No website usage recorded for this day."));
+    usageShowMore.hidden = true;
     return;
   }
 
+  const visibleSites = websitesExpanded ? sites : sites.slice(0, WEBSITE_LIST_LIMIT);
+  usageShowMore.hidden = sites.length <= WEBSITE_LIST_LIMIT;
+  usageShowMore.textContent = websitesExpanded ? "Show less" : `Show all ${sites.length}`;
+
   usageSites.replaceChildren(
-    ...sites.map((site) => {
+    ...visibleSites.map((site) => {
       const item = document.createElement("li");
       const top = document.createElement("div");
       const domain = document.createElement("span");
@@ -609,6 +1077,29 @@ function renderUsageSites(sites, totalSeconds) {
       const percent = totalSeconds > 0 ? site.screenSeconds / totalSeconds * 100 : 0;
 
       item.className = "usage-site-row";
+      item.dataset.siteDomain = site.domain;
+      item.tabIndex = 0;
+      item.setAttribute("role", "button");
+      item.setAttribute("aria-label", `${site.domain}: ${formatDuration(site.screenSeconds)}`);
+      item.addEventListener("mouseenter", () => {
+        highlightedPieDomain = site.domain;
+        updatePieHighlight();
+      });
+      item.addEventListener("mouseleave", () => {
+        highlightedPieDomain = "";
+        updatePieHighlight();
+      });
+      item.addEventListener("click", () => {
+        selectedPieDomain = selectedPieDomain === site.domain ? "" : site.domain;
+        highlightedPieDomain = "";
+        updatePieHighlight();
+      });
+      item.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          item.click();
+        }
+      });
       top.className = "usage-site-main";
       domain.className = "usage-domain";
       domain.textContent = site.domain;
@@ -1098,7 +1589,9 @@ function minutesToTime(value) {
 
 function readSiteForm() {
   const domain = normalizeDomain(siteDomain.value);
-  const intervals = readIntervals();
+  const intervals = getBlockMode() === "always"
+    ? [{ ...ALL_DAY_INTERVAL }]
+    : readIntervals();
   const dailyAllowanceMinutes = normalizeAllowanceMinutes(dailyAllowance.value);
 
   if (!domain) {
@@ -1295,8 +1788,10 @@ function isValidTime(value) {
 
 function siteSummary(site, usage = null) {
   const count = site.intervals.length;
-  const slotText = `${count} slot${count === 1 ? "" : "s"}`;
-  const parts = [`blocked during ${slotText}`];
+  const slotText = isAllDaySite(site)
+    ? "always"
+    : `during ${count} slot${count === 1 ? "" : "s"}`;
+  const parts = [`blocked ${slotText}`];
 
   if (site.dailyAllowanceMinutes > 0) {
     parts.push(`${site.dailyAllowanceMinutes} min/day`);

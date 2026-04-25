@@ -8,6 +8,7 @@ const USAGE_HISTORY_KEY = "scheduleBlockerUsageHistory";
 const TRACKING_KEY = "scheduleBlockerTracking";
 const SCREEN_TRACKING_KEY = "scheduleBlockerScreenTracking";
 const MAX_USAGE_HISTORY_DAYS = 30;
+const MAX_TRACKING_GAP_SECONDS = 2 * 60;
 const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 const DAY_ALIASES = new Map([
@@ -536,7 +537,7 @@ async function accrueActiveUsage() {
 
     if (previousSite && isSiteInBlockedSlot(previousSite, now)) {
       const remainingSeconds = getRemainingSeconds(previousSite, usage);
-      const elapsedSeconds = Math.max(0, (currentTime - previous.lastTick) / 1000);
+      const elapsedSeconds = getTrackableElapsedSeconds(previous.lastTick, currentTime);
       addUsedSeconds(usage, previousSite.domain, Math.min(elapsedSeconds, remainingSeconds));
       changedUsage = elapsedSeconds > 0;
     }
@@ -574,10 +575,12 @@ async function accrueScreenUsage() {
   let changedUsage = false;
 
   if (previous?.date === today && previous?.domain && Number.isFinite(previous.lastTick)) {
+    const elapsedSeconds = getTrackableElapsedSeconds(previous.lastTick, currentTime);
+
     changedUsage = addScreenUsageSeconds(
       usage,
       previous.domain,
-      previous.lastTick,
+      currentTime - elapsedSeconds * 1000,
       currentTime
     ) || changedUsage;
   }
@@ -801,6 +804,20 @@ function addUsedSeconds(usage, domain, seconds) {
 function addExtraSeconds(usage, domain, seconds) {
   const entry = ensureUsageEntry(usage, domain);
   entry.extraSeconds += Math.max(0, seconds);
+}
+
+function getTrackableElapsedSeconds(startTime, endTime) {
+  const elapsedSeconds = Math.max(0, (Number(endTime) - Number(startTime)) / 1000);
+
+  if (!Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) {
+    return 0;
+  }
+
+  if (elapsedSeconds > MAX_TRACKING_GAP_SECONDS) {
+    return 0;
+  }
+
+  return elapsedSeconds;
 }
 
 function addScreenUsageSeconds(usage, domain, startTime, endTime) {

@@ -3,16 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Scheduled Website Blocker</title>
+    <title>Website Tracker</title>
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
     <main class="popup">
       <header class="topbar">
         <button id="back" class="icon-button" type="button" aria-label="Back" hidden>&larr;</button>
+        <img class="brand-icon" src="icons/icon48.png" alt="" aria-hidden="true">
         <div>
           <p class="eyebrow">Schedule</p>
-          <h1>Website Blocker</h1>
+          <h1>Website Tracker</h1>
         </div>
       </header>
 
@@ -43,10 +44,30 @@
             <input id="site-domain" type="text" inputmode="url" autocomplete="off" placeholder="instagram.com" required>
           </label>
 
+          <section class="mode-panel" aria-labelledby="mode-title">
+            <h2 id="mode-title">Blocking mode</h2>
+            <div class="mode-options">
+              <label class="mode-option">
+                <input type="radio" name="block-mode" value="always">
+                <span>
+                  <strong>Always blocked</strong>
+                  <small>Keep it blocked unless allowance time remains.</small>
+                </span>
+              </label>
+              <label class="mode-option">
+                <input type="radio" name="block-mode" value="slots" checked>
+                <span>
+                  <strong>Timed blocks</strong>
+                  <small>Choose the blocked windows yourself.</small>
+                </span>
+              </label>
+            </div>
+          </section>
+
           <section class="allowance-panel" aria-labelledby="allowance-title">
             <div>
               <h2 id="allowance-title">Daily allowance</h2>
-              <p>Usable time during blocked slots.</p>
+              <p>Usable time while this website is blocked.</p>
             </div>
             <label class="field allowance-field">
               <span>Minutes</span>
@@ -58,7 +79,7 @@
             </label>
           </section>
 
-          <div class="section-heading compact">
+          <div id="slot-heading" class="section-heading compact">
             <h2>Blocked slots</h2>
             <button id="add-interval" class="secondary-button small" type="button">Add slot</button>
           </div>
@@ -111,15 +132,22 @@
             <span id="usage-peak">No usage yet</span>
           </div>
           <div id="hour-chart" class="hour-chart" aria-label="Hourly usage chart"></div>
+          <div id="category-legend" class="category-legend" aria-label="Usage categories"></div>
         </section>
 
         <section class="usage-panel" aria-labelledby="share-title">
           <div class="panel-heading">
             <h2 id="share-title">Website share</h2>
-            <span>By total time</span>
+            <div class="mini-toggle" aria-label="Website share view">
+              <button id="share-compact" type="button" aria-pressed="true">Top sites</button>
+              <button id="share-all" type="button" aria-pressed="false">All sites</button>
+            </div>
           </div>
           <div class="usage-share">
-            <div id="usage-pie" class="usage-pie" aria-label="Website usage pie chart"></div>
+            <div class="usage-pie-wrap">
+              <div id="usage-pie" class="usage-pie" aria-label="Website usage pie chart"></div>
+              <div id="usage-pie-tooltip" class="usage-pie-tooltip" hidden></div>
+            </div>
             <ul id="usage-pie-legend" class="usage-pie-legend"></ul>
           </div>
         </section>
@@ -130,6 +158,7 @@
             <span id="usage-count">0 sites</span>
           </div>
           <ul id="usage-sites" class="usage-sites"></ul>
+          <button id="usage-show-more" class="secondary-button small" type="button" hidden>Show all</button>
         </section>
       </section>
     </main>
