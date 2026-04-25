@@ -117,9 +117,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "validate-pin") {
-    sendResponse({ ok: true, configured: false, valid: true });
+    loadSettings()
+      .then(async (settings) => {
+        return {
+          configured: Boolean(settings.pinHash),
+          valid: await verifyPin(message.pin, settings)
+        };
+      })
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
 
-    return false;
+    return true;
   }
 
   if (message?.type === "add-extra-time") {
@@ -245,9 +253,24 @@ async function loadPublicSettings() {
 
 async function saveSettings(value = {}) {
   const current = await loadSettings();
+  let pinHash = current.pinHash;
+
+  if (value.clearPin) {
+    pinHash = "";
+  } else if (value.pin) {
+    const pin = String(value.pin);
+
+    if (!/^\d{4}$/.test(pin)) {
+      throw new Error("Use exactly 4 digits for the PIN.");
+    }
+
+    pinHash = await hashPin(pin);
+  }
+
+  const requirePinForAllExtraTime = Boolean(value.requirePinForAllExtraTime) && Boolean(pinHash);
   const next = normalizeSettingsForStorage({
-    ...current,
-    allowExtraTimeForAllSites: Boolean(value.allowExtraTimeForAllSites)
+    pinHash,
+    requirePinForAllExtraTime
   });
 
   await chrome.storage.local.set({ [SETTINGS_KEY]: next });
@@ -257,14 +280,14 @@ async function saveSettings(value = {}) {
 function normalizeSettingsForStorage(value = {}) {
   return {
     pinHash: typeof value.pinHash === "string" ? value.pinHash : "",
-    requirePinForAllExtraTime: Boolean(value.requirePinForAllExtraTime),
-    allowExtraTimeForAllSites: Boolean(value.allowExtraTimeForAllSites)
+    requirePinForAllExtraTime: Boolean(value.requirePinForAllExtraTime)
   };
 }
 
 function publicSettings(settings) {
   return {
-    allowExtraTimeForAllSites: Boolean(settings.allowExtraTimeForAllSites)
+    hasPin: Boolean(settings.pinHash),
+    requirePinForAllExtraTime: Boolean(settings.pinHash && settings.requirePinForAllExtraTime)
   };
 }
 
@@ -829,8 +852,12 @@ async function addExtraTime(domain, minutes, pin = "") {
     throw new Error("This website is not in the schedule.");
   }
 
-  if (!site.allowExtraTime && !settings.allowExtraTimeForAllSites) {
+  if (!site.allowExtraTime) {
     throw new Error("Extra time is disabled for this website.");
+  }
+
+  if (isExtraTimePinRequired(site, settings) && !await verifyPin(pin, settings)) {
+    throw new Error("Incorrect PIN.");
   }
 
   const extraMinutes = Number(minutes);
@@ -1072,23 +1099,24 @@ function getSiteUsageStates(schedule, now, usage, settings) {
 
 function buildSiteUsageState(site, now, usage, settings = {}) {
   const entry = getSiteUsageEntry(usage, site.domain);
-  const allowExtraTime = Boolean(site.allowExtraTime || settings.allowExtraTimeForAllSites);
 
   return {
     found: true,
     domain: site.domain,
-    allowExtraTime,
+    allowExtraTime: site.allowExtraTime,
     dailyAllowanceMinutes: site.dailyAllowanceMinutes,
     extraSeconds: entry.extraSeconds,
     inBlockedSlot: isSiteInBlockedSlot(site, now),
     isBlocked: shouldBlockSite(site, now, usage),
+    pinConfigured: Boolean(settings.pinHash),
     remainingSeconds: getRemainingSeconds(site, usage),
+    requiresPinForExtraTime: isExtraTimePinRequired(site, settings),
     usedSeconds: entry.usedSeconds
   };
 }
 
 function isExtraTimePinRequired(site, settings = {}) {
-  return false;
+  return Boolean(settings.pinHash && (settings.requirePinForAllExtraTime || site.requirePinForExtraTime));
 }
 
 function getTimeParts(timezone = "local") {

@@ -937,6 +937,12 @@ h2 {
   display: block;
 }
 
+.site-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
 .site-row {
   display: grid;
   grid-template-columns: 1fr auto;

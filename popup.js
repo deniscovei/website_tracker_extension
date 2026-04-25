@@ -31,14 +31,18 @@ const siteDomain = document.getElementById("site-domain");
 const blockModeRadios = Array.from(document.querySelectorAll('input[name="block-mode"]'));
 const dailyAllowance = document.getElementById("daily-allowance");
 const allowExtraTime = document.getElementById("allow-extra-time");
+const requirePinExtra = document.getElementById("require-pin-extra");
 const slotHeading = document.getElementById("slot-heading");
 const intervalList = document.getElementById("interval-list");
 const addInterval = document.getElementById("add-interval");
 const deleteSite = document.getElementById("delete-site");
 const formError = document.getElementById("form-error");
-const globalExtraTime = document.getElementById("global-extra-time");
-const saveSettingsButton = document.getElementById("save-settings");
-const settingsStatus = document.getElementById("settings-status");
+const SETTINGS_KEY = "websiteTrackerSettings";
+const pinGlobal = document.getElementById("pin-global");
+const pinCode = document.getElementById("pin-code");
+const savePin = document.getElementById("save-pin");
+const pinStatus = document.getElementById("pin-status");
+const togglePinVisibility = document.getElementById("toggle-pin-visibility");
 const analyticsSummary = document.getElementById("analytics-summary");
 const prevWeek = document.getElementById("prev-week");
 const nextWeek = document.getElementById("next-week");
@@ -126,7 +130,8 @@ let schedule = {
 };
 let state = null;
 let settings = {
-  allowExtraTimeForAllSites: false
+  hasPin: false,
+  requirePinForAllExtraTime: false
 };
 let editingIndex = null;
 let usageData = {
@@ -142,6 +147,7 @@ let highlightedHour = null;
 let shareMode = "compact";
 let websitesExpanded = false;
 let selectedWeekDay = "";
+let popupPinVisible = false;
 let selectedUsageDay = dateToDayKey(new Date());
 let currentDaySites = [];
 let currentHourlyTotals = [];
@@ -180,8 +186,18 @@ nextHour?.addEventListener("click", () => {
   shiftSelectedHour(1);
 });
 
-saveSettingsButton?.addEventListener("click", () => {
-  void saveGlobalSettings();
+savePin?.addEventListener("click", () => {
+  void savePinSettings();
+});
+
+pinCode?.addEventListener("input", () => {
+  pinCode.value = sanitizePinValue(pinCode.value);
+  updatePinDraftStatus();
+});
+
+togglePinVisibility?.addEventListener("click", () => {
+  popupPinVisible = !popupPinVisible;
+  setPinVisibility(pinCode, togglePinVisibility, popupPinVisible);
 });
 
 shareCompact?.addEventListener("click", () => {
@@ -240,6 +256,7 @@ newSite?.addEventListener("click", () => {
     domain: "",
     dailyAllowanceMinutes: 0,
     allowExtraTime: false,
+    requirePinForExtraTime: false,
     intervals: [{ ...DEFAULT_INTERVAL }]
   });
 });
@@ -331,7 +348,7 @@ async function loadData() {
   schedule = normalizeSchedule(response.schedule);
   state = response.state;
   settings = normalizeSettings(response.settings);
-  renderSettingsPanel();
+  renderPinSettings();
   renderStatus();
   renderSiteList();
 }
@@ -349,31 +366,53 @@ async function persistSchedule() {
   schedule = normalizeSchedule(response.schedule);
   state = response.state;
   settings = normalizeSettings(response.settings || settings);
-  renderSettingsPanel();
+  renderPinSettings();
   renderStatus();
   renderSiteList();
 }
 
-async function saveGlobalSettings() {
-  if (!saveSettingsButton || !globalExtraTime || !settingsStatus) {
+async function savePinSettings() {
+  const nextPin = sanitizePinValue(pinCode.value);
+
+  pinCode.value = nextPin;
+
+  if (nextPin && nextPin.length !== 4) {
+    pinStatus.textContent = "Use exactly 4 digits.";
     return;
   }
 
-  saveSettingsButton.disabled = true;
-  try {
-    const response = await chrome.runtime.sendMessage({
-      type: "save-settings",
-      settings: {
-        allowExtraTimeForAllSites: Boolean(globalExtraTime.checked)
-      }
-    });
+  if (!settings.hasPin && nextPin.length !== 4) {
+    pinStatus.textContent = "Enter a 4-digit PIN.";
+    return;
+  }
 
-    if (!response?.ok) {
-      throw new Error(response?.error || "Could not save settings.");
+  savePin.disabled = true;
+  pinGlobal.disabled = true;
+  pinCode.disabled = true;
+  togglePinVisibility.disabled = true;
+
+  try {
+    const stored = await chrome.storage.local.get(SETTINGS_KEY);
+    let pinHash = typeof stored[SETTINGS_KEY]?.pinHash === "string"
+      ? stored[SETTINGS_KEY].pinHash
+      : "";
+
+    if (nextPin.length === 4) {
+      pinHash = await createPinHash(nextPin);
     }
 
-    settings = normalizeSettings(response.settings || settings);
-    renderSettingsPanel("Settings saved.");
+    const savedSettings = {
+      pinHash,
+      requirePinForAllExtraTime: Boolean(pinGlobal.checked && pinHash)
+    };
+
+    await chrome.storage.local.set({ [SETTINGS_KEY]: savedSettings });
+    settings = normalizeSettings({
+      hasPin: Boolean(savedSettings.pinHash),
+      requirePinForAllExtraTime: savedSettings.requirePinForAllExtraTime
+    });
+    pinCode.value = "";
+    renderPinSettings("PIN settings saved.");
     renderSiteList();
 
     try {
@@ -383,25 +422,50 @@ async function saveGlobalSettings() {
         void refreshPromise.catch(() => {});
       }
     } catch (_error) {
-      // Saving settings already succeeded; refreshing status can wait for the next tick.
+      // Saving the PIN already succeeded; refreshing status can wait for the next tick.
     }
   } catch (error) {
-    settingsStatus.textContent = cleanError(error);
+    pinStatus.textContent = cleanError(error);
   } finally {
-    saveSettingsButton.disabled = false;
+    savePin.disabled = false;
+    syncPinSetupView();
   }
 }
 
-function renderSettingsPanel(message = "") {
-  if (globalExtraTime) {
-    globalExtraTime.checked = Boolean(settings.allowExtraTimeForAllSites);
-  }
+function renderPinSettings(message = "") {
+  pinGlobal.checked = Boolean(settings.requirePinForAllExtraTime);
+  pinCode.value = "";
+  popupPinVisible = false;
+  setPinVisibility(pinCode, togglePinVisibility, false);
+  syncPinSetupView();
 
-  if (!settingsStatus) {
+  if (message) {
+    pinStatus.textContent = message;
     return;
   }
 
-  settingsStatus.textContent = message || "Applies to selected websites.";
+  updatePinDraftStatus();
+}
+
+function syncPinSetupView() {
+  pinCode.disabled = false;
+  pinGlobal.disabled = !settings.hasPin;
+  togglePinVisibility.disabled = false;
+}
+
+function updatePinDraftStatus() {
+  const nextPin = sanitizePinValue(pinCode.value);
+
+  if (nextPin.length === 0) {
+    pinStatus.textContent = settings.hasPin
+      ? "Leave the field blank to keep the current PIN."
+      : "Enter a new 4-digit PIN.";
+    return;
+  }
+
+  pinStatus.textContent = nextPin.length === 4
+    ? "PIN ready."
+    : "PIN must be 4 digits.";
 }
 
 function renderStatus() {
@@ -472,6 +536,7 @@ function renderSiteList() {
       const button = document.createElement("button");
       const title = document.createElement("span");
       const meta = document.createElement("span");
+      const usage = getUsageState(site.domain);
 
       button.type = "button";
       button.className = "site-row";
@@ -484,7 +549,7 @@ function renderSiteList() {
       title.textContent = site.domain;
 
       meta.className = "site-meta";
-      meta.textContent = siteSummary(site, getUsageState(site.domain));
+      meta.textContent = siteSummary(site, usage);
 
       button.append(title, meta);
 
@@ -496,6 +561,41 @@ function renderSiteList() {
       }
 
       item.append(button);
+
+      if ((usage?.extraSeconds || 0) > 0) {
+        const actions = document.createElement("div");
+        const cutOffButton = document.createElement("button");
+
+        actions.className = "site-row-actions";
+        cutOffButton.type = "button";
+        cutOffButton.className = "secondary-button small";
+        cutOffButton.textContent = "Cut off";
+        cutOffButton.addEventListener("click", async (event) => {
+          event.stopPropagation();
+          cutOffButton.disabled = true;
+
+          try {
+            const response = await chrome.runtime.sendMessage({
+              type: "cut-off-site",
+              domain: site.domain
+            });
+
+            if (!response?.ok) {
+              throw new Error(response?.error || "Could not cut off website.");
+            }
+
+            await loadData();
+          } catch (error) {
+            renderError(cleanError(error));
+          } finally {
+            cutOffButton.disabled = false;
+          }
+        });
+
+        actions.append(cutOffButton);
+        item.append(actions);
+      }
+
       return item;
     })
   );
@@ -508,6 +608,7 @@ function openEditor(site) {
   siteDomain.value = site.domain || "";
   dailyAllowance.value = String(site.dailyAllowanceMinutes || 0);
   allowExtraTime.checked = Boolean(site.allowExtraTime);
+  requirePinExtra.checked = Boolean(site.requirePinForExtraTime);
   intervalList.replaceChildren();
 
   const isAlwaysBlocked = isAllDaySite(site);
@@ -1962,6 +2063,7 @@ function readSiteForm() {
     domain,
     dailyAllowanceMinutes,
     allowExtraTime: allowExtraTime.checked,
+    requirePinForExtraTime: requirePinExtra.checked,
     intervals
   };
 }
@@ -2058,6 +2160,7 @@ function normalizeSchedule(value) {
         domain: normalizeDomain(site.domain || site.domains?.[0] || ""),
         dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
         allowExtraTime: Boolean(site.allowExtraTime),
+        requirePinForExtraTime: Boolean(site.requirePinForExtraTime),
         intervals: Array.isArray(site.intervals) ? site.intervals.map(normalizeInterval) : []
       }))
       .filter((site) => site.domain)
@@ -2066,8 +2169,76 @@ function normalizeSchedule(value) {
 
 function normalizeSettings(value) {
   return {
-    allowExtraTimeForAllSites: Boolean(value?.allowExtraTimeForAllSites)
+    hasPin: Boolean(value?.hasPin),
+    requirePinForAllExtraTime: Boolean(value?.requirePinForAllExtraTime)
   };
+}
+
+function sanitizePinValue(value) {
+  return String(value || "").replace(/\D+/g, "").slice(0, 4);
+}
+
+function setPinVisibility(input, button, isVisible) {
+  if (!input || !button) {
+    return;
+  }
+
+  input.type = isVisible ? "text" : "password";
+  button.setAttribute("aria-pressed", String(isVisible));
+  button.setAttribute("aria-label", `${isVisible ? "Hide" : "Show"} PIN`);
+  button.innerHTML = isVisible ? getEyeOffIcon() : getEyeIcon();
+}
+
+function getEyeIcon() {
+  return [
+    '<svg viewBox="0 0 24 24" aria-hidden="true">',
+    '<path d="M1.5 12s3.9-6.5 10.5-6.5S22.5 12 22.5 12s-3.9 6.5-10.5 6.5S1.5 12 1.5 12Z"/>',
+    '<circle cx="12" cy="12" r="3.25"/>',
+    "</svg>"
+  ].join("");
+}
+
+function getEyeOffIcon() {
+  return [
+    '<svg viewBox="0 0 24 24" aria-hidden="true">',
+    '<path d="M3 4.5 21 19.5"/>',
+    '<path d="M10.6 5.7a12 12 0 0 1 1.4-.2C18.6 5.5 22.5 12 22.5 12a18.5 18.5 0 0 1-4.1 4.8"/>',
+    '<path d="M6.2 8.2A18.1 18.1 0 0 0 1.5 12s3.9 6.5 10.5 6.5c1 0 1.9-.1 2.8-.4"/>',
+    '<path d="M9.4 9.4A3.7 3.7 0 0 0 12 15.8"/>',
+    "</svg>"
+  ].join("");
+}
+
+async function createPinHash(pin) {
+  const shaHash = await createShaPinHash(pin);
+  return shaHash || createFallbackPinHash(pin);
+}
+
+async function createShaPinHash(pin) {
+  if (!globalThis.crypto?.subtle) {
+    return "";
+  }
+
+  try {
+    const data = new TextEncoder().encode(`website-tracker:${pin}`);
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", data);
+    const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return `sha256:${hex}`;
+  } catch (_error) {
+    return "";
+  }
+}
+
+function createFallbackPinHash(pin) {
+  const text = `website-tracker:${pin}`;
+  let hash = 2166136261;
+
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return `fnv1a:${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 function normalizeInterval(interval) {
@@ -2155,8 +2326,12 @@ function siteSummary(site, usage = null) {
     parts.push(`${Math.ceil(usage.remainingSeconds / 60)} min left`);
   }
 
-  if (site.allowExtraTime || settings.allowExtraTimeForAllSites) {
+  if (site.allowExtraTime) {
     parts.push("extra time on");
+  }
+
+  if (settings.hasPin && (site.requirePinForExtraTime || settings.requirePinForAllExtraTime)) {
+    parts.push("PIN for extra time");
   }
 
   return parts.join(" · ");

@@ -36,18 +36,30 @@
         <ul id="site-list" class="site-list"></ul>
         <button id="refresh" class="secondary-button" type="button">Refresh rules</button>
 
-        <section class="settings-panel" aria-labelledby="settings-title">
+        <section class="settings-panel" aria-labelledby="pin-settings-title">
           <div class="panel-heading">
             <div>
-              <h2 id="settings-title">Extra time</h2>
-              <p id="settings-status">Applies to selected websites.</p>
+              <h2 id="pin-settings-title">PIN protection</h2>
+              <p id="pin-status">PIN not set</p>
             </div>
           </div>
-          <label class="toggle-field">
-            <input id="global-extra-time" type="checkbox">
-            <span>Use for all websites</span>
+          <label class="field pin-field">
+            <span>4-digit PIN</span>
+            <div class="pin-input-wrap">
+              <input id="pin-code" type="password" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="0000">
+              <button id="toggle-pin-visibility" class="eye-button" type="button" aria-label="Show PIN" aria-pressed="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M1.5 12s3.9-6.5 10.5-6.5S22.5 12 22.5 12s-3.9 6.5-10.5 6.5S1.5 12 1.5 12Z"/>
+                  <circle cx="12" cy="12" r="3.25"/>
+                </svg>
+              </button>
+            </div>
           </label>
-          <button id="save-settings" class="primary-button small" type="button">Save</button>
+          <label class="toggle-field">
+            <input id="pin-global" type="checkbox">
+            <span>Require PIN for all websites</span>
+          </label>
+          <button id="save-pin" class="primary-button small pin-submit" type="button">Continue</button>
         </section>
       </section>
 
@@ -90,6 +102,10 @@
             <label class="toggle-field">
               <input id="allow-extra-time" type="checkbox">
               <span>Show extra-time buttons after the allowance runs out</span>
+            </label>
+            <label class="toggle-field">
+              <input id="require-pin-extra" type="checkbox">
+              <span>Require PIN before adding time</span>
             </label>
           </section>
 

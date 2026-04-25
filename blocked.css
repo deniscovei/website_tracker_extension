@@ -103,21 +103,83 @@ h1 {
   background: #eef4ff;
 }
 
-
-.danger-button {
-  min-width: 160px;
-  min-height: 44px;
-  border: 0;
-  border-radius: 6px;
-  background: #dc2626;
-  color: #ffffff;
-  cursor: pointer;
-  font-weight: 700;
-  padding: 0 18px;
+.pin-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
 }
 
-.danger-button:hover {
-  background: #b91c1c;
+.pin-field {
+  display: grid;
+  gap: 6px;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.pin-input-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 8px;
+  align-items: center;
+}
+
+.pin-panel input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid rgba(22, 32, 28, 0.14);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #111827;
+  font: inherit;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  padding: 0 10px;
+  text-align: center;
+}
+
+.eye-button {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(22, 32, 28, 0.14);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 0;
+}
+
+.eye-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.eye-button:hover {
+  background: #eff6ff;
+}
+
+.pin-panel p {
+  min-height: 18px;
+  color: #a72d4f;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.pin-panel p[data-state="valid"] {
+  color: #2563eb;
+}
+
+.pin-panel p[data-state="pending"] {
+  color: #475569;
 }
 
 #continue-site {
@@ -138,13 +200,14 @@ h1 {
 
 #continue-site:focus-visible,
 .extra-actions button:focus-visible,
-.danger-button:focus-visible {
+.pin-panel input:focus-visible,
+.eye-button:focus-visible {
   outline: 3px solid rgba(37, 99, 235, 0.32);
   outline-offset: 3px;
 }
 
 #continue-site:disabled,
-.danger-button:disabled {
+.eye-button:disabled {
   cursor: not-allowed;
   opacity: 0.58;
 }
@@ -194,11 +257,30 @@ h1 {
     background: #273449;
   }
 
-  .danger-button {
-    background: #ef4444;
+  .pin-field {
+    color: #cbd5e1;
   }
 
-  .danger-button:hover {
-    background: #dc2626;
+  .pin-panel input,
+  .eye-button {
+    border-color: rgba(245, 247, 245, 0.14);
+    background: #1f2937;
+    color: #dbeafe;
+  }
+
+  .eye-button:hover {
+    background: #273449;
+  }
+
+  .pin-panel p {
+    color: #f18eaa;
+  }
+
+  .pin-panel p[data-state="valid"] {
+    color: #93c5fd;
+  }
+
+  .pin-panel p[data-state="pending"] {
+    color: #cbd5e1;
   }
 }
