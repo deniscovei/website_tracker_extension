@@ -38,11 +38,12 @@ const addInterval = document.getElementById("add-interval");
 const deleteSite = document.getElementById("delete-site");
 const formError = document.getElementById("form-error");
 const SETTINGS_KEY = "websiteTrackerSettings";
+const pinEnabled = document.getElementById("pin-enabled");
 const pinGlobal = document.getElementById("pin-global");
 const pinCode = document.getElementById("pin-code");
 const savePin = document.getElementById("save-pin");
-const clearPin = document.getElementById("clear-pin");
 const pinStatus = document.getElementById("pin-status");
+const togglePinVisibility = document.getElementById("toggle-pin-visibility");
 const usageDay = document.getElementById("usage-day");
 const analyticsSummary = document.getElementById("analytics-summary");
 const prevWeek = document.getElementById("prev-week");
@@ -148,6 +149,7 @@ let highlightedHour = null;
 let shareMode = "compact";
 let websitesExpanded = false;
 let selectedWeekDay = "";
+let popupPinVisible = false;
 let currentDaySites = [];
 let currentHourlyTotals = [];
 let currentHourlyCategories = [];
@@ -191,15 +193,22 @@ nextHour?.addEventListener("click", () => {
 });
 
 savePin?.addEventListener("click", () => {
-  void savePinSettings({ pin: pinCode.value, mustSetPin: true });
-});
-
-clearPin?.addEventListener("click", () => {
-  void savePinSettings({ clearPin: true });
-});
-
-pinGlobal?.addEventListener("change", () => {
   void savePinSettings();
+});
+
+pinEnabled?.addEventListener("change", () => {
+  syncPinSetupView();
+  updatePinDraftStatus();
+});
+
+pinCode?.addEventListener("input", () => {
+  pinCode.value = sanitizePinValue(pinCode.value);
+  updatePinDraftStatus();
+});
+
+togglePinVisibility?.addEventListener("click", () => {
+  popupPinVisible = !popupPinVisible;
+  setPinVisibility(pinCode, togglePinVisibility, popupPinVisible);
 });
 
 shareCompact?.addEventListener("click", () => {
@@ -373,49 +382,45 @@ async function persistSchedule() {
   renderSiteList();
 }
 
-async function savePinSettings({ pin = "", clearPin: shouldClearPin = false, mustSetPin = false } = {}) {
-  const nextPin = String(pin || "").trim();
-  const nextHasPin = shouldClearPin ? false : settings.hasPin || Boolean(nextPin);
+async function savePinSettings() {
+  const wantsPin = Boolean(pinEnabled.checked);
+  const nextPin = sanitizePinValue(pinCode.value);
 
-  if (mustSetPin && !nextPin) {
-    renderPinSettings("Enter a 4-digit PIN.");
+  pinCode.value = nextPin;
+
+  if (wantsPin && nextPin && nextPin.length !== 4) {
+    pinStatus.textContent = "Use exactly 4 digits.";
     return;
   }
 
-  if (nextPin && !/^\d{4}$/.test(nextPin)) {
-    renderPinSettings("Use exactly 4 digits.");
+  if (wantsPin && !settings.hasPin && nextPin.length !== 4) {
+    pinStatus.textContent = "Enter a 4-digit PIN.";
     return;
   }
 
-  if (pinGlobal.checked && !nextHasPin) {
-    pinGlobal.checked = false;
-    renderPinSettings("Set a 4-digit PIN first.");
-    return;
-  }
-
-  if (shouldClearPin) {
+  if (!wantsPin) {
     pinGlobal.checked = false;
   }
 
   savePin.disabled = true;
-  clearPin.disabled = true;
+  pinEnabled.disabled = true;
   pinGlobal.disabled = true;
+  pinCode.disabled = true;
+  togglePinVisibility.disabled = true;
 
   try {
     const stored = await chrome.storage.local.get(SETTINGS_KEY);
-    let pinHash = typeof stored[SETTINGS_KEY]?.pinHash === "string"
+    let pinHash = wantsPin && typeof stored[SETTINGS_KEY]?.pinHash === "string"
       ? stored[SETTINGS_KEY].pinHash
       : "";
 
-    if (shouldClearPin) {
-      pinHash = "";
-    } else if (nextPin) {
+    if (wantsPin && nextPin.length === 4) {
       pinHash = await createPinHash(nextPin);
     }
 
     const savedSettings = {
-      pinHash,
-      requirePinForAllExtraTime: Boolean(pinGlobal.checked && pinHash)
+      pinHash: wantsPin ? pinHash : "",
+      requirePinForAllExtraTime: Boolean(wantsPin && pinGlobal.checked && pinHash)
     };
 
     await chrome.storage.local.set({ [SETTINGS_KEY]: savedSettings });
@@ -424,8 +429,9 @@ async function savePinSettings({ pin = "", clearPin: shouldClearPin = false, mus
       requirePinForAllExtraTime: savedSettings.requirePinForAllExtraTime
     });
     pinCode.value = "";
-    renderPinSettings(shouldClearPin ? "PIN disabled." : "PIN settings saved.");
+    renderPinSettings(wantsPin ? "PIN settings saved." : "PIN disabled.");
     renderSiteList();
+
     try {
       const refreshPromise = chrome.runtime.sendMessage({ type: "refresh-rules" });
 
@@ -436,26 +442,61 @@ async function savePinSettings({ pin = "", clearPin: shouldClearPin = false, mus
       // Saving the PIN already succeeded; refreshing status can wait for the next tick.
     }
   } catch (error) {
-    renderPinSettings(cleanError(error));
+    pinStatus.textContent = cleanError(error);
   } finally {
     savePin.disabled = false;
-    pinGlobal.disabled = false;
-    clearPin.disabled = !settings.hasPin;
+    pinEnabled.disabled = false;
+    syncPinSetupView();
   }
 }
 
 function renderPinSettings(message = "") {
+  pinEnabled.checked = Boolean(settings.hasPin);
   pinGlobal.checked = Boolean(settings.requirePinForAllExtraTime);
-  clearPin.disabled = !settings.hasPin;
+  pinCode.value = "";
+  popupPinVisible = false;
+  setPinVisibility(pinCode, togglePinVisibility, false);
+  syncPinSetupView();
 
   if (message) {
     pinStatus.textContent = message;
     return;
   }
 
-  pinStatus.textContent = settings.hasPin
-    ? "PIN is set."
-    : "PIN not set.";
+  updatePinDraftStatus();
+}
+
+function syncPinSetupView() {
+  const wantsPin = Boolean(pinEnabled.checked);
+
+  if (!wantsPin) {
+    pinGlobal.checked = false;
+  }
+
+  pinCode.disabled = !wantsPin;
+  pinGlobal.disabled = !wantsPin || pinEnabled.disabled;
+  togglePinVisibility.disabled = !wantsPin || pinEnabled.disabled;
+}
+
+function updatePinDraftStatus() {
+  const wantsPin = Boolean(pinEnabled.checked);
+  const nextPin = sanitizePinValue(pinCode.value);
+
+  if (!wantsPin) {
+    pinStatus.textContent = "PIN protection is off.";
+    return;
+  }
+
+  if (nextPin.length === 0) {
+    pinStatus.textContent = settings.hasPin
+      ? "Leave the field blank to keep the current PIN."
+      : "Enter a new 4-digit PIN.";
+    return;
+  }
+
+  pinStatus.textContent = nextPin.length === 4
+    ? "PIN ready."
+    : "PIN must be 4 digits.";
 }
 
 function renderStatus() {
@@ -2144,6 +2185,41 @@ function normalizeSettings(value) {
     hasPin: Boolean(value?.hasPin),
     requirePinForAllExtraTime: Boolean(value?.requirePinForAllExtraTime)
   };
+}
+
+function sanitizePinValue(value) {
+  return String(value || "").replace(/\D+/g, "").slice(0, 4);
+}
+
+function setPinVisibility(input, button, isVisible) {
+  if (!input || !button) {
+    return;
+  }
+
+  input.type = isVisible ? "text" : "password";
+  button.setAttribute("aria-pressed", String(isVisible));
+  button.setAttribute("aria-label", `${isVisible ? "Hide" : "Show"} PIN`);
+  button.innerHTML = isVisible ? getEyeOffIcon() : getEyeIcon();
+}
+
+function getEyeIcon() {
+  return [
+    '<svg viewBox="0 0 24 24" aria-hidden="true">',
+    '<path d="M1.5 12s3.9-6.5 10.5-6.5S22.5 12 22.5 12s-3.9 6.5-10.5 6.5S1.5 12 1.5 12Z"/>',
+    '<circle cx="12" cy="12" r="3.25"/>',
+    "</svg>"
+  ].join("");
+}
+
+function getEyeOffIcon() {
+  return [
+    '<svg viewBox="0 0 24 24" aria-hidden="true">',
+    '<path d="M3 4.5 21 19.5"/>',
+    '<path d="M10.6 5.7a12 12 0 0 1 1.4-.2C18.6 5.5 22.5 12 22.5 12a18.5 18.5 0 0 1-4.1 4.8"/>',
+    '<path d="M6.2 8.2A18.1 18.1 0 0 0 1.5 12s3.9 6.5 10.5 6.5c1 0 1.9-.1 2.8-.4"/>',
+    '<path d="M9.4 9.4A3.7 3.7 0 0 0 12 15.8"/>',
+    "</svg>"
+  ].join("");
 }
 
 async function createPinHash(pin) {

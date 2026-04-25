@@ -116,6 +116,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "validate-pin") {
+    loadSettings()
+      .then(async (settings) => {
+        return {
+          configured: Boolean(settings.pinHash),
+          valid: await verifyPin(message.pin, settings)
+        };
+      })
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
+
+    return true;
+  }
+
   if (message?.type === "add-extra-time") {
     addExtraTime(message.domain, message.minutes, message.pin)
       .then(() => refreshRules())

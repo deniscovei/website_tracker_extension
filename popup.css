@@ -874,11 +874,63 @@ h2 {
   font-weight: 800;
 }
 
-.pin-controls {
+.pin-field {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+}
+
+.pin-input-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
   gap: 8px;
-  align-items: end;
+  align-items: center;
+}
+
+.pin-input-wrap input {
+  min-width: 0;
+  text-align: center;
+}
+
+.eye-button {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgba(22, 32, 28, 0.14);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 0;
+}
+
+.eye-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.eye-button:hover {
+  background: #eff6ff;
+}
+
+.pin-submit {
+  justify-self: center;
+  min-width: 160px;
+}
+
+.eye-button:disabled,
+.pin-input-wrap input:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.pin-input-wrap input:disabled {
+  background: #f1f5f9;
 }
 
 .site-list li {
@@ -1427,6 +1479,7 @@ button:focus-visible {
   .icon-button,
   .nav-button,
   .secondary-button,
+  .eye-button,
   .site-row,
   .slot-summary,
   .field input,
@@ -1444,6 +1497,7 @@ button:focus-visible {
   .icon-button:hover,
   .nav-button:hover,
   .secondary-button:hover,
+  .eye-button:hover,
   .site-row:hover,
   .category-chip[aria-pressed="true"],
   .category-chip.is-highlighted,
@@ -1461,6 +1515,7 @@ button:focus-visible {
   .category-chip,
   .analytics-summary div,
   .field input,
+  .eye-button,
   .day-picker select,
   .usage-panel,
   .usage-total,
@@ -1610,6 +1665,10 @@ button:focus-visible {
   .clock-value {
     background: rgba(96, 165, 250, 0.13);
     color: #dbeafe;
+  }
+
+  .pin-input-wrap input:disabled {
+    background: #111827;
   }
 
   .clock-hand,
