@@ -178,6 +178,73 @@ h2 {
   gap: 12px;
 }
 
+.analytics-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  border-radius: 8px;
+  background: #eaf1ff;
+  padding: 4px;
+}
+
+.analytics-tabs button {
+  min-width: 0;
+  min-height: 32px;
+  border-radius: 6px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 900;
+  padding: 0 6px;
+}
+
+.analytics-tabs button[aria-pressed="true"] {
+  background: #ffffff;
+  color: #1d4ed8;
+  box-shadow: 0 1px 5px rgba(22, 32, 28, 0.09);
+}
+
+.analytics-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.analytics-summary div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid rgba(22, 32, 28, 0.1);
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 10px;
+}
+
+.analytics-summary span {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.analytics-summary strong {
+  overflow: hidden;
+  color: #111827;
+  font-size: 0.95rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analytics-summary small {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .section-heading {
   display: flex;
   align-items: center;
@@ -449,6 +516,12 @@ h2 {
   padding: 0 8px;
 }
 
+.category-more {
+  color: #1d4ed8;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
 .category-chip[aria-pressed="true"],
 .category-chip.is-highlighted {
   border-color: rgba(37, 99, 235, 0.36);
@@ -460,6 +533,76 @@ h2 {
   width: 9px;
   height: 9px;
   border-radius: 50%;
+}
+
+.category-detail {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid rgba(22, 32, 28, 0.1);
+  padding-top: 10px;
+}
+
+.category-detail h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.category-detail-chart {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 3px;
+  align-items: end;
+  min-height: 82px;
+}
+
+.category-detail-column {
+  display: grid;
+  grid-template-rows: 64px 14px;
+  gap: 4px;
+}
+
+.category-detail-column span:first-child {
+  align-self: end;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: #2563eb;
+}
+
+.category-detail-column span:last-child {
+  color: #64748b;
+  font-size: 0.56rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.category-detail-sites {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.category-detail-sites li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border-radius: 6px;
+  background: #f8fbff;
+  list-style: none;
+  padding: 7px 8px;
+}
+
+.category-detail-sites span {
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.category-detail-sites strong {
+  color: #1d4ed8;
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .usage-sites {
@@ -550,6 +693,15 @@ h2 {
 .usage-pie path {
   cursor: pointer;
   transition: opacity 140ms ease, filter 140ms ease;
+}
+
+.usage-pie path:focus {
+  outline: none;
+}
+
+.usage-pie path:focus-visible {
+  stroke: #ffffff;
+  stroke-width: 1.6;
 }
 
 .usage-pie.has-highlight path.is-muted {
@@ -1194,6 +1346,9 @@ button:focus-visible {
   .field input,
   .mode-option,
   .category-chip,
+  .analytics-tabs button[aria-pressed="true"],
+  .analytics-summary div,
+  .category-detail-sites li,
   .day-picker select,
   .view-tab[aria-pressed="true"],
   .usage-panel {
@@ -1217,6 +1372,7 @@ button:focus-visible {
   .mode-panel,
   .mode-option,
   .category-chip,
+  .analytics-summary div,
   .field input,
   .day-picker select,
   .usage-panel,
@@ -1238,6 +1394,7 @@ button:focus-visible {
   }
 
   .view-tabs,
+  .analytics-tabs,
   .mini-toggle,
   .hour-bar-track,
   .week-bar-track,
@@ -1270,6 +1427,16 @@ button:focus-visible {
     color: #a8b4c8;
   }
 
+  .analytics-tabs button {
+    color: #a8b4c8;
+  }
+
+  .analytics-tabs button[aria-pressed="true"],
+  .analytics-summary strong,
+  .category-detail-sites strong {
+    color: #dbeafe;
+  }
+
   .mini-toggle button {
     color: #a8b4c8;
   }
@@ -1295,6 +1462,14 @@ button:focus-visible {
     background: #f18eaa;
   }
 
+  .category-detail {
+    border-color: rgba(247, 242, 232, 0.14);
+  }
+
+  .category-detail-column span:first-child {
+    background: #60a5fa;
+  }
+
   #summary {
     color: #e5edf8;
   }
@@ -1311,12 +1486,15 @@ button:focus-visible {
   .field,
   .day-picker,
   .panel-heading span,
+  .analytics-summary span,
+  .analytics-summary small,
   .usage-total span,
   .week-stats span,
   .week-day,
   .hour-label,
   .usage-pie-button strong,
   .mode-option small,
+  .category-detail-column span:last-child,
   .toggle-field,
   .clock-label,
   .clock-mark {

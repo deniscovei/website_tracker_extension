@@ -1,6 +1,6 @@
 # Website Tracker
 
-A small Manifest V3 Chrome extension that tracks daily website screen time and blocks websites during editable time windows.
+A small Manifest V3 Chrome extension that tracks daily website screen time and blocks websites during editable time slots.
 
 ## Load It In Chrome
 
@@ -15,8 +15,8 @@ The schedule is saved in Chrome storage from the popup. The extension refreshes 
 
 1. Click the extension icon.
 2. Click **New site** or choose an existing website.
-3. Choose **Always blocked** or **Timed blocks**.
-4. Use **Add slot** for each blocked time interval when timed blocks are enabled.
+3. Choose **Always blocked** or **Time slots**.
+4. Use **Add slot** for each blocked interval when time slots are enabled.
 5. Click a slot row to open the clock editor.
 6. Drag or click the clock dials to adjust start and end times, or type the `HH:MM` value directly.
 7. Set **Daily allowance** if the site should be usable for a few minutes while it is blocked.
@@ -29,4 +29,4 @@ Daily allowance minutes are only spent while the site is active during a blocked
 
 ## Screen Time
 
-Open the popup and switch to **Usage** to see website usage for the selected day. The extension records active HTTP and HTTPS websites, shows total time, a weekly Apple-style bar chart with a daily average line, stacked hourly category bars, an interactive website share pie chart, and a per-website breakdown. Usage is kept for today plus the last 30 completed days.
+Open the popup and switch to **Usage** to see website usage. The extension records active HTTP and HTTPS websites, shows total time, a weekly Apple-style bar chart with a daily average line, stacked hourly category bars, an interactive website share pie chart, and a per-website breakdown. Use **Hourly**, **Daily**, **Weekly**, and **All Time** to change the analytics scope. Category chips reveal website-level details for that category. Usage is kept for today plus the last 30 completed days.

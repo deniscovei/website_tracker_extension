@@ -36,22 +36,35 @@ const intervalList = document.getElementById("interval-list");
 const addInterval = document.getElementById("add-interval");
 const deleteSite = document.getElementById("delete-site");
 const formError = document.getElementById("form-error");
+const usageModeButtons = Array.from(document.querySelectorAll("[data-usage-mode]"));
 const usageDay = document.getElementById("usage-day");
+const dayPicker = usageDay.closest(".day-picker");
+const analyticsSummary = document.getElementById("analytics-summary");
+const weekPanel = document.getElementById("week-panel");
+const usageTotalPanel = document.getElementById("usage-total-panel");
 const usageTotal = document.getElementById("usage-total");
 const weekTrend = document.getElementById("week-trend");
 const weekSelectedLabel = document.getElementById("week-selected-label");
 const weekSelectedTotal = document.getElementById("week-selected-total");
 const weekAverageTotal = document.getElementById("week-average-total");
 const weekChart = document.getElementById("week-chart");
+const hourlyPanel = document.getElementById("hourly-panel");
 const usagePeak = document.getElementById("usage-peak");
 const usageCount = document.getElementById("usage-count");
 const hourChart = document.getElementById("hour-chart");
 const categoryLegend = document.getElementById("category-legend");
+const categoryDetail = document.getElementById("category-detail");
+const categoryDetailTitle = document.getElementById("category-detail-title");
+const categoryDetailMeta = document.getElementById("category-detail-meta");
+const categoryDetailChart = document.getElementById("category-detail-chart");
+const categoryDetailSites = document.getElementById("category-detail-sites");
+const sharePanel = document.getElementById("share-panel");
 const usagePie = document.getElementById("usage-pie");
 const usagePieTooltip = document.getElementById("usage-pie-tooltip");
 const usagePieLegend = document.getElementById("usage-pie-legend");
 const shareCompact = document.getElementById("share-compact");
 const shareAll = document.getElementById("share-all");
+const sitesPanel = document.getElementById("sites-panel");
 const usageSites = document.getElementById("usage-sites");
 const usageShowMore = document.getElementById("usage-show-more");
 
@@ -125,6 +138,17 @@ let selectedHour = null;
 let highlightedHour = null;
 let shareMode = "compact";
 let websitesExpanded = false;
+let usageViewMode = "daily";
+let selectedWeekDay = "";
+let currentDaySites = [];
+let currentHourlyTotals = [];
+let currentHourlyCategories = [];
+let currentContext = {
+  label: "",
+  days: [],
+  sites: [],
+  totalSeconds: 0
+};
 
 scheduleTab?.addEventListener("click", () => {
   showScheduleView();
@@ -135,7 +159,16 @@ usageTab?.addEventListener("click", () => {
 });
 
 usageDay?.addEventListener("change", () => {
+  clearUsageSelections();
   renderUsageForDay(usageDay.value);
+});
+
+usageModeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    usageViewMode = button.dataset.usageMode || "daily";
+    clearUsageSelections({ keepWeek: false });
+    renderUsageForDay(usageDay.value);
+  });
 });
 
 blockModeRadios.forEach((radio) => {
@@ -144,25 +177,28 @@ blockModeRadios.forEach((radio) => {
 
 shareCompact?.addEventListener("click", () => {
   shareMode = "compact";
+  clearUsageSelections();
   renderUsageForDay(usageDay.value);
 });
 
 shareAll?.addEventListener("click", () => {
   shareMode = "all";
+  clearUsageSelections();
   renderUsageForDay(usageDay.value);
 });
 
 usageShowMore?.addEventListener("click", () => {
   websitesExpanded = !websitesExpanded;
+  clearUsageSelections();
   renderUsageForDay(usageDay.value);
 });
 
 document.addEventListener("click", (event) => {
-  if (usageView.hidden || !(event.target instanceof HTMLElement)) {
+  if (!(event.target instanceof HTMLElement)) {
     return;
   }
 
-  if (event.target.closest("[data-pie-domain], [data-site-domain], [data-category], [data-hour], .week-day, #usage-day, .mini-toggle")) {
+  if (event.target.closest("[data-pie-domain], [data-site-domain], [data-category], [data-hour], .week-day, .mini-toggle, [data-usage-mode], #usage-show-more")) {
     return;
   }
 
@@ -552,34 +588,21 @@ function renderUsageDays(selectedDay = usageDay.value || dateToDayKey(new Date()
 function renderUsageForDay(day) {
   const selectedDay = day || dateToDayKey(new Date());
   renderUsageDays(selectedDay);
+  renderUsageMode();
   renderWeekOverview(selectedDay);
 
-  const snapshot = normalizeUsageSnapshot(usageData.usageByDay?.[selectedDay]);
-  const hourly = Array.from({ length: 24 }, () => 0);
-  const hourlyCategories = Array.from({ length: 24 }, () => ({}));
-  const sites = Object.entries(snapshot.sites)
-    .map(([domain, entry]) => {
-      const screenSeconds = Math.max(0, Number(entry.screenSeconds) || 0);
-      const hourlySeconds = normalizeHourlySeconds(entry.hourlySeconds);
-      const category = categorizeDomain(domain);
+  currentContext = getUsageContext(selectedDay);
+  currentDaySites = getDaySites(selectedDay);
+  const hourlyData = getHourlyData(currentDaySites);
+  currentHourlyTotals = hourlyData.hourly;
+  currentHourlyCategories = hourlyData.hourlyCategories;
+  const peakSeconds = Math.max(0, ...currentHourlyTotals);
+  const peakHour = currentHourlyTotals.indexOf(peakSeconds);
 
-      hourlySeconds.forEach((seconds, index) => {
-        hourly[index] += seconds;
-        hourlyCategories[index][category] = (hourlyCategories[index][category] || 0) + seconds;
-      });
-
-      return { domain, screenSeconds, category };
-    })
-    .filter((site) => site.screenSeconds > 0)
-    .sort((left, right) => right.screenSeconds - left.screenSeconds);
-  const totalSeconds = sites.reduce((sum, site) => sum + site.screenSeconds, 0);
-  const peakSeconds = Math.max(0, ...hourly);
-  const peakHour = hourly.indexOf(peakSeconds);
-
-  const compactDomains = new Set(sites.slice(0, COMPACT_SITE_LIMIT).map((site) => site.domain));
-  const hasOtherWebsites = sites.length > COMPACT_SITE_LIMIT;
+  const compactDomains = new Set(currentContext.sites.slice(0, COMPACT_SITE_LIMIT).map((site) => site.domain));
+  const hasOtherWebsites = currentContext.sites.length > COMPACT_SITE_LIMIT;
   const selectedPieDomainIsVisible = shareMode === "all"
-    ? sites.some((site) => site.domain === selectedPieDomain)
+    ? currentContext.sites.some((site) => site.domain === selectedPieDomain)
     : compactDomains.has(selectedPieDomain) || (selectedPieDomain === OTHER_WEBSITES_LABEL && hasOtherWebsites);
 
   if (selectedPieDomain && !selectedPieDomainIsVisible) {
@@ -587,16 +610,161 @@ function renderUsageForDay(day) {
     highlightedPieDomain = "";
   }
 
-  usageTotal.textContent = formatDuration(totalSeconds);
-  usageCount.textContent = `${sites.length} site${sites.length === 1 ? "" : "s"}`;
+  usageTotal.textContent = formatDuration(currentContext.totalSeconds);
+  usageCount.textContent = `${currentContext.sites.length} site${currentContext.sites.length === 1 ? "" : "s"}`;
   usagePeak.textContent = peakSeconds > 0
     ? `Peak ${formatHour(peakHour)}: ${formatDuration(peakSeconds)}`
     : "No usage yet";
 
-  renderHourChart(hourly, hourlyCategories);
-  renderUsagePie(sites, totalSeconds);
-  renderUsageSites(sites, totalSeconds);
+  renderAnalyticsSummary(currentContext, selectedDay);
+  renderHourChart(currentHourlyTotals, currentHourlyCategories);
+  renderUsagePie(currentContext.sites, currentContext.totalSeconds);
+  renderUsageSites(currentContext.sites, currentContext.totalSeconds);
   updatePieHighlight();
+}
+
+function renderUsageMode() {
+  usageModeButtons.forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.usageMode === usageViewMode));
+  });
+
+  dayPicker.hidden = usageViewMode === "all";
+  weekPanel.hidden = usageViewMode !== "weekly";
+  hourlyPanel.hidden = usageViewMode !== "hourly";
+  sharePanel.hidden = usageViewMode === "hourly";
+  sitesPanel.hidden = usageViewMode === "hourly";
+}
+
+function getUsageContext(selectedDay) {
+  if (usageViewMode === "all") {
+    const days = Object.keys(usageData.usageByDay || {}).sort();
+    const sites = aggregateSitesForDays(days);
+    return {
+      label: "All tracked time",
+      days,
+      sites,
+      totalSeconds: getSitesTotalSeconds(sites)
+    };
+  }
+
+  if (usageViewMode === "weekly") {
+    const days = getWeekDayKeys(selectedDay);
+    const sites = aggregateSitesForDays(days);
+    return {
+      label: `Week of ${formatDayLabel(days[0])}`,
+      days,
+      sites,
+      totalSeconds: getSitesTotalSeconds(sites)
+    };
+  }
+
+  const sites = getDaySites(selectedDay);
+  return {
+    label: formatDayLabel(selectedDay),
+    days: [selectedDay],
+    sites,
+    totalSeconds: getSitesTotalSeconds(sites)
+  };
+}
+
+function getDaySites(day) {
+  const snapshot = normalizeUsageSnapshot(usageData.usageByDay?.[day]);
+
+  return Object.entries(snapshot.sites)
+    .map(([domain, entry]) => ({
+      domain,
+      screenSeconds: Math.max(0, Number(entry.screenSeconds) || 0),
+      hourlySeconds: normalizeHourlySeconds(entry.hourlySeconds),
+      category: categorizeDomain(domain)
+    }))
+    .filter((site) => site.screenSeconds > 0)
+    .sort((left, right) => right.screenSeconds - left.screenSeconds);
+}
+
+function aggregateSitesForDays(days) {
+  const sites = new Map();
+
+  days.forEach((day) => {
+    getDaySites(day).forEach((site) => {
+      if (!sites.has(site.domain)) {
+        sites.set(site.domain, {
+          domain: site.domain,
+          screenSeconds: 0,
+          hourlySeconds: Array.from({ length: 24 }, () => 0),
+          category: site.category
+        });
+      }
+
+      const entry = sites.get(site.domain);
+      entry.screenSeconds += site.screenSeconds;
+      site.hourlySeconds.forEach((seconds, index) => {
+        entry.hourlySeconds[index] += seconds;
+      });
+    });
+  });
+
+  return Array.from(sites.values()).sort((left, right) => right.screenSeconds - left.screenSeconds);
+}
+
+function getHourlyData(sites) {
+  const hourly = Array.from({ length: 24 }, () => 0);
+  const hourlyCategories = Array.from({ length: 24 }, () => ({}));
+
+  sites.forEach((site) => {
+    site.hourlySeconds.forEach((seconds, index) => {
+      hourly[index] += seconds;
+      hourlyCategories[index][site.category] = (hourlyCategories[index][site.category] || 0) + seconds;
+    });
+  });
+
+  return { hourly, hourlyCategories };
+}
+
+function getSitesTotalSeconds(sites) {
+  return sites.reduce((sum, site) => sum + site.screenSeconds, 0);
+}
+
+function renderAnalyticsSummary(context, selectedDay) {
+  const daysWithUsage = context.days.filter((day) => getDayTotalSeconds(day) > 0).length;
+  const dailyAverage = context.totalSeconds / Math.max(1, usageViewMode === "all" ? daysWithUsage : context.days.length);
+  const topSite = context.sites[0];
+  const cards = [
+    { label: "View", value: getUsageModeLabel(), note: context.label },
+    { label: "Total", value: formatDuration(context.totalSeconds), note: `${context.sites.length} site${context.sites.length === 1 ? "" : "s"}` },
+    { label: usageViewMode === "hourly" || usageViewMode === "daily" ? "Selected day" : "Daily average", value: formatDuration(usageViewMode === "hourly" || usageViewMode === "daily" ? getDayTotalSeconds(selectedDay) : dailyAverage), note: usageViewMode === "all" ? `${daysWithUsage} active day${daysWithUsage === 1 ? "" : "s"}` : formatDayLabel(selectedDay) },
+    { label: "Top website", value: topSite ? topSite.domain : "None", note: topSite ? formatDuration(topSite.screenSeconds) : "No usage" }
+  ];
+
+  analyticsSummary.replaceChildren(
+    ...cards.map((card) => {
+      const item = document.createElement("div");
+      const label = document.createElement("span");
+      const value = document.createElement("strong");
+      const note = document.createElement("small");
+
+      label.textContent = card.label;
+      value.textContent = card.value;
+      note.textContent = card.note;
+      item.append(label, value, note);
+      return item;
+    })
+  );
+}
+
+function getUsageModeLabel() {
+  if (usageViewMode === "hourly") {
+    return "Hourly";
+  }
+
+  if (usageViewMode === "weekly") {
+    return "Weekly";
+  }
+
+  if (usageViewMode === "all") {
+    return "All Time";
+  }
+
+  return "Daily";
 }
 
 function renderWeekOverview(selectedDay) {
@@ -641,9 +809,13 @@ function renderWeekChart(entries, selectedDay, averageSeconds) {
 
       button.type = "button";
       button.className = "week-day";
-      button.setAttribute("aria-pressed", String(entry.day === selectedDay));
+      button.dataset.day = entry.day;
+      button.setAttribute("aria-pressed", String(entry.day === selectedWeekDay));
       button.setAttribute("aria-label", `${formatDayLabel(entry.day)}: ${formatDuration(entry.seconds)}`);
       button.addEventListener("click", () => {
+        const nextWeekDay = selectedWeekDay === entry.day ? "" : entry.day;
+        clearUsageSelections({ keepWeek: true });
+        selectedWeekDay = nextWeekDay;
         renderUsageForDay(entry.day);
       });
 
@@ -658,6 +830,13 @@ function renderWeekChart(entries, selectedDay, averageSeconds) {
       return button;
     })
   );
+  updateWeekHighlight();
+}
+
+function updateWeekHighlight() {
+  weekChart.querySelectorAll(".week-day").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.day === selectedWeekDay));
+  });
 }
 
 function renderHourChart(hourly, hourlyCategories) {
@@ -680,8 +859,13 @@ function renderHourChart(hourly, hourlyCategories) {
       column.setAttribute("aria-label", `${formatHour(hour)}: ${formatDuration(seconds)}`);
       column.title = `${formatHour(hour)} total: ${formatDuration(seconds)}`;
       column.addEventListener("click", () => {
+        selectedPieDomain = "";
+        highlightedPieDomain = "";
+        selectedWeekDay = "";
         selectedHour = selectedHour === hour ? null : hour;
         selectedCategory = "";
+        updatePieHighlight();
+        updateWeekHighlight();
         updateCategoryHighlight();
       });
 
@@ -713,8 +897,13 @@ function renderHourChart(hourly, hourlyCategories) {
         });
         segment.addEventListener("click", (event) => {
           event.stopPropagation();
+          selectedPieDomain = "";
+          highlightedPieDomain = "";
+          selectedWeekDay = "";
           selectedCategory = selectedCategory === category && selectedHour === hour ? "" : category;
           selectedHour = selectedCategory ? hour : null;
+          updatePieHighlight();
+          updateWeekHighlight();
           updateCategoryHighlight();
         });
         barWrap.append(segment);
@@ -742,6 +931,7 @@ function renderCategoryLegend(categories) {
       const button = document.createElement("button");
       const swatch = document.createElement("span");
       const label = document.createElement("span");
+      const more = document.createElement("span");
 
       button.type = "button";
       button.className = "category-chip";
@@ -758,16 +948,23 @@ function renderCategoryLegend(categories) {
         updateCategoryHighlight();
       });
       button.addEventListener("click", () => {
+        selectedPieDomain = "";
+        highlightedPieDomain = "";
+        selectedWeekDay = "";
         selectedCategory = selectedCategory === category && selectedHour === null ? "" : category;
         selectedHour = null;
+        updatePieHighlight();
+        updateWeekHighlight();
         updateCategoryHighlight();
       });
 
       swatch.className = "category-swatch";
       swatch.style.background = CATEGORY_COLORS[category] || CATEGORY_COLORS.other;
       label.textContent = CATEGORY_LABELS[category] || CATEGORY_LABELS.other;
+      more.className = "category-more";
+      more.textContent = "See more";
 
-      button.append(swatch, label);
+      button.append(swatch, label, more);
       return button;
     })
   );
@@ -799,6 +996,93 @@ function updateCategoryHighlight() {
     button.setAttribute("aria-pressed", String(isSelected));
     button.classList.toggle("is-highlighted", isHighlighted);
   });
+
+  updateHourlySelectionSummary();
+  renderCategoryDetail();
+}
+
+function updateHourlySelectionSummary() {
+  const activeCategory = selectedCategory || highlightedCategory;
+  const activeHour = selectedHour ?? highlightedHour;
+
+  if (activeCategory && activeHour !== null) {
+    const seconds = currentHourlyCategories[activeHour]?.[activeCategory] || 0;
+    usagePeak.textContent = `${formatHour(activeHour)} · ${CATEGORY_LABELS[activeCategory]}: ${formatDuration(seconds)}`;
+    return;
+  }
+
+  if (activeCategory) {
+    const seconds = currentHourlyCategories.reduce((sum, bucket) => {
+      return sum + (bucket[activeCategory] || 0);
+    }, 0);
+    usagePeak.textContent = `${CATEGORY_LABELS[activeCategory]} total: ${formatDuration(seconds)}`;
+    return;
+  }
+
+  if (activeHour !== null) {
+    usagePeak.textContent = `${formatHour(activeHour)} total: ${formatDuration(currentHourlyTotals[activeHour] || 0)}`;
+    return;
+  }
+
+  const peakSeconds = Math.max(0, ...currentHourlyTotals);
+  const peakHour = currentHourlyTotals.indexOf(peakSeconds);
+  usagePeak.textContent = peakSeconds > 0
+    ? `Peak ${formatHour(peakHour)}: ${formatDuration(peakSeconds)}`
+    : "No usage yet";
+}
+
+function renderCategoryDetail() {
+  if (!selectedCategory) {
+    categoryDetail.hidden = true;
+    categoryDetailChart.replaceChildren();
+    categoryDetailSites.replaceChildren();
+    return;
+  }
+
+  const categorySites = currentDaySites
+    .filter((site) => site.category === selectedCategory)
+    .sort((left, right) => right.screenSeconds - left.screenSeconds);
+  const categoryHourly = currentHourlyCategories.map((bucket) => bucket[selectedCategory] || 0);
+  const totalSeconds = categorySites.reduce((sum, site) => sum + site.screenSeconds, 0);
+  const peakSeconds = Math.max(0, ...categoryHourly);
+  const peakHour = categoryHourly.indexOf(peakSeconds);
+
+  categoryDetail.hidden = false;
+  categoryDetailTitle.textContent = `${CATEGORY_LABELS[selectedCategory]} details`;
+  categoryDetailMeta.textContent = `${formatDuration(totalSeconds)} total${peakSeconds > 0 ? ` · peak ${formatHour(peakHour)}` : ""}`;
+
+  renderCategoryDetailChart(categoryHourly);
+  categoryDetailSites.replaceChildren(
+    ...(categorySites.length > 0
+      ? categorySites.map((site) => {
+        const item = document.createElement("li");
+        const domain = document.createElement("span");
+        const duration = document.createElement("strong");
+
+        domain.textContent = site.domain;
+        duration.textContent = formatDuration(site.screenSeconds);
+        item.append(domain, duration);
+        return item;
+      })
+      : [createEmptyUsageRow("No websites in this category for this day.")])
+  );
+}
+
+function renderCategoryDetailChart(hourly) {
+  categoryDetailChart.replaceChildren(
+    ...hourly.map((seconds, hour) => {
+      const column = document.createElement("span");
+      const bar = document.createElement("span");
+      const label = document.createElement("span");
+
+      column.className = "category-detail-column";
+      column.title = `${formatHour(hour)}: ${formatDuration(seconds)}`;
+      bar.style.height = `${Math.min(100, seconds / 3600 * 100)}%`;
+      label.textContent = hour % 6 === 0 ? String(hour) : "";
+      column.append(bar, label);
+      return column;
+    })
+  );
 }
 
 function getActiveCategories(hourlyCategories) {
@@ -882,8 +1166,15 @@ function renderUsagePie(sites, totalSeconds) {
         updatePieHighlight();
       });
       button.addEventListener("click", () => {
+        selectedCategory = "";
+        highlightedCategory = "";
+        selectedHour = null;
+        highlightedHour = null;
+        selectedWeekDay = "";
         selectedPieDomain = selectedPieDomain === segment.domain ? "" : segment.domain;
         highlightedPieDomain = "";
+        updateCategoryHighlight();
+        updateWeekHighlight();
         updatePieHighlight();
       });
       swatch.className = "usage-pie-swatch";
@@ -930,9 +1221,16 @@ function createPieSlice(segment, startAngle, endAngle) {
     updatePieHighlight();
   });
   path.addEventListener("click", () => {
+    selectedCategory = "";
+    highlightedCategory = "";
+    selectedHour = null;
+    highlightedHour = null;
+    selectedWeekDay = "";
     selectedPieDomain = selectedPieDomain === segment.domain ? "" : segment.domain;
     highlightedPieDomain = "";
     usagePieTooltip.hidden = true;
+    updateCategoryHighlight();
+    updateWeekHighlight();
     updatePieHighlight();
   });
   path.addEventListener("keydown", (event) => {
@@ -1034,16 +1332,20 @@ function updateShareModeButtons() {
   shareAll?.setAttribute("aria-pressed", String(shareMode === "all"));
 }
 
-function clearUsageSelections() {
+function clearUsageSelections({ keepWeek = false } = {}) {
   selectedPieDomain = "";
   highlightedPieDomain = "";
   selectedCategory = "";
   highlightedCategory = "";
   selectedHour = null;
   highlightedHour = null;
+  if (!keepWeek) {
+    selectedWeekDay = "";
+  }
   usagePieTooltip.hidden = true;
   updatePieHighlight();
   updateCategoryHighlight();
+  updateWeekHighlight();
 }
 
 function categorizeDomain(domain) {
@@ -1090,8 +1392,15 @@ function renderUsageSites(sites, totalSeconds) {
         updatePieHighlight();
       });
       item.addEventListener("click", () => {
+        selectedCategory = "";
+        highlightedCategory = "";
+        selectedHour = null;
+        highlightedHour = null;
+        selectedWeekDay = "";
         selectedPieDomain = selectedPieDomain === site.domain ? "" : site.domain;
         highlightedPieDomain = "";
+        updateCategoryHighlight();
+        updateWeekHighlight();
         updatePieHighlight();
       });
       item.addEventListener("keydown", (event) => {
