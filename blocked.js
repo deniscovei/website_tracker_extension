@@ -4,20 +4,18 @@ const extraTime = document.getElementById("extra-time");
 const extraStatus = document.getElementById("extra-status");
 const extraActions = document.getElementById("extra-actions");
 const continueSite = document.getElementById("continue-site");
-const pinPanel = document.getElementById("pin-panel");
-const pinCode = document.getElementById("pin-code");
-const pinVisibility = document.getElementById("pin-visibility");
-const pinError = document.getElementById("pin-error");
+const cutOffSite = document.getElementById("cut-off-site");
 
 let latestStatus = null;
-let pendingMinutes = 0;
-let pinIsValid = false;
-let validatedPin = "";
-let pinValidationId = 0;
-let blockedPinVisible = false;
 
 continueSite?.addEventListener("click", () => {
-  void handleContinue();
+  if (site) {
+    window.location.href = `https://${site}/`;
+  }
+});
+
+cutOffSite?.addEventListener("click", () => {
+  void handleCutOffSite();
 });
 
 extraActions?.addEventListener("click", async (event) => {
@@ -32,22 +30,6 @@ extraActions?.addEventListener("click", async (event) => {
   }
 
   await requestExtraMinutes(Number(button.dataset.extraMinutes));
-});
-
-pinCode?.addEventListener("input", () => {
-  void handlePinInput();
-});
-
-pinCode?.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !continueSite.hidden && !continueSite.disabled) {
-    event.preventDefault();
-    continueSite.click();
-  }
-});
-
-pinVisibility?.addEventListener("click", () => {
-  blockedPinVisible = !blockedPinVisible;
-  setPinVisibility(pinCode, pinVisibility, blockedPinVisible);
 });
 
 void loadExtraTimeStatus();
@@ -87,7 +69,7 @@ function renderStatus(status) {
 
   if (!status.allowExtraTime && status.dailyAllowanceMinutes <= 0) {
     extraTime.hidden = true;
-    updateContinueState();
+    updateActionButtons();
     return;
   }
 
@@ -104,148 +86,37 @@ function renderStatus(status) {
     extraStatus.textContent = "Extra time is disabled for this website.";
   }
 
-  updateContinueState();
+  updateActionButtons();
 }
 
 async function requestExtraMinutes(minutes) {
-  pendingMinutes = minutes;
-
-  if (latestStatus?.requiresPinForExtraTime) {
-    showPinPanel();
-    return;
-  }
-
   await addExtraMinutes(minutes);
 }
 
-async function handleContinue() {
-  if (pinPanel.hidden || pendingMinutes <= 0) {
-    if (site) {
-      window.location.href = `https://${site}/`;
-    }
-    return;
-  }
+function updateActionButtons() {
+  const canContinue = Boolean(site && latestStatus?.remainingSeconds > 0);
+  const canCutOff = Boolean(site && (latestStatus?.extraSeconds || 0) > 0);
 
-  if (!pinIsValid) {
-    return;
-  }
-
-  await addExtraMinutes(pendingMinutes, validatedPin, { navigateAfter: true });
+  continueSite.hidden = !canContinue;
+  continueSite.disabled = !canContinue;
+  cutOffSite.hidden = !canCutOff;
+  cutOffSite.disabled = !canCutOff;
 }
 
-async function handlePinInput() {
-  const pin = sanitizePinValue(pinCode.value);
-
-  if (pin !== pinCode.value) {
-    pinCode.value = pin;
-  }
-
-  pinIsValid = false;
-  validatedPin = "";
-  pinValidationId += 1;
-
-  if (pin.length === 0) {
-    setPinMessage(`Enter the PIN to add ${formatMinutes(pendingMinutes)}.`, "idle");
-    updateContinueState();
-    return;
-  }
-
-  if (pin.length < 4) {
-    setPinMessage("PIN must be 4 digits.", "error");
-    updateContinueState();
-    return;
-  }
-
-  const validationId = pinValidationId;
-  setPinMessage("Checking PIN...", "pending");
-  updateContinueState();
-
-  try {
-    const response = await chrome.runtime.sendMessage({
-      type: "validate-pin",
-      pin
-    });
-
-    if (validationId !== pinValidationId) {
-      return;
-    }
-
-    if (!response?.ok) {
-      throw new Error(cleanError(response?.error || "Could not validate the PIN."));
-    }
-
-    if (!response.configured) {
-      setPinMessage("PIN protection is not set yet.", "error");
-      updateContinueState();
-      return;
-    }
-
-    if (!response.valid) {
-      setPinMessage("PIN does not match.", "error");
-      updateContinueState();
-      return;
-    }
-
-    pinIsValid = true;
-    validatedPin = pin;
-    setPinMessage("PIN ready.", "valid");
-    updateContinueState();
-  } catch (error) {
-    if (validationId !== pinValidationId) {
-      return;
-    }
-
-    setPinMessage(cleanError(error), "error");
-    updateContinueState();
-  }
-}
-
-function showPinPanel() {
-  pinPanel.hidden = false;
-  pinCode.value = "";
-  blockedPinVisible = false;
-  setPinVisibility(pinCode, pinVisibility, false);
-  pinIsValid = false;
-  validatedPin = "";
-  pinValidationId += 1;
-  setPinMessage(`Enter the PIN to add ${formatMinutes(pendingMinutes)}.`, "idle");
-  updateContinueState();
-  pinCode.focus();
-}
-
-function hidePinPanel() {
-  pendingMinutes = 0;
-  pinCode.value = "";
-  pinPanel.hidden = true;
-  pinIsValid = false;
-  validatedPin = "";
-  pinValidationId += 1;
-  blockedPinVisible = false;
-  setPinVisibility(pinCode, pinVisibility, false);
-  setPinMessage("", "idle");
-  updateContinueState();
-}
-
-function updateContinueState() {
-  const canUseAllowance = Boolean(site && latestStatus?.remainingSeconds > 0 && pinPanel.hidden);
-  const canUsePinFlow = Boolean(site && !pinPanel.hidden && pendingMinutes > 0);
-
-  continueSite.hidden = !(canUseAllowance || canUsePinFlow);
-  continueSite.disabled = canUsePinFlow ? !pinIsValid : false;
-}
-
-async function addExtraMinutes(minutes, pin = "", { navigateAfter = false } = {}) {
+async function addExtraMinutes(minutes) {
   extraActions.querySelectorAll("button").forEach((button) => {
     button.disabled = true;
   });
+  if (cutOffSite) {
+    cutOffSite.disabled = true;
+  }
   continueSite.disabled = true;
 
   try {
     const response = await chrome.runtime.sendMessage({
       type: "add-extra-time",
       domain: site,
-      minutes,
-      pin
+      minutes
     });
 
     if (!response?.ok) {
@@ -254,77 +125,54 @@ async function addExtraMinutes(minutes, pin = "", { navigateAfter = false } = {}
 
     latestStatus = response.status || latestStatus;
     extraStatus.textContent = `Added ${formatMinutes(minutes)} for today.`;
-    hidePinPanel();
-
-    if (navigateAfter && site) {
-      window.location.href = `https://${site}/`;
-      return;
-    }
-
-    continueSite.hidden = false;
-    continueSite.disabled = false;
+    updateActionButtons();
   } catch (error) {
-    const message = cleanError(error);
-
-    if (pinPanel.hidden) {
-      extraStatus.textContent = message;
-    } else {
-      setPinMessage(message, "error");
-    }
+    extraStatus.textContent = cleanError(error);
   } finally {
     extraActions.querySelectorAll("button").forEach((button) => {
       button.disabled = false;
     });
 
-    if (!pinPanel.hidden) {
-      continueSite.disabled = !pinIsValid;
+    if (cutOffSite) {
+      cutOffSite.disabled = false;
     }
+
+    updateActionButtons();
   }
 }
 
-function setPinMessage(message, state) {
-  pinError.textContent = message;
-  pinError.dataset.state = state;
-}
-
-function setPinVisibility(input, button, isVisible) {
-  if (!input || !button) {
+async function handleCutOffSite() {
+  if (!site || !cutOffSite) {
     return;
   }
 
-  input.type = isVisible ? "text" : "password";
-  button.setAttribute("aria-pressed", String(isVisible));
-  button.setAttribute("aria-label", `${isVisible ? "Hide" : "Show"} PIN`);
-  button.innerHTML = isVisible ? getEyeOffIcon() : getEyeIcon();
-}
+  cutOffSite.disabled = true;
+  continueSite.disabled = true;
 
-function sanitizePinValue(value) {
-  return String(value || "").replace(/\D+/g, "").slice(0, 4);
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "cut-off-site",
+      domain: site
+    });
+
+    if (!response?.ok) {
+      throw new Error(cleanError(response?.error || "Could not cut off this website."));
+    }
+
+    latestStatus = response.status || latestStatus;
+    extraStatus.textContent = "Website cut off for today.";
+    updateActionButtons();
+  } catch (error) {
+    extraStatus.textContent = cleanError(error);
+  } finally {
+    cutOffSite.disabled = false;
+    updateActionButtons();
+  }
 }
 
 function formatMinutes(minutes) {
   const value = Math.max(0, Number(minutes) || 0);
   return `${value} minute${value === 1 ? "" : "s"}`;
-}
-
-function getEyeIcon() {
-  return [
-    '<svg viewBox="0 0 24 24" aria-hidden="true">',
-    '<path d="M1.5 12s3.9-6.5 10.5-6.5S22.5 12 22.5 12s-3.9 6.5-10.5 6.5S1.5 12 1.5 12Z"/>',
-    '<circle cx="12" cy="12" r="3.25"/>',
-    "</svg>"
-  ].join("");
-}
-
-function getEyeOffIcon() {
-  return [
-    '<svg viewBox="0 0 24 24" aria-hidden="true">',
-    '<path d="M3 4.5 21 19.5"/>',
-    '<path d="M10.6 5.7a12 12 0 0 1 1.4-.2C18.6 5.5 22.5 12 22.5 12a18.5 18.5 0 0 1-4.1 4.8"/>',
-    '<path d="M6.2 8.2A18.1 18.1 0 0 0 1.5 12s3.9 6.5 10.5 6.5c1 0 1.9-.1 2.8-.4"/>',
-    '<path d="M9.4 9.4A3.7 3.7 0 0 0 12 15.8"/>',
-    "</svg>"
-  ].join("");
 }
 
 function cleanError(error) {

@@ -21,23 +21,9 @@
             <button type="button" data-extra-minutes="15">Add 15 min</button>
             <button type="button" data-extra-minutes="30">Add 30 min</button>
           </div>
-          <div id="pin-panel" class="pin-panel" hidden>
-            <label class="pin-field">
-              <span>Enter PIN</span>
-              <div class="pin-input-wrap">
-                <input id="pin-code" type="password" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="0000">
-                <button id="pin-visibility" class="eye-button" type="button" aria-label="Show PIN" aria-pressed="false">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M1.5 12s3.9-6.5 10.5-6.5S22.5 12 22.5 12s-3.9 6.5-10.5 6.5S1.5 12 1.5 12Z"/>
-                    <circle cx="12" cy="12" r="3.25"/>
-                  </svg>
-                </button>
-              </div>
-            </label>
-            <p id="pin-error" aria-live="polite"></p>
-          </div>
         </section>
         <div class="actions">
+          <button id="cut-off-site" type="button" class="danger-button" hidden>Cut Off Website</button>
           <button id="continue-site" type="button" hidden disabled>Continue</button>
         </div>
       </section>

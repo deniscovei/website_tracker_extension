@@ -31,20 +31,14 @@ const siteDomain = document.getElementById("site-domain");
 const blockModeRadios = Array.from(document.querySelectorAll('input[name="block-mode"]'));
 const dailyAllowance = document.getElementById("daily-allowance");
 const allowExtraTime = document.getElementById("allow-extra-time");
-const requirePinExtra = document.getElementById("require-pin-extra");
 const slotHeading = document.getElementById("slot-heading");
 const intervalList = document.getElementById("interval-list");
 const addInterval = document.getElementById("add-interval");
 const deleteSite = document.getElementById("delete-site");
 const formError = document.getElementById("form-error");
-const SETTINGS_KEY = "websiteTrackerSettings";
-const pinEnabled = document.getElementById("pin-enabled");
-const pinGlobal = document.getElementById("pin-global");
-const pinCode = document.getElementById("pin-code");
-const savePin = document.getElementById("save-pin");
-const pinStatus = document.getElementById("pin-status");
-const togglePinVisibility = document.getElementById("toggle-pin-visibility");
-const usageDay = document.getElementById("usage-day");
+const globalExtraTime = document.getElementById("global-extra-time");
+const saveSettingsButton = document.getElementById("save-settings");
+const settingsStatus = document.getElementById("settings-status");
 const analyticsSummary = document.getElementById("analytics-summary");
 const prevWeek = document.getElementById("prev-week");
 const nextWeek = document.getElementById("next-week");
@@ -132,8 +126,7 @@ let schedule = {
 };
 let state = null;
 let settings = {
-  hasPin: false,
-  requirePinForAllExtraTime: false
+  allowExtraTimeForAllSites: false
 };
 let editingIndex = null;
 let usageData = {
@@ -149,7 +142,7 @@ let highlightedHour = null;
 let shareMode = "compact";
 let websitesExpanded = false;
 let selectedWeekDay = "";
-let popupPinVisible = false;
+let selectedUsageDay = dateToDayKey(new Date());
 let currentDaySites = [];
 let currentHourlyTotals = [];
 let currentHourlyCategories = [];
@@ -165,11 +158,6 @@ scheduleTab?.addEventListener("click", () => {
 
 usageTab?.addEventListener("click", () => {
   void showUsageView();
-});
-
-usageDay?.addEventListener("change", () => {
-  clearUsageSelections();
-  renderUsageForDay(usageDay.value);
 });
 
 blockModeRadios.forEach((radio) => {
@@ -192,41 +180,26 @@ nextHour?.addEventListener("click", () => {
   shiftSelectedHour(1);
 });
 
-savePin?.addEventListener("click", () => {
-  void savePinSettings();
-});
-
-pinEnabled?.addEventListener("change", () => {
-  syncPinSetupView();
-  updatePinDraftStatus();
-});
-
-pinCode?.addEventListener("input", () => {
-  pinCode.value = sanitizePinValue(pinCode.value);
-  updatePinDraftStatus();
-});
-
-togglePinVisibility?.addEventListener("click", () => {
-  popupPinVisible = !popupPinVisible;
-  setPinVisibility(pinCode, togglePinVisibility, popupPinVisible);
+saveSettingsButton?.addEventListener("click", () => {
+  void saveGlobalSettings();
 });
 
 shareCompact?.addEventListener("click", () => {
   shareMode = "compact";
   clearUsageSelections();
-  renderUsageForDay(usageDay.value);
+  renderUsageForDay(selectedUsageDay);
 });
 
 shareAll?.addEventListener("click", () => {
   shareMode = "all";
   clearUsageSelections();
-  renderUsageForDay(usageDay.value);
+  renderUsageForDay(selectedUsageDay);
 });
 
 usageShowMore?.addEventListener("click", () => {
   websitesExpanded = !websitesExpanded;
   clearUsageSelections();
-  renderUsageForDay(usageDay.value);
+  renderUsageForDay(selectedUsageDay);
 });
 
 document.addEventListener("click", (event) => {
@@ -267,7 +240,6 @@ newSite?.addEventListener("click", () => {
     domain: "",
     dailyAllowanceMinutes: 0,
     allowExtraTime: false,
-    requirePinForExtraTime: false,
     intervals: [{ ...DEFAULT_INTERVAL }]
   });
 });
@@ -359,7 +331,7 @@ async function loadData() {
   schedule = normalizeSchedule(response.schedule);
   state = response.state;
   settings = normalizeSettings(response.settings);
-  renderPinSettings();
+  renderSettingsPanel();
   renderStatus();
   renderSiteList();
 }
@@ -377,59 +349,31 @@ async function persistSchedule() {
   schedule = normalizeSchedule(response.schedule);
   state = response.state;
   settings = normalizeSettings(response.settings || settings);
-  renderPinSettings();
+  renderSettingsPanel();
   renderStatus();
   renderSiteList();
 }
 
-async function savePinSettings() {
-  const wantsPin = Boolean(pinEnabled.checked);
-  const nextPin = sanitizePinValue(pinCode.value);
-
-  pinCode.value = nextPin;
-
-  if (wantsPin && nextPin && nextPin.length !== 4) {
-    pinStatus.textContent = "Use exactly 4 digits.";
+async function saveGlobalSettings() {
+  if (!saveSettingsButton || !globalExtraTime || !settingsStatus) {
     return;
   }
 
-  if (wantsPin && !settings.hasPin && nextPin.length !== 4) {
-    pinStatus.textContent = "Enter a 4-digit PIN.";
-    return;
-  }
-
-  if (!wantsPin) {
-    pinGlobal.checked = false;
-  }
-
-  savePin.disabled = true;
-  pinEnabled.disabled = true;
-  pinGlobal.disabled = true;
-  pinCode.disabled = true;
-  togglePinVisibility.disabled = true;
-
+  saveSettingsButton.disabled = true;
   try {
-    const stored = await chrome.storage.local.get(SETTINGS_KEY);
-    let pinHash = wantsPin && typeof stored[SETTINGS_KEY]?.pinHash === "string"
-      ? stored[SETTINGS_KEY].pinHash
-      : "";
+    const response = await chrome.runtime.sendMessage({
+      type: "save-settings",
+      settings: {
+        allowExtraTimeForAllSites: Boolean(globalExtraTime.checked)
+      }
+    });
 
-    if (wantsPin && nextPin.length === 4) {
-      pinHash = await createPinHash(nextPin);
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not save settings.");
     }
 
-    const savedSettings = {
-      pinHash: wantsPin ? pinHash : "",
-      requirePinForAllExtraTime: Boolean(wantsPin && pinGlobal.checked && pinHash)
-    };
-
-    await chrome.storage.local.set({ [SETTINGS_KEY]: savedSettings });
-    settings = normalizeSettings({
-      hasPin: Boolean(savedSettings.pinHash),
-      requirePinForAllExtraTime: savedSettings.requirePinForAllExtraTime
-    });
-    pinCode.value = "";
-    renderPinSettings(wantsPin ? "PIN settings saved." : "PIN disabled.");
+    settings = normalizeSettings(response.settings || settings);
+    renderSettingsPanel("Settings saved.");
     renderSiteList();
 
     try {
@@ -439,64 +383,25 @@ async function savePinSettings() {
         void refreshPromise.catch(() => {});
       }
     } catch (_error) {
-      // Saving the PIN already succeeded; refreshing status can wait for the next tick.
+      // Saving settings already succeeded; refreshing status can wait for the next tick.
     }
   } catch (error) {
-    pinStatus.textContent = cleanError(error);
+    settingsStatus.textContent = cleanError(error);
   } finally {
-    savePin.disabled = false;
-    pinEnabled.disabled = false;
-    syncPinSetupView();
+    saveSettingsButton.disabled = false;
   }
 }
 
-function renderPinSettings(message = "") {
-  pinEnabled.checked = Boolean(settings.hasPin);
-  pinGlobal.checked = Boolean(settings.requirePinForAllExtraTime);
-  pinCode.value = "";
-  popupPinVisible = false;
-  setPinVisibility(pinCode, togglePinVisibility, false);
-  syncPinSetupView();
+function renderSettingsPanel(message = "") {
+  if (globalExtraTime) {
+    globalExtraTime.checked = Boolean(settings.allowExtraTimeForAllSites);
+  }
 
-  if (message) {
-    pinStatus.textContent = message;
+  if (!settingsStatus) {
     return;
   }
 
-  updatePinDraftStatus();
-}
-
-function syncPinSetupView() {
-  const wantsPin = Boolean(pinEnabled.checked);
-
-  if (!wantsPin) {
-    pinGlobal.checked = false;
-  }
-
-  pinCode.disabled = !wantsPin;
-  pinGlobal.disabled = !wantsPin || pinEnabled.disabled;
-  togglePinVisibility.disabled = !wantsPin || pinEnabled.disabled;
-}
-
-function updatePinDraftStatus() {
-  const wantsPin = Boolean(pinEnabled.checked);
-  const nextPin = sanitizePinValue(pinCode.value);
-
-  if (!wantsPin) {
-    pinStatus.textContent = "PIN protection is off.";
-    return;
-  }
-
-  if (nextPin.length === 0) {
-    pinStatus.textContent = settings.hasPin
-      ? "Leave the field blank to keep the current PIN."
-      : "Enter a new 4-digit PIN.";
-    return;
-  }
-
-  pinStatus.textContent = nextPin.length === 4
-    ? "PIN ready."
-    : "PIN must be 4 digits.";
+  settingsStatus.textContent = message || "Applies to selected websites.";
 }
 
 function renderStatus() {
@@ -603,7 +508,6 @@ function openEditor(site) {
   siteDomain.value = site.domain || "";
   dailyAllowance.value = String(site.dailyAllowanceMinutes || 0);
   allowExtraTime.checked = Boolean(site.allowExtraTime);
-  requirePinExtra.checked = Boolean(site.requirePinForExtraTime);
   intervalList.replaceChildren();
 
   const isAlwaysBlocked = isAllDaySite(site);
@@ -722,13 +626,12 @@ async function loadUsageData() {
       : {}
   };
 
-  const selectedDay = usageDay.value || usageData.days[0] || dateToDayKey(new Date());
-  renderUsageDays(selectedDay);
+  const selectedDay = selectedUsageDay || usageData.days[0] || dateToDayKey(new Date());
   renderUsageForDay(selectedDay);
 }
 
 function shiftUsageWeek(amount) {
-  const selectedDate = parseDayKey(usageDay.value) || new Date();
+  const selectedDate = parseDayKey(selectedUsageDay) || new Date();
   const nextDay = dateToDayKey(addDays(selectedDate, amount * 7));
   clearUsageSelections({ keepWeek: false });
   renderUsageForDay(nextDay);
@@ -749,26 +652,9 @@ function shiftSelectedHour(amount) {
   updateCategoryHighlight();
 }
 
-function renderUsageDays(selectedDay = usageDay.value || dateToDayKey(new Date())) {
-  const optionDays = new Set(usageData.days);
-  getWeekDayKeys(selectedDay).forEach((day) => optionDays.add(day));
-  optionDays.add(selectedDay);
-
-  usageDay.replaceChildren(
-    ...Array.from(optionDays).sort().reverse().map((day) => {
-      const option = document.createElement("option");
-      option.value = day;
-      option.textContent = formatDayLabel(day);
-      return option;
-    })
-  );
-
-  usageDay.value = selectedDay;
-}
-
 function renderUsageForDay(day) {
   const selectedDay = day || dateToDayKey(new Date());
-  renderUsageDays(selectedDay);
+  selectedUsageDay = selectedDay;
   renderWeekOverview(selectedDay);
 
   currentDaySites = getDaySites(selectedDay);
@@ -969,7 +855,7 @@ function renderWeekChart(entries, selectedDay, averageSeconds) {
 }
 
 function updateWeekHighlight() {
-  const activeDay = selectedWeekDay || usageDay.value;
+  const activeDay = selectedWeekDay || selectedUsageDay;
 
   weekChart.querySelectorAll(".week-day").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.day === activeDay));
@@ -2076,7 +1962,6 @@ function readSiteForm() {
     domain,
     dailyAllowanceMinutes,
     allowExtraTime: allowExtraTime.checked,
-    requirePinForExtraTime: requirePinExtra.checked,
     intervals
   };
 }
@@ -2173,7 +2058,6 @@ function normalizeSchedule(value) {
         domain: normalizeDomain(site.domain || site.domains?.[0] || ""),
         dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
         allowExtraTime: Boolean(site.allowExtraTime),
-        requirePinForExtraTime: Boolean(site.requirePinForExtraTime),
         intervals: Array.isArray(site.intervals) ? site.intervals.map(normalizeInterval) : []
       }))
       .filter((site) => site.domain)
@@ -2182,76 +2066,8 @@ function normalizeSchedule(value) {
 
 function normalizeSettings(value) {
   return {
-    hasPin: Boolean(value?.hasPin),
-    requirePinForAllExtraTime: Boolean(value?.requirePinForAllExtraTime)
+    allowExtraTimeForAllSites: Boolean(value?.allowExtraTimeForAllSites)
   };
-}
-
-function sanitizePinValue(value) {
-  return String(value || "").replace(/\D+/g, "").slice(0, 4);
-}
-
-function setPinVisibility(input, button, isVisible) {
-  if (!input || !button) {
-    return;
-  }
-
-  input.type = isVisible ? "text" : "password";
-  button.setAttribute("aria-pressed", String(isVisible));
-  button.setAttribute("aria-label", `${isVisible ? "Hide" : "Show"} PIN`);
-  button.innerHTML = isVisible ? getEyeOffIcon() : getEyeIcon();
-}
-
-function getEyeIcon() {
-  return [
-    '<svg viewBox="0 0 24 24" aria-hidden="true">',
-    '<path d="M1.5 12s3.9-6.5 10.5-6.5S22.5 12 22.5 12s-3.9 6.5-10.5 6.5S1.5 12 1.5 12Z"/>',
-    '<circle cx="12" cy="12" r="3.25"/>',
-    "</svg>"
-  ].join("");
-}
-
-function getEyeOffIcon() {
-  return [
-    '<svg viewBox="0 0 24 24" aria-hidden="true">',
-    '<path d="M3 4.5 21 19.5"/>',
-    '<path d="M10.6 5.7a12 12 0 0 1 1.4-.2C18.6 5.5 22.5 12 22.5 12a18.5 18.5 0 0 1-4.1 4.8"/>',
-    '<path d="M6.2 8.2A18.1 18.1 0 0 0 1.5 12s3.9 6.5 10.5 6.5c1 0 1.9-.1 2.8-.4"/>',
-    '<path d="M9.4 9.4A3.7 3.7 0 0 0 12 15.8"/>',
-    "</svg>"
-  ].join("");
-}
-
-async function createPinHash(pin) {
-  const shaHash = await createShaPinHash(pin);
-  return shaHash || createFallbackPinHash(pin);
-}
-
-async function createShaPinHash(pin) {
-  if (!globalThis.crypto?.subtle) {
-    return "";
-  }
-
-  try {
-    const data = new TextEncoder().encode(`website-tracker:${pin}`);
-    const digest = await globalThis.crypto.subtle.digest("SHA-256", data);
-    const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-    return `sha256:${hex}`;
-  } catch (_error) {
-    return "";
-  }
-}
-
-function createFallbackPinHash(pin) {
-  const text = `website-tracker:${pin}`;
-  let hash = 2166136261;
-
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return `fnv1a:${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 function normalizeInterval(interval) {
@@ -2339,12 +2155,8 @@ function siteSummary(site, usage = null) {
     parts.push(`${Math.ceil(usage.remainingSeconds / 60)} min left`);
   }
 
-  if (site.allowExtraTime) {
+  if (site.allowExtraTime || settings.allowExtraTimeForAllSites) {
     parts.push("extra time on");
-  }
-
-  if (settings.hasPin && (site.requirePinForExtraTime || settings.requirePinForAllExtraTime)) {
-    parts.push("PIN for extra time");
   }
 
   return parts.join(" · ");

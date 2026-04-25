@@ -21,12 +21,12 @@ The schedule is saved in Chrome storage from the popup. The extension refreshes 
 6. Drag or click the clock dials to adjust start and end times, or type the `HH:MM` value directly.
 7. Set **Daily allowance** if the site should be usable for a few minutes while it is blocked.
 8. Turn on extra time if the blocked page should offer buttons to add more minutes.
-9. Optionally set a 4-digit PIN under **Extra time security**, then require it globally or for individual websites before extra time can be added.
+9. Optionally enable **Use for all websites** in the popup settings panel to allow extra-time buttons across every website.
 10. Click **Save**.
 
 Intervals use browser local time. Overnight intervals work, so a slot from `22:00` to `07:00` blocks through midnight.
 
-Daily allowance minutes are only spent while the site is active during a blocked slot. The allowance resets each local day. If extra time is enabled, the blocked page can add 5, 15, or 30 more minutes for the current day. PIN-protected websites ask for the configured PIN before granting that time.
+Daily allowance minutes are only spent while the site is active during a blocked slot. The allowance resets each local day. If extra time is enabled, the blocked page can add 5, 15, or 30 more minutes for the current day and also offers a **Cut Off Website** button to remove added extra time immediately.
 
 ## Screen Time
 
