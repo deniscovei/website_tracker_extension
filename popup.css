@@ -237,6 +237,7 @@ h2 {
   display: grid;
   justify-items: end;
   gap: 8px;
+  min-width: 0;
 }
 
 .time-nav,
@@ -261,6 +262,11 @@ h2 {
 
 .time-nav.compact {
   flex: 0 0 auto;
+}
+
+.time-nav.compact .nav-button {
+  width: 28px;
+  height: 28px;
 }
 
 .nav-button {
@@ -291,6 +297,7 @@ h2 {
 }
 
 .day-picker select {
+  max-width: 168px;
   min-height: 32px;
   border: 1px solid rgba(22, 32, 28, 0.14);
   border-radius: 6px;
@@ -327,6 +334,32 @@ h2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.week-heading-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.week-heading-copy h2,
+.week-heading-copy span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.week-heading-copy span,
+.week-trend {
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.week-trend {
+  display: block;
+  line-height: 1.35;
 }
 
 .week-stats div {
@@ -399,6 +432,12 @@ h2 {
 
 .week-day[aria-pressed="true"] .week-bar {
   background: #2563eb;
+}
+
+.week-day[aria-pressed="true"] .week-bar-track {
+  background: #dbeafe;
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
 }
 
 .week-day-label {
@@ -1467,6 +1506,11 @@ button:focus-visible {
     background: #60a5fa;
   }
 
+  .week-day[aria-pressed="true"] .week-bar-track {
+    background: rgba(96, 165, 250, 0.16);
+    outline-color: rgba(96, 165, 250, 0.38);
+  }
+
   .week-average-line {
     border-color: #94a3b8;
   }
@@ -1524,6 +1568,8 @@ button:focus-visible {
 
   #updated,
   #pin-status,
+  .week-heading-copy span,
+  .week-trend,
   .site-meta,
   .slot-summary-days,
   .empty-row,

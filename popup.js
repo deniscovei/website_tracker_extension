@@ -37,19 +37,18 @@ const intervalList = document.getElementById("interval-list");
 const addInterval = document.getElementById("add-interval");
 const deleteSite = document.getElementById("delete-site");
 const formError = document.getElementById("form-error");
+const SETTINGS_KEY = "websiteTrackerSettings";
 const pinGlobal = document.getElementById("pin-global");
 const pinCode = document.getElementById("pin-code");
 const savePin = document.getElementById("save-pin");
 const clearPin = document.getElementById("clear-pin");
 const pinStatus = document.getElementById("pin-status");
-const analyticsButton = document.getElementById("analytics-button");
 const usageDay = document.getElementById("usage-day");
-const prevDay = document.getElementById("prev-day");
-const nextDay = document.getElementById("next-day");
 const analyticsSummary = document.getElementById("analytics-summary");
 const prevWeek = document.getElementById("prev-week");
 const nextWeek = document.getElementById("next-week");
 const usageTotal = document.getElementById("usage-total");
+const weekRange = document.getElementById("week-range");
 const weekTrend = document.getElementById("week-trend");
 const weekSelectedLabel = document.getElementById("week-selected-label");
 const weekSelectedTotal = document.getElementById("week-selected-total");
@@ -148,7 +147,6 @@ let selectedHour = null;
 let highlightedHour = null;
 let shareMode = "compact";
 let websitesExpanded = false;
-let analyticsExpanded = false;
 let selectedWeekDay = "";
 let currentDaySites = [];
 let currentHourlyTotals = [];
@@ -172,22 +170,8 @@ usageDay?.addEventListener("change", () => {
   renderUsageForDay(usageDay.value);
 });
 
-analyticsButton?.addEventListener("click", () => {
-  analyticsExpanded = !analyticsExpanded;
-  analyticsButton.setAttribute("aria-expanded", String(analyticsExpanded));
-  renderAnalyticsSummary(usageDay.value || dateToDayKey(new Date()));
-});
-
 blockModeRadios.forEach((radio) => {
   radio.addEventListener("change", syncBlockingModeView);
-});
-
-prevDay?.addEventListener("click", () => {
-  shiftUsageDay(-1);
-});
-
-nextDay?.addEventListener("click", () => {
-  shiftUsageDay(1);
 });
 
 prevWeek?.addEventListener("click", () => {
@@ -418,23 +402,39 @@ async function savePinSettings({ pin = "", clearPin: shouldClearPin = false, mus
   pinGlobal.disabled = true;
 
   try {
-    const response = await chrome.runtime.sendMessage({
-      type: "save-settings",
-      settings: {
-        pin: nextPin,
-        clearPin: shouldClearPin,
-        requirePinForAllExtraTime: Boolean(pinGlobal.checked)
-      }
-    });
+    const stored = await chrome.storage.local.get(SETTINGS_KEY);
+    let pinHash = typeof stored[SETTINGS_KEY]?.pinHash === "string"
+      ? stored[SETTINGS_KEY].pinHash
+      : "";
 
-    if (!response?.ok) {
-      throw new Error(response?.error || "Could not save PIN settings.");
+    if (shouldClearPin) {
+      pinHash = "";
+    } else if (nextPin) {
+      pinHash = await createPinHash(nextPin);
     }
 
-    settings = normalizeSettings(response.settings);
+    const savedSettings = {
+      pinHash,
+      requirePinForAllExtraTime: Boolean(pinGlobal.checked && pinHash)
+    };
+
+    await chrome.storage.local.set({ [SETTINGS_KEY]: savedSettings });
+    settings = normalizeSettings({
+      hasPin: Boolean(savedSettings.pinHash),
+      requirePinForAllExtraTime: savedSettings.requirePinForAllExtraTime
+    });
     pinCode.value = "";
     renderPinSettings(shouldClearPin ? "PIN disabled." : "PIN settings saved.");
     renderSiteList();
+    try {
+      const refreshPromise = chrome.runtime.sendMessage({ type: "refresh-rules" });
+
+      if (refreshPromise?.catch) {
+        void refreshPromise.catch(() => {});
+      }
+    } catch (_error) {
+      // Saving the PIN already succeeded; refreshing status can wait for the next tick.
+    }
   } catch (error) {
     renderPinSettings(cleanError(error));
   } finally {
@@ -686,13 +686,6 @@ async function loadUsageData() {
   renderUsageForDay(selectedDay);
 }
 
-function shiftUsageDay(amount) {
-  const selectedDate = parseDayKey(usageDay.value) || new Date();
-  const nextDay = dateToDayKey(addDays(selectedDate, amount));
-  clearUsageSelections();
-  renderUsageForDay(nextDay);
-}
-
 function shiftUsageWeek(amount) {
   const selectedDate = parseDayKey(usageDay.value) || new Date();
   const nextDay = dateToDayKey(addDays(selectedDate, amount * 7));
@@ -831,12 +824,6 @@ function getSitesTotalSeconds(sites) {
 }
 
 function renderAnalyticsSummary(selectedDay) {
-  analyticsSummary.hidden = !analyticsExpanded;
-
-  if (!analyticsExpanded) {
-    return;
-  }
-
   const allDays = Object.keys(usageData.usageByDay || {}).sort();
   const weekDays = getWeekDayKeys(selectedDay);
   const selectedSites = getDaySites(selectedDay);
@@ -891,6 +878,7 @@ function renderWeekOverview(selectedDay) {
   weekSelectedLabel.textContent = formatDayLabel(selectedDay);
   weekSelectedTotal.textContent = formatDuration(selectedEntry?.seconds || 0);
   weekAverageTotal.textContent = formatDuration(currentAverage);
+  weekRange.textContent = formatWeekRange(weekDays);
   weekTrend.textContent = formatWeekTrend(currentAverage, previousAverage, selectedDay);
   renderWeekChart(weekEntries, selectedDay, currentAverage);
 }
@@ -916,7 +904,7 @@ function renderWeekChart(entries, selectedDay, averageSeconds) {
       button.type = "button";
       button.className = "week-day";
       button.dataset.day = entry.day;
-      button.setAttribute("aria-pressed", String(entry.day === selectedWeekDay));
+      button.setAttribute("aria-pressed", String(entry.day === (selectedWeekDay || selectedDay)));
       button.setAttribute("aria-label", `${formatDayLabel(entry.day)}: ${formatDuration(entry.seconds)}`);
       button.addEventListener("click", () => {
         const nextWeekDay = selectedWeekDay === entry.day ? "" : entry.day;
@@ -940,8 +928,10 @@ function renderWeekChart(entries, selectedDay, averageSeconds) {
 }
 
 function updateWeekHighlight() {
+  const activeDay = selectedWeekDay || usageDay.value;
+
   weekChart.querySelectorAll(".week-day").forEach((button) => {
-    button.setAttribute("aria-pressed", String(button.dataset.day === selectedWeekDay));
+    button.setAttribute("aria-pressed", String(button.dataset.day === activeDay));
   });
 }
 
@@ -1699,6 +1689,24 @@ function formatShortWeekday(day) {
   return ["S", "M", "T", "W", "T", "F", "S"][date.getDay()];
 }
 
+function formatWeekRange(days) {
+  const first = days[0];
+  const last = days[days.length - 1];
+  const startDate = parseDayKey(first);
+  const endDate = parseDayKey(last);
+
+  if (!startDate || !endDate) {
+    return "";
+  }
+
+  const includeYear = startDate.getFullYear() !== endDate.getFullYear();
+  const options = includeYear
+    ? { month: "short", day: "numeric", year: "numeric" }
+    : { month: "short", day: "numeric" };
+
+  return `${startDate.toLocaleDateString(undefined, options)} - ${endDate.toLocaleDateString(undefined, options)}`;
+}
+
 function formatHour(hour) {
   return `${String(hour).padStart(2, "0")}:00`;
 }
@@ -2136,6 +2144,38 @@ function normalizeSettings(value) {
     hasPin: Boolean(value?.hasPin),
     requirePinForAllExtraTime: Boolean(value?.requirePinForAllExtraTime)
   };
+}
+
+async function createPinHash(pin) {
+  const shaHash = await createShaPinHash(pin);
+  return shaHash || createFallbackPinHash(pin);
+}
+
+async function createShaPinHash(pin) {
+  if (!globalThis.crypto?.subtle) {
+    return "";
+  }
+
+  try {
+    const data = new TextEncoder().encode(`website-tracker:${pin}`);
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", data);
+    const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return `sha256:${hex}`;
+  } catch (_error) {
+    return "";
+  }
+}
+
+function createFallbackPinHash(pin) {
+  const text = `website-tracker:${pin}`;
+  let hash = 2166136261;
+
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return `fnv1a:${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 function normalizeInterval(interval) {

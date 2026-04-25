@@ -83,8 +83,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "save-settings") {
     saveSettings(message.settings)
-      .then((settings) => refreshRules().then((state) => ({ settings, state })))
-      .then((data) => sendResponse({ ok: true, ...data }))
+      .then((settings) => sendResponse({ ok: true, settings }))
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
 
     return true;
@@ -269,17 +268,57 @@ function publicSettings(settings) {
 }
 
 async function hashPin(pin) {
-  const data = new TextEncoder().encode(`website-tracker:${pin}`);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  const shaHash = await createShaPinHash(pin);
+  return shaHash || createFallbackPinHash(pin);
 }
 
 async function verifyPin(pin, settings) {
-  if (!settings.pinHash || !/^\d{4}$/.test(String(pin || ""))) {
+  const expectedHash = settings.pinHash;
+
+  if (!expectedHash || !/^\d{4}$/.test(String(pin || ""))) {
     return false;
   }
 
-  return await hashPin(String(pin)) === settings.pinHash;
+  if (expectedHash.startsWith("fnv1a:")) {
+    return createFallbackPinHash(pin) === expectedHash;
+  }
+
+  if (expectedHash.startsWith("sha256:")) {
+    return await createShaPinHash(pin) === expectedHash;
+  }
+
+  return await createLegacyShaPinHash(pin) === expectedHash;
+}
+
+async function createShaPinHash(pin) {
+  const hash = await createLegacyShaPinHash(pin);
+  return hash ? `sha256:${hash}` : "";
+}
+
+async function createLegacyShaPinHash(pin) {
+  if (!globalThis.crypto?.subtle) {
+    return "";
+  }
+
+  try {
+    const data = new TextEncoder().encode(`website-tracker:${pin}`);
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  } catch (_error) {
+    return "";
+  }
+}
+
+function createFallbackPinHash(pin) {
+  const text = `website-tracker:${pin}`;
+  let hash = 2166136261;
+
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return `fnv1a:${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 function normalizeScheduleForStorage(schedule) {

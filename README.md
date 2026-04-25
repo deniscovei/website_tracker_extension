@@ -30,4 +30,4 @@ Daily allowance minutes are only spent while the site is active during a blocked
 
 ## Screen Time
 
-Open the popup and switch to **Usage** to see website usage. The extension records active HTTP and HTTPS websites, shows total time, a weekly Apple-style bar chart with a daily average line, stacked hourly category bars, an interactive website share pie chart, and a per-website breakdown on one page. Use the chart arrows to move through days, weeks, and selected hours, and use **Analytics** for all-time totals and top-site summaries. Category chips reveal website-level details for that category. Usage is kept for today plus the last 30 completed days.
+Open the popup and switch to **Usage** to see website usage. The extension records active HTTP and HTTPS websites, shows total time, all-time analytics, a weekly Apple-style bar chart with a daily average line, stacked hourly category bars, an interactive website share pie chart, and a per-website breakdown on one page. Use the chart arrows to move through weeks and selected hours. Category chips reveal website-level details for that category. Usage is kept for today plus the last 30 completed days.
