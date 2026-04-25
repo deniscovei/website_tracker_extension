@@ -4,6 +4,13 @@ const extraTime = document.getElementById("extra-time");
 const extraStatus = document.getElementById("extra-status");
 const extraActions = document.getElementById("extra-actions");
 const continueSite = document.getElementById("continue-site");
+const pinPanel = document.getElementById("pin-panel");
+const pinCode = document.getElementById("pin-code");
+const pinConfirm = document.getElementById("pin-confirm");
+const pinCancel = document.getElementById("pin-cancel");
+const pinError = document.getElementById("pin-error");
+let latestStatus = null;
+let pendingMinutes = 0;
 
 document.getElementById("go-back")?.addEventListener("click", () => {
   if (history.length > 1) {
@@ -31,7 +38,26 @@ extraActions?.addEventListener("click", async (event) => {
     return;
   }
 
-  await addExtraMinutes(Number(button.dataset.extraMinutes));
+  await requestExtraMinutes(Number(button.dataset.extraMinutes));
+});
+
+pinConfirm?.addEventListener("click", () => {
+  void confirmPinExtraTime();
+});
+
+pinCancel?.addEventListener("click", () => {
+  hidePinPanel();
+});
+
+pinCode?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    void confirmPinExtraTime();
+  }
+
+  if (event.key === "Escape") {
+    hidePinPanel();
+  }
 });
 
 void loadExtraTimeStatus();
@@ -54,6 +80,7 @@ async function loadExtraTimeStatus() {
       return;
     }
 
+    latestStatus = response.status;
     renderStatus(response.status);
   } catch (error) {
     extraStatus.textContent = cleanError(error);
@@ -77,6 +104,9 @@ function renderStatus(status) {
     extraStatus.textContent = remainingMinutes > 0
       ? `${remainingMinutes} minute${remainingMinutes === 1 ? "" : "s"} available for today.`
       : "Your daily allowance is used up. Add more time for today.";
+    if (status.requiresPinForExtraTime) {
+      extraStatus.textContent += " PIN required.";
+    }
     extraActions.hidden = false;
     return;
   }
@@ -94,16 +124,54 @@ function renderStatus(status) {
   extraStatus.textContent = "Extra time is disabled for this website.";
 }
 
-async function addExtraMinutes(minutes) {
+async function requestExtraMinutes(minutes) {
+  pendingMinutes = minutes;
+
+  if (latestStatus?.requiresPinForExtraTime) {
+    showPinPanel();
+    return;
+  }
+
+  await addExtraMinutes(minutes);
+}
+
+async function confirmPinExtraTime() {
+  const pin = String(pinCode.value || "").trim();
+
+  if (!/^\d{4}$/.test(pin)) {
+    pinError.textContent = "Enter the 4-digit PIN.";
+    return;
+  }
+
+  await addExtraMinutes(pendingMinutes, pin);
+}
+
+function showPinPanel() {
+  pinError.textContent = "";
+  pinCode.value = "";
+  pinPanel.hidden = false;
+  pinCode.focus();
+}
+
+function hidePinPanel() {
+  pendingMinutes = 0;
+  pinError.textContent = "";
+  pinCode.value = "";
+  pinPanel.hidden = true;
+}
+
+async function addExtraMinutes(minutes, pin = "") {
   extraActions.querySelectorAll("button").forEach((button) => {
     button.disabled = true;
   });
+  pinConfirm.disabled = true;
 
   try {
     const response = await chrome.runtime.sendMessage({
       type: "add-extra-time",
       domain: site,
-      minutes
+      minutes,
+      pin
     });
 
     if (!response?.ok) {
@@ -112,12 +180,21 @@ async function addExtraMinutes(minutes) {
 
     extraStatus.textContent = `Added ${minutes} minute${minutes === 1 ? "" : "s"} for today.`;
     continueSite.hidden = false;
+    latestStatus = response.status || latestStatus;
+    hidePinPanel();
   } catch (error) {
-    extraStatus.textContent = cleanError(error);
+    const message = cleanError(error);
+
+    if (pinPanel.hidden) {
+      extraStatus.textContent = message;
+    } else {
+      pinError.textContent = message;
+    }
   } finally {
     extraActions.querySelectorAll("button").forEach((button) => {
       button.disabled = false;
     });
+    pinConfirm.disabled = false;
   }
 }
 

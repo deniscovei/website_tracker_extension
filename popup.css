@@ -178,33 +178,6 @@ h2 {
   gap: 12px;
 }
 
-.analytics-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  border-radius: 8px;
-  background: #eaf1ff;
-  padding: 4px;
-}
-
-.analytics-tabs button {
-  min-width: 0;
-  min-height: 32px;
-  border-radius: 6px;
-  background: transparent;
-  color: #475569;
-  cursor: pointer;
-  font-size: 0.76rem;
-  font-weight: 900;
-  padding: 0 6px;
-}
-
-.analytics-tabs button[aria-pressed="true"] {
-  background: #ffffff;
-  color: #1d4ed8;
-  box-shadow: 0 1px 5px rgba(22, 32, 28, 0.09);
-}
-
 .analytics-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -254,6 +227,58 @@ h2 {
 
 .section-heading.compact {
   margin-top: 2px;
+}
+
+.usage-heading {
+  align-items: start;
+}
+
+.usage-heading-actions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.time-nav,
+.panel-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-tools {
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.panel-tools > span {
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time-nav.compact {
+  flex: 0 0 auto;
+}
+
+.nav-button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 6px;
+  background: #eaf1ff;
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.nav-button:hover {
+  background: #dbeafe;
 }
 
 .day-picker {
@@ -514,12 +539,6 @@ h2 {
   font-size: 0.72rem;
   font-weight: 900;
   padding: 0 8px;
-}
-
-.category-more {
-  color: #1d4ed8;
-  font-size: 0.68rem;
-  font-weight: 900;
 }
 
 .category-chip[aria-pressed="true"],
@@ -794,6 +813,33 @@ h2 {
   gap: 8px;
   margin: 0;
   padding: 0;
+}
+
+.settings-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(22, 32, 28, 0.12);
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 12px;
+}
+
+.settings-panel h2 {
+  font-size: 0.92rem;
+}
+
+.settings-panel p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.pin-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: end;
 }
 
 .site-list li {
@@ -1340,13 +1386,13 @@ button:focus-visible {
   }
 
   .icon-button,
+  .nav-button,
   .secondary-button,
   .site-row,
   .slot-summary,
   .field input,
   .mode-option,
   .category-chip,
-  .analytics-tabs button[aria-pressed="true"],
   .analytics-summary div,
   .category-detail-sites li,
   .day-picker select,
@@ -1357,6 +1403,7 @@ button:focus-visible {
   }
 
   .icon-button:hover,
+  .nav-button:hover,
   .secondary-button:hover,
   .site-row:hover,
   .category-chip[aria-pressed="true"],
@@ -1371,6 +1418,7 @@ button:focus-visible {
   .interval-row,
   .mode-panel,
   .mode-option,
+  .settings-panel,
   .category-chip,
   .analytics-summary div,
   .field input,
@@ -1385,6 +1433,7 @@ button:focus-visible {
   .status,
   .allowance-panel,
   .mode-panel,
+  .settings-panel,
   .usage-total,
   .week-stats div,
   .interval-row,
@@ -1394,7 +1443,6 @@ button:focus-visible {
   }
 
   .view-tabs,
-  .analytics-tabs,
   .mini-toggle,
   .hour-bar-track,
   .week-bar-track,
@@ -1427,11 +1475,6 @@ button:focus-visible {
     color: #a8b4c8;
   }
 
-  .analytics-tabs button {
-    color: #a8b4c8;
-  }
-
-  .analytics-tabs button[aria-pressed="true"],
   .analytics-summary strong,
   .category-detail-sites strong {
     color: #dbeafe;
@@ -1480,6 +1523,7 @@ button:focus-visible {
   }
 
   #updated,
+  #pin-status,
   .site-meta,
   .slot-summary-days,
   .empty-row,

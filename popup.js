@@ -31,24 +31,32 @@ const siteDomain = document.getElementById("site-domain");
 const blockModeRadios = Array.from(document.querySelectorAll('input[name="block-mode"]'));
 const dailyAllowance = document.getElementById("daily-allowance");
 const allowExtraTime = document.getElementById("allow-extra-time");
+const requirePinExtra = document.getElementById("require-pin-extra");
 const slotHeading = document.getElementById("slot-heading");
 const intervalList = document.getElementById("interval-list");
 const addInterval = document.getElementById("add-interval");
 const deleteSite = document.getElementById("delete-site");
 const formError = document.getElementById("form-error");
-const usageModeButtons = Array.from(document.querySelectorAll("[data-usage-mode]"));
+const pinGlobal = document.getElementById("pin-global");
+const pinCode = document.getElementById("pin-code");
+const savePin = document.getElementById("save-pin");
+const clearPin = document.getElementById("clear-pin");
+const pinStatus = document.getElementById("pin-status");
+const analyticsButton = document.getElementById("analytics-button");
 const usageDay = document.getElementById("usage-day");
-const dayPicker = usageDay.closest(".day-picker");
+const prevDay = document.getElementById("prev-day");
+const nextDay = document.getElementById("next-day");
 const analyticsSummary = document.getElementById("analytics-summary");
-const weekPanel = document.getElementById("week-panel");
-const usageTotalPanel = document.getElementById("usage-total-panel");
+const prevWeek = document.getElementById("prev-week");
+const nextWeek = document.getElementById("next-week");
 const usageTotal = document.getElementById("usage-total");
 const weekTrend = document.getElementById("week-trend");
 const weekSelectedLabel = document.getElementById("week-selected-label");
 const weekSelectedTotal = document.getElementById("week-selected-total");
 const weekAverageTotal = document.getElementById("week-average-total");
 const weekChart = document.getElementById("week-chart");
-const hourlyPanel = document.getElementById("hourly-panel");
+const prevHour = document.getElementById("prev-hour");
+const nextHour = document.getElementById("next-hour");
 const usagePeak = document.getElementById("usage-peak");
 const usageCount = document.getElementById("usage-count");
 const hourChart = document.getElementById("hour-chart");
@@ -58,13 +66,11 @@ const categoryDetailTitle = document.getElementById("category-detail-title");
 const categoryDetailMeta = document.getElementById("category-detail-meta");
 const categoryDetailChart = document.getElementById("category-detail-chart");
 const categoryDetailSites = document.getElementById("category-detail-sites");
-const sharePanel = document.getElementById("share-panel");
 const usagePie = document.getElementById("usage-pie");
 const usagePieTooltip = document.getElementById("usage-pie-tooltip");
 const usagePieLegend = document.getElementById("usage-pie-legend");
 const shareCompact = document.getElementById("share-compact");
 const shareAll = document.getElementById("share-all");
-const sitesPanel = document.getElementById("sites-panel");
 const usageSites = document.getElementById("usage-sites");
 const usageShowMore = document.getElementById("usage-show-more");
 
@@ -125,6 +131,10 @@ let schedule = {
   sites: []
 };
 let state = null;
+let settings = {
+  hasPin: false,
+  requirePinForAllExtraTime: false
+};
 let editingIndex = null;
 let usageData = {
   days: [],
@@ -138,13 +148,12 @@ let selectedHour = null;
 let highlightedHour = null;
 let shareMode = "compact";
 let websitesExpanded = false;
-let usageViewMode = "daily";
+let analyticsExpanded = false;
 let selectedWeekDay = "";
 let currentDaySites = [];
 let currentHourlyTotals = [];
 let currentHourlyCategories = [];
 let currentContext = {
-  label: "",
   days: [],
   sites: [],
   totalSeconds: 0
@@ -163,16 +172,50 @@ usageDay?.addEventListener("change", () => {
   renderUsageForDay(usageDay.value);
 });
 
-usageModeButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    usageViewMode = button.dataset.usageMode || "daily";
-    clearUsageSelections({ keepWeek: false });
-    renderUsageForDay(usageDay.value);
-  });
+analyticsButton?.addEventListener("click", () => {
+  analyticsExpanded = !analyticsExpanded;
+  analyticsButton.setAttribute("aria-expanded", String(analyticsExpanded));
+  renderAnalyticsSummary(usageDay.value || dateToDayKey(new Date()));
 });
 
 blockModeRadios.forEach((radio) => {
   radio.addEventListener("change", syncBlockingModeView);
+});
+
+prevDay?.addEventListener("click", () => {
+  shiftUsageDay(-1);
+});
+
+nextDay?.addEventListener("click", () => {
+  shiftUsageDay(1);
+});
+
+prevWeek?.addEventListener("click", () => {
+  shiftUsageWeek(-1);
+});
+
+nextWeek?.addEventListener("click", () => {
+  shiftUsageWeek(1);
+});
+
+prevHour?.addEventListener("click", () => {
+  shiftSelectedHour(-1);
+});
+
+nextHour?.addEventListener("click", () => {
+  shiftSelectedHour(1);
+});
+
+savePin?.addEventListener("click", () => {
+  void savePinSettings({ pin: pinCode.value, mustSetPin: true });
+});
+
+clearPin?.addEventListener("click", () => {
+  void savePinSettings({ clearPin: true });
+});
+
+pinGlobal?.addEventListener("change", () => {
+  void savePinSettings();
 });
 
 shareCompact?.addEventListener("click", () => {
@@ -198,7 +241,7 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  if (event.target.closest("[data-pie-domain], [data-site-domain], [data-category], [data-hour], .week-day, .mini-toggle, [data-usage-mode], #usage-show-more")) {
+  if (event.target.closest("[data-pie-domain], [data-site-domain], [data-category], [data-hour], .week-day, .mini-toggle, #usage-show-more, .time-nav")) {
     return;
   }
 
@@ -231,6 +274,7 @@ newSite?.addEventListener("click", () => {
     domain: "",
     dailyAllowanceMinutes: 0,
     allowExtraTime: false,
+    requirePinForExtraTime: false,
     intervals: [{ ...DEFAULT_INTERVAL }]
   });
 });
@@ -321,6 +365,8 @@ async function loadData() {
 
   schedule = normalizeSchedule(response.schedule);
   state = response.state;
+  settings = normalizeSettings(response.settings);
+  renderPinSettings();
   renderStatus();
   renderSiteList();
 }
@@ -337,8 +383,79 @@ async function persistSchedule() {
 
   schedule = normalizeSchedule(response.schedule);
   state = response.state;
+  settings = normalizeSettings(response.settings || settings);
+  renderPinSettings();
   renderStatus();
   renderSiteList();
+}
+
+async function savePinSettings({ pin = "", clearPin: shouldClearPin = false, mustSetPin = false } = {}) {
+  const nextPin = String(pin || "").trim();
+  const nextHasPin = shouldClearPin ? false : settings.hasPin || Boolean(nextPin);
+
+  if (mustSetPin && !nextPin) {
+    renderPinSettings("Enter a 4-digit PIN.");
+    return;
+  }
+
+  if (nextPin && !/^\d{4}$/.test(nextPin)) {
+    renderPinSettings("Use exactly 4 digits.");
+    return;
+  }
+
+  if (pinGlobal.checked && !nextHasPin) {
+    pinGlobal.checked = false;
+    renderPinSettings("Set a 4-digit PIN first.");
+    return;
+  }
+
+  if (shouldClearPin) {
+    pinGlobal.checked = false;
+  }
+
+  savePin.disabled = true;
+  clearPin.disabled = true;
+  pinGlobal.disabled = true;
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "save-settings",
+      settings: {
+        pin: nextPin,
+        clearPin: shouldClearPin,
+        requirePinForAllExtraTime: Boolean(pinGlobal.checked)
+      }
+    });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not save PIN settings.");
+    }
+
+    settings = normalizeSettings(response.settings);
+    pinCode.value = "";
+    renderPinSettings(shouldClearPin ? "PIN disabled." : "PIN settings saved.");
+    renderSiteList();
+  } catch (error) {
+    renderPinSettings(cleanError(error));
+  } finally {
+    savePin.disabled = false;
+    pinGlobal.disabled = false;
+    clearPin.disabled = !settings.hasPin;
+  }
+}
+
+function renderPinSettings(message = "") {
+  pinGlobal.checked = Boolean(settings.requirePinForAllExtraTime);
+  clearPin.disabled = !settings.hasPin;
+
+  if (message) {
+    pinStatus.textContent = message;
+    return;
+  }
+
+  pinStatus.textContent = settings.hasPin
+    ? "PIN is set."
+    : "PIN not set.";
 }
 
 function renderStatus() {
@@ -445,6 +562,7 @@ function openEditor(site) {
   siteDomain.value = site.domain || "";
   dailyAllowance.value = String(site.dailyAllowanceMinutes || 0);
   allowExtraTime.checked = Boolean(site.allowExtraTime);
+  requirePinExtra.checked = Boolean(site.requirePinForExtraTime);
   intervalList.replaceChildren();
 
   const isAlwaysBlocked = isAllDaySite(site);
@@ -568,6 +686,35 @@ async function loadUsageData() {
   renderUsageForDay(selectedDay);
 }
 
+function shiftUsageDay(amount) {
+  const selectedDate = parseDayKey(usageDay.value) || new Date();
+  const nextDay = dateToDayKey(addDays(selectedDate, amount));
+  clearUsageSelections();
+  renderUsageForDay(nextDay);
+}
+
+function shiftUsageWeek(amount) {
+  const selectedDate = parseDayKey(usageDay.value) || new Date();
+  const nextDay = dateToDayKey(addDays(selectedDate, amount * 7));
+  clearUsageSelections({ keepWeek: false });
+  renderUsageForDay(nextDay);
+}
+
+function shiftSelectedHour(amount) {
+  const peakSeconds = Math.max(0, ...currentHourlyTotals);
+  const fallbackHour = peakSeconds > 0 ? currentHourlyTotals.indexOf(peakSeconds) : 0;
+  const baseHour = selectedHour ?? highlightedHour ?? fallbackHour;
+
+  selectedPieDomain = "";
+  highlightedPieDomain = "";
+  selectedWeekDay = "";
+  selectedHour = (baseHour + amount + 24) % 24;
+  highlightedHour = null;
+  updatePieHighlight();
+  updateWeekHighlight();
+  updateCategoryHighlight();
+}
+
 function renderUsageDays(selectedDay = usageDay.value || dateToDayKey(new Date())) {
   const optionDays = new Set(usageData.days);
   getWeekDayKeys(selectedDay).forEach((day) => optionDays.add(day));
@@ -588,11 +735,14 @@ function renderUsageDays(selectedDay = usageDay.value || dateToDayKey(new Date()
 function renderUsageForDay(day) {
   const selectedDay = day || dateToDayKey(new Date());
   renderUsageDays(selectedDay);
-  renderUsageMode();
   renderWeekOverview(selectedDay);
 
-  currentContext = getUsageContext(selectedDay);
   currentDaySites = getDaySites(selectedDay);
+  currentContext = {
+    days: [selectedDay],
+    sites: currentDaySites,
+    totalSeconds: getSitesTotalSeconds(currentDaySites)
+  };
   const hourlyData = getHourlyData(currentDaySites);
   currentHourlyTotals = hourlyData.hourly;
   currentHourlyCategories = hourlyData.hourlyCategories;
@@ -616,55 +766,11 @@ function renderUsageForDay(day) {
     ? `Peak ${formatHour(peakHour)}: ${formatDuration(peakSeconds)}`
     : "No usage yet";
 
-  renderAnalyticsSummary(currentContext, selectedDay);
+  renderAnalyticsSummary(selectedDay);
   renderHourChart(currentHourlyTotals, currentHourlyCategories);
   renderUsagePie(currentContext.sites, currentContext.totalSeconds);
   renderUsageSites(currentContext.sites, currentContext.totalSeconds);
   updatePieHighlight();
-}
-
-function renderUsageMode() {
-  usageModeButtons.forEach((button) => {
-    button.setAttribute("aria-pressed", String(button.dataset.usageMode === usageViewMode));
-  });
-
-  dayPicker.hidden = usageViewMode === "all";
-  weekPanel.hidden = usageViewMode !== "weekly";
-  hourlyPanel.hidden = usageViewMode !== "hourly";
-  sharePanel.hidden = usageViewMode === "hourly";
-  sitesPanel.hidden = usageViewMode === "hourly";
-}
-
-function getUsageContext(selectedDay) {
-  if (usageViewMode === "all") {
-    const days = Object.keys(usageData.usageByDay || {}).sort();
-    const sites = aggregateSitesForDays(days);
-    return {
-      label: "All tracked time",
-      days,
-      sites,
-      totalSeconds: getSitesTotalSeconds(sites)
-    };
-  }
-
-  if (usageViewMode === "weekly") {
-    const days = getWeekDayKeys(selectedDay);
-    const sites = aggregateSitesForDays(days);
-    return {
-      label: `Week of ${formatDayLabel(days[0])}`,
-      days,
-      sites,
-      totalSeconds: getSitesTotalSeconds(sites)
-    };
-  }
-
-  const sites = getDaySites(selectedDay);
-  return {
-    label: formatDayLabel(selectedDay),
-    days: [selectedDay],
-    sites,
-    totalSeconds: getSitesTotalSeconds(sites)
-  };
 }
 
 function getDaySites(day) {
@@ -724,15 +830,31 @@ function getSitesTotalSeconds(sites) {
   return sites.reduce((sum, site) => sum + site.screenSeconds, 0);
 }
 
-function renderAnalyticsSummary(context, selectedDay) {
-  const daysWithUsage = context.days.filter((day) => getDayTotalSeconds(day) > 0).length;
-  const dailyAverage = context.totalSeconds / Math.max(1, usageViewMode === "all" ? daysWithUsage : context.days.length);
-  const topSite = context.sites[0];
+function renderAnalyticsSummary(selectedDay) {
+  analyticsSummary.hidden = !analyticsExpanded;
+
+  if (!analyticsExpanded) {
+    return;
+  }
+
+  const allDays = Object.keys(usageData.usageByDay || {}).sort();
+  const weekDays = getWeekDayKeys(selectedDay);
+  const selectedSites = getDaySites(selectedDay);
+  const weekSites = aggregateSitesForDays(weekDays);
+  const allSites = aggregateSitesForDays(allDays);
+  const selectedTotal = getSitesTotalSeconds(selectedSites);
+  const weekTotal = getSitesTotalSeconds(weekSites);
+  const allTotal = getSitesTotalSeconds(allSites);
+  const activeDays = allDays.filter((day) => getDayTotalSeconds(day) > 0).length;
+  const allDailyAverage = allTotal / Math.max(1, activeDays);
+  const topSite = allSites[0];
   const cards = [
-    { label: "View", value: getUsageModeLabel(), note: context.label },
-    { label: "Total", value: formatDuration(context.totalSeconds), note: `${context.sites.length} site${context.sites.length === 1 ? "" : "s"}` },
-    { label: usageViewMode === "hourly" || usageViewMode === "daily" ? "Selected day" : "Daily average", value: formatDuration(usageViewMode === "hourly" || usageViewMode === "daily" ? getDayTotalSeconds(selectedDay) : dailyAverage), note: usageViewMode === "all" ? `${daysWithUsage} active day${daysWithUsage === 1 ? "" : "s"}` : formatDayLabel(selectedDay) },
-    { label: "Top website", value: topSite ? topSite.domain : "None", note: topSite ? formatDuration(topSite.screenSeconds) : "No usage" }
+    { label: "Selected day", value: formatDuration(selectedTotal), note: formatDayLabel(selectedDay) },
+    { label: "This week", value: formatDuration(weekTotal), note: `Average ${formatDuration(weekTotal / 7)}` },
+    { label: "All tracked", value: formatDuration(allTotal), note: `${activeDays} active day${activeDays === 1 ? "" : "s"}` },
+    { label: "Daily average", value: formatDuration(allDailyAverage), note: "Across active days" },
+    { label: "Top website", value: topSite ? topSite.domain : "None", note: topSite ? formatDuration(topSite.screenSeconds) : "No usage" },
+    { label: "Websites", value: String(allSites.length), note: "Recorded so far" }
   ];
 
   analyticsSummary.replaceChildren(
@@ -749,22 +871,6 @@ function renderAnalyticsSummary(context, selectedDay) {
       return item;
     })
   );
-}
-
-function getUsageModeLabel() {
-  if (usageViewMode === "hourly") {
-    return "Hourly";
-  }
-
-  if (usageViewMode === "weekly") {
-    return "Weekly";
-  }
-
-  if (usageViewMode === "all") {
-    return "All Time";
-  }
-
-  return "Daily";
 }
 
 function renderWeekOverview(selectedDay) {
@@ -931,7 +1037,6 @@ function renderCategoryLegend(categories) {
       const button = document.createElement("button");
       const swatch = document.createElement("span");
       const label = document.createElement("span");
-      const more = document.createElement("span");
 
       button.type = "button";
       button.className = "category-chip";
@@ -961,10 +1066,8 @@ function renderCategoryLegend(categories) {
       swatch.className = "category-swatch";
       swatch.style.background = CATEGORY_COLORS[category] || CATEGORY_COLORS.other;
       label.textContent = CATEGORY_LABELS[category] || CATEGORY_LABELS.other;
-      more.className = "category-more";
-      more.textContent = "See more";
 
-      button.append(swatch, label, more);
+      button.append(swatch, label);
       return button;
     })
   );
@@ -1007,7 +1110,8 @@ function updateHourlySelectionSummary() {
 
   if (activeCategory && activeHour !== null) {
     const seconds = currentHourlyCategories[activeHour]?.[activeCategory] || 0;
-    usagePeak.textContent = `${formatHour(activeHour)} · ${CATEGORY_LABELS[activeCategory]}: ${formatDuration(seconds)}`;
+    const hourTotal = currentHourlyTotals[activeHour] || 0;
+    usagePeak.textContent = `${formatHour(activeHour)} total: ${formatDuration(hourTotal)} · ${CATEGORY_LABELS[activeCategory]}: ${formatDuration(seconds)}`;
     return;
   }
 
@@ -1923,6 +2027,7 @@ function readSiteForm() {
     domain,
     dailyAllowanceMinutes,
     allowExtraTime: allowExtraTime.checked,
+    requirePinForExtraTime: requirePinExtra.checked,
     intervals
   };
 }
@@ -2019,9 +2124,17 @@ function normalizeSchedule(value) {
         domain: normalizeDomain(site.domain || site.domains?.[0] || ""),
         dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
         allowExtraTime: Boolean(site.allowExtraTime),
+        requirePinForExtraTime: Boolean(site.requirePinForExtraTime),
         intervals: Array.isArray(site.intervals) ? site.intervals.map(normalizeInterval) : []
       }))
       .filter((site) => site.domain)
+  };
+}
+
+function normalizeSettings(value) {
+  return {
+    hasPin: Boolean(value?.hasPin),
+    requirePinForAllExtraTime: Boolean(value?.requirePinForAllExtraTime)
   };
 }
 
@@ -2112,6 +2225,10 @@ function siteSummary(site, usage = null) {
 
   if (site.allowExtraTime) {
     parts.push("extra time on");
+  }
+
+  if (settings.hasPin && (site.requirePinForExtraTime || settings.requirePinForAllExtraTime)) {
+    parts.push("PIN for extra time");
   }
 
   return parts.join(" · ");

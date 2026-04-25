@@ -35,6 +35,27 @@
         </div>
         <ul id="site-list" class="site-list"></ul>
         <button id="refresh" class="secondary-button" type="button">Refresh rules</button>
+
+        <section class="settings-panel" aria-labelledby="pin-settings-title">
+          <div class="panel-heading">
+            <div>
+              <h2 id="pin-settings-title">Extra time security</h2>
+              <p id="pin-status">PIN not set</p>
+            </div>
+          </div>
+          <label class="toggle-field">
+            <input id="pin-global" type="checkbox">
+            <span>Require PIN for all websites</span>
+          </label>
+          <div class="pin-controls">
+            <label class="field">
+              <span>4-digit PIN</span>
+              <input id="pin-code" type="password" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="0000">
+            </label>
+            <button id="save-pin" class="primary-button small" type="button">Save PIN</button>
+            <button id="clear-pin" class="secondary-button small" type="button">Disable PIN</button>
+          </div>
+        </section>
       </section>
 
       <section id="editor-view" class="view" hidden>
@@ -77,6 +98,10 @@
               <input id="allow-extra-time" type="checkbox">
               <span>Show extra-time buttons after the allowance runs out</span>
             </label>
+            <label class="toggle-field">
+              <input id="require-pin-extra" type="checkbox">
+              <span>Require PIN before adding time</span>
+            </label>
           </section>
 
           <div id="slot-heading" class="section-heading compact">
@@ -95,27 +120,33 @@
       </section>
 
       <section id="usage-view" class="view usage-view" hidden>
-        <div class="section-heading">
+        <div class="section-heading usage-heading">
           <h2>Screen time</h2>
-          <label class="day-picker">
-            <span>Day</span>
-            <select id="usage-day"></select>
-          </label>
+          <div class="usage-heading-actions">
+            <button id="analytics-button" class="secondary-button small" type="button" aria-expanded="false">Analytics</button>
+            <div class="time-nav" aria-label="Day navigation">
+              <button id="prev-day" class="nav-button" type="button" aria-label="Previous day">&lsaquo;</button>
+              <label class="day-picker">
+                <span>Day</span>
+                <select id="usage-day"></select>
+              </label>
+              <button id="next-day" class="nav-button" type="button" aria-label="Next day">&rsaquo;</button>
+            </div>
+          </div>
         </div>
 
-        <nav class="analytics-tabs" aria-label="Usage analytics views">
-          <button type="button" data-usage-mode="hourly" aria-pressed="false">Hourly</button>
-          <button type="button" data-usage-mode="daily" aria-pressed="true">Daily</button>
-          <button type="button" data-usage-mode="weekly" aria-pressed="false">Weekly</button>
-          <button type="button" data-usage-mode="all" aria-pressed="false">All Time</button>
-        </nav>
-
-        <section id="analytics-summary" class="analytics-summary" aria-label="Usage analytics summary"></section>
+        <section id="analytics-summary" class="analytics-summary" aria-label="Usage analytics summary" hidden></section>
 
         <section id="week-panel" class="usage-panel week-panel" aria-labelledby="week-title">
           <div class="panel-heading">
             <h2 id="week-title">Week</h2>
-            <span id="week-trend">No previous week yet</span>
+            <div class="panel-tools">
+              <span id="week-trend">No previous week yet</span>
+              <div class="time-nav compact" aria-label="Week navigation">
+                <button id="prev-week" class="nav-button" type="button" aria-label="Previous week">&lsaquo;</button>
+                <button id="next-week" class="nav-button" type="button" aria-label="Next week">&rsaquo;</button>
+              </div>
+            </div>
           </div>
           <div class="week-stats">
             <div>
@@ -138,7 +169,13 @@
         <section id="hourly-panel" class="usage-panel" aria-labelledby="hourly-title">
           <div class="panel-heading">
             <h2 id="hourly-title">Hourly usage</h2>
-            <span id="usage-peak">No usage yet</span>
+            <div class="panel-tools">
+              <span id="usage-peak">No usage yet</span>
+              <div class="time-nav compact" aria-label="Hour navigation">
+                <button id="prev-hour" class="nav-button" type="button" aria-label="Previous hour">&lsaquo;</button>
+                <button id="next-hour" class="nav-button" type="button" aria-label="Next hour">&rsaquo;</button>
+              </div>
+            </div>
           </div>
           <div id="hour-chart" class="hour-chart" aria-label="Hourly usage chart"></div>
           <div id="category-legend" class="category-legend" aria-label="Usage categories"></div>

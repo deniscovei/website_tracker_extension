@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Website Tracker",
   "description": "Tracks website usage and blocks distracting sites by schedule.",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "minimum_chrome_version": "101",
   "permissions": [
     "alarms",

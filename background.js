@@ -7,6 +7,7 @@ const USAGE_KEY = "scheduleBlockerUsage";
 const USAGE_HISTORY_KEY = "scheduleBlockerUsageHistory";
 const TRACKING_KEY = "scheduleBlockerTracking";
 const SCREEN_TRACKING_KEY = "scheduleBlockerScreenTracking";
+const SETTINGS_KEY = "websiteTrackerSettings";
 const MAX_USAGE_HISTORY_DAYS = 30;
 const MAX_TRACKING_GAP_SECONDS = 2 * 60;
 const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -73,7 +74,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "save-schedule") {
     saveSchedule(message.schedule)
-      .then((schedule) => refreshRules().then((state) => ({ schedule, state })))
+      .then((schedule) => Promise.all([refreshRules(), loadPublicSettings()]).then(([state, settings]) => ({ schedule, state, settings })))
+      .then((data) => sendResponse({ ok: true, ...data }))
+      .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
+
+    return true;
+  }
+
+  if (message?.type === "save-settings") {
+    saveSettings(message.settings)
+      .then((settings) => refreshRules().then((state) => ({ settings, state })))
       .then((data) => sendResponse({ ok: true, ...data }))
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
 
@@ -108,7 +118,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "add-extra-time") {
-    addExtraTime(message.domain, message.minutes)
+    addExtraTime(message.domain, message.minutes, message.pin)
       .then(() => refreshRules())
       .then(() => getSiteStatus(message.domain))
       .then((status) => sendResponse({ ok: true, status }))
@@ -138,8 +148,11 @@ async function tick() {
 
 async function refreshRules() {
   try {
-    const schedule = await loadSchedule();
-    const usage = await getUsage();
+    const [schedule, usage, settings] = await Promise.all([
+      loadSchedule(),
+      getUsage(),
+      loadSettings()
+    ]);
     const now = getTimeParts(schedule.timezone);
     const activeSites = getActiveSites(schedule, now, usage);
     const rules = activeSites.map((site, index) => createRedirectRule(index + 1, site));
@@ -150,7 +163,7 @@ async function refreshRules() {
       activeSites,
       error: "",
       lastUpdated: Date.now(),
-      siteUsage: getSiteUsageStates(schedule, now, usage),
+      siteUsage: getSiteUsageStates(schedule, now, usage, settings),
       timezone: schedule.timezone || "local"
     };
 
@@ -185,14 +198,16 @@ async function loadSchedule() {
 }
 
 async function getScheduleData() {
-  const [schedule, stored] = await Promise.all([
+  const [schedule, settings, stored] = await Promise.all([
     loadSchedule(),
+    loadPublicSettings(),
     chrome.storage.local.get(STATE_KEY)
   ]);
   const state = stored[STATE_KEY] || await refreshRules();
 
   return {
     schedule: normalizeScheduleForStorage(schedule),
+    settings,
     state
   };
 }
@@ -201,6 +216,70 @@ async function saveSchedule(schedule) {
   const normalized = normalizeScheduleForStorage(schedule);
   await chrome.storage.local.set({ [SCHEDULE_KEY]: normalized });
   return normalized;
+}
+
+async function loadSettings() {
+  const stored = await chrome.storage.local.get(SETTINGS_KEY);
+  return normalizeSettingsForStorage(stored[SETTINGS_KEY]);
+}
+
+async function loadPublicSettings() {
+  const settings = await loadSettings();
+  return publicSettings(settings);
+}
+
+async function saveSettings(value = {}) {
+  const current = await loadSettings();
+  let pinHash = current.pinHash;
+
+  if (value.clearPin) {
+    pinHash = "";
+  } else if (value.pin) {
+    const pin = String(value.pin);
+
+    if (!/^\d{4}$/.test(pin)) {
+      throw new Error("Use exactly 4 digits for the PIN.");
+    }
+
+    pinHash = await hashPin(pin);
+  }
+
+  const requirePinForAllExtraTime = Boolean(value.requirePinForAllExtraTime) && Boolean(pinHash);
+  const next = normalizeSettingsForStorage({
+    pinHash,
+    requirePinForAllExtraTime
+  });
+
+  await chrome.storage.local.set({ [SETTINGS_KEY]: next });
+  return publicSettings(next);
+}
+
+function normalizeSettingsForStorage(value = {}) {
+  return {
+    pinHash: typeof value.pinHash === "string" ? value.pinHash : "",
+    requirePinForAllExtraTime: Boolean(value.requirePinForAllExtraTime)
+  };
+}
+
+function publicSettings(settings) {
+  return {
+    hasPin: Boolean(settings.pinHash),
+    requirePinForAllExtraTime: Boolean(settings.pinHash && settings.requirePinForAllExtraTime)
+  };
+}
+
+async function hashPin(pin) {
+  const data = new TextEncoder().encode(`website-tracker:${pin}`);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function verifyPin(pin, settings) {
+  if (!settings.pinHash || !/^\d{4}$/.test(String(pin || ""))) {
+    return false;
+  }
+
+  return await hashPin(String(pin)) === settings.pinHash;
 }
 
 function normalizeScheduleForStorage(schedule) {
@@ -242,7 +321,8 @@ function normalizeSiteForStorage(site) {
     domain: uniqueDomains[0],
     intervals: normalizeIntervalsForStorage(site.intervals),
     dailyAllowanceMinutes: normalizeDailyAllowance(site.dailyAllowanceMinutes ?? site.allowanceMinutes),
-    allowExtraTime: Boolean(site.allowExtraTime)
+    allowExtraTime: Boolean(site.allowExtraTime),
+    requirePinForExtraTime: Boolean(site.requirePinForExtraTime)
   };
 }
 
@@ -334,7 +414,8 @@ function normalizeSite(site) {
     domains: Array.from(new Set(domains)),
     intervals,
     dailyAllowanceMinutes: normalizeDailyAllowance(site.dailyAllowanceMinutes ?? site.allowanceMinutes),
-    allowExtraTime: Boolean(site.allowExtraTime)
+    allowExtraTime: Boolean(site.allowExtraTime),
+    requirePinForExtraTime: Boolean(site.requirePinForExtraTime)
   };
 }
 
@@ -685,7 +766,7 @@ function getHostname(url) {
 
 async function getSiteStatus(domain) {
   const normalizedDomain = normalizeDomain(domain);
-  const [schedule, usage] = await Promise.all([loadSchedule(), getUsage()]);
+  const [schedule, usage, settings] = await Promise.all([loadSchedule(), getUsage(), loadSettings()]);
   const now = getTimeParts(schedule.timezone);
   const site = findSiteForHost(schedule, normalizedDomain);
 
@@ -696,12 +777,12 @@ async function getSiteStatus(domain) {
     };
   }
 
-  return buildSiteUsageState(site, now, usage);
+  return buildSiteUsageState(site, now, usage, settings);
 }
 
-async function addExtraTime(domain, minutes) {
+async function addExtraTime(domain, minutes, pin = "") {
   const normalizedDomain = normalizeDomain(domain);
-  const [schedule, usage] = await Promise.all([loadSchedule(), getUsage()]);
+  const [schedule, usage, settings] = await Promise.all([loadSchedule(), getUsage(), loadSettings()]);
   const site = findSiteForHost(schedule, normalizedDomain);
 
   if (!site) {
@@ -710,6 +791,10 @@ async function addExtraTime(domain, minutes) {
 
   if (!site.allowExtraTime) {
     throw new Error("Extra time is disabled for this website.");
+  }
+
+  if (isExtraTimePinRequired(site, settings) && !await verifyPin(pin, settings)) {
+    throw new Error("Incorrect PIN.");
   }
 
   const extraMinutes = Number(minutes);
@@ -924,16 +1009,16 @@ function getRemainingSeconds(site, usage) {
   return Math.max(0, totalSeconds - entry.usedSeconds);
 }
 
-function getSiteUsageStates(schedule, now, usage) {
+function getSiteUsageStates(schedule, now, usage, settings) {
   const sites = Array.isArray(schedule.sites) ? schedule.sites : [];
 
   return sites
     .map((site) => normalizeSite(site))
     .filter((site) => site.domain)
-    .map((site) => buildSiteUsageState(site, now, usage));
+    .map((site) => buildSiteUsageState(site, now, usage, settings));
 }
 
-function buildSiteUsageState(site, now, usage) {
+function buildSiteUsageState(site, now, usage, settings = {}) {
   const entry = getSiteUsageEntry(usage, site.domain);
 
   return {
@@ -944,9 +1029,15 @@ function buildSiteUsageState(site, now, usage) {
     extraSeconds: entry.extraSeconds,
     inBlockedSlot: isSiteInBlockedSlot(site, now),
     isBlocked: shouldBlockSite(site, now, usage),
+    pinConfigured: Boolean(settings.pinHash),
     remainingSeconds: getRemainingSeconds(site, usage),
+    requiresPinForExtraTime: isExtraTimePinRequired(site, settings),
     usedSeconds: entry.usedSeconds
   };
+}
+
+function isExtraTimePinRequired(site, settings = {}) {
+  return Boolean(settings.pinHash && (settings.requirePinForAllExtraTime || site.requirePinForExtraTime));
 }
 
 function getTimeParts(timezone = "local") {

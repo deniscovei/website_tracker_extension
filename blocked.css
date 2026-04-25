@@ -104,6 +104,59 @@ h1 {
   background: #eef4ff;
 }
 
+.pin-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: end;
+  margin-top: 12px;
+}
+
+.pin-panel label {
+  display: grid;
+  gap: 5px;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.pin-panel input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(22, 32, 28, 0.14);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #111827;
+  font: inherit;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  padding: 0 10px;
+  text-align: center;
+}
+
+.pin-panel button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1d4ed8;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0 12px;
+}
+
+.pin-panel button:hover {
+  background: #eef4ff;
+}
+
+.pin-panel p {
+  grid-column: 1 / -1;
+  min-height: 18px;
+  color: #a72d4f;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 #go-back,
 #continue-site {
   min-height: 44px;
@@ -130,7 +183,9 @@ h1 {
 
 #go-back:focus-visible,
 #continue-site:focus-visible,
-.extra-actions button:focus-visible {
+.extra-actions button:focus-visible,
+.pin-panel input:focus-visible,
+.pin-panel button:focus-visible {
   outline: 3px solid rgba(37, 99, 235, 0.32);
   outline-offset: 3px;
 }
@@ -178,5 +233,24 @@ h1 {
 
   .extra-actions button:hover {
     background: #273449;
+  }
+
+  .pin-panel label {
+    color: #cbd5e1;
+  }
+
+  .pin-panel input,
+  .pin-panel button {
+    border-color: rgba(245, 247, 245, 0.14);
+    background: #1f2937;
+    color: #dbeafe;
+  }
+
+  .pin-panel button:hover {
+    background: #273449;
+  }
+
+  .pin-panel p {
+    color: #f18eaa;
   }
 }
