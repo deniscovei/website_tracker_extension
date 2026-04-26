@@ -391,6 +391,7 @@ function normalizeSiteForStorage(site) {
 
   return {
     domain: uniqueDomains[0],
+    blockMode: normalizeBlockMode(site.blockMode, site.intervals),
     intervals: normalizeIntervalsForStorage(site.intervals),
     dailyAllowanceMinutes: normalizeDailyAllowance(site.dailyAllowanceMinutes ?? site.allowanceMinutes),
     allowExtraTime: Boolean(site.allowExtraTime),
@@ -484,11 +485,20 @@ function normalizeSite(site) {
     name: site.name || domains[0] || "Unnamed site",
     domain: domains[0] || "",
     domains: Array.from(new Set(domains)),
+    blockMode: normalizeBlockMode(site.blockMode, intervals),
     intervals,
     dailyAllowanceMinutes: normalizeDailyAllowance(site.dailyAllowanceMinutes ?? site.allowanceMinutes),
     allowExtraTime: Boolean(site.allowExtraTime),
     requirePinForExtraTime: Boolean(site.requirePinForExtraTime)
   };
+}
+
+function normalizeBlockMode(mode, intervals = []) {
+  if (mode === "always" || mode === "slots") {
+    return mode;
+  }
+
+  return isLegacyAllDayIntervals(intervals) ? "always" : "slots";
 }
 
 function pickDomainValues(site) {
@@ -538,6 +548,10 @@ function shouldBlockSite(site, now, usage) {
 }
 
 function isSiteInBlockedSlot(site, now) {
+  if (normalizeBlockMode(site.blockMode, site.intervals) === "always") {
+    return true;
+  }
+
   return site.intervals.some((interval) => isIntervalActive(interval, now));
 }
 
@@ -563,6 +577,14 @@ function isIntervalActive(interval, now) {
     (dayMatches(days, now.day) && now.minutes >= start) ||
     (dayMatches(days, previousDay) && now.minutes < end)
   );
+}
+
+function isLegacyAllDayIntervals(intervals) {
+  const parsed = Array.isArray(intervals) && intervals.length === 1
+    ? parseInterval(intervals[0])
+    : null;
+
+  return Boolean(parsed && parsed.start === parsed.end && (!parsed.days || parsed.days.size === DAY_NAMES.length));
 }
 
 function parseInterval(interval) {

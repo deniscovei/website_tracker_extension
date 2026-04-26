@@ -38,13 +38,11 @@ const intervalList = document.getElementById("interval-list");
 const addInterval = document.getElementById("add-interval");
 const deleteSite = document.getElementById("delete-site");
 const formError = document.getElementById("form-error");
-const SETTINGS_KEY = "websiteTrackerSettings";
 const pinGlobal = document.getElementById("pin-global");
 const pinGlobalRow = document.getElementById("pin-global-row");
 const changePin = document.getElementById("change-pin");
 const pinEditor = document.getElementById("pin-editor");
 const pinCode = document.getElementById("pin-code");
-const savePin = document.getElementById("save-pin");
 const pinStatus = document.getElementById("pin-status");
 const togglePinVisibility = document.getElementById("toggle-pin-visibility");
 const analyticsSummary = document.getElementById("analytics-summary");
@@ -154,6 +152,12 @@ let websitesExpanded = false;
 let selectedWeekDay = "";
 let popupPinVisible = false;
 let pinEditorOpen = false;
+let pinAutosaveTimer = 0;
+let pinAutosaveInFlight = false;
+let pinAutosaveQueued = false;
+let editorAutosaveTimer = 0;
+let editorAutosaveInFlight = false;
+let editorAutosaveQueued = false;
 let selectedUsageDay = dateToDayKey(new Date());
 let currentDaySites = [];
 let currentHourlyTotals = [];
@@ -173,7 +177,10 @@ usageTab?.addEventListener("click", () => {
 });
 
 blockModeRadios.forEach((radio) => {
-  radio.addEventListener("change", syncBlockingModeView);
+  radio.addEventListener("change", () => {
+    syncBlockingModeView();
+    queueEditorAutosave({ immediate: true });
+  });
 });
 
 prevWeek?.addEventListener("click", () => {
@@ -192,20 +199,20 @@ nextHour?.addEventListener("click", () => {
   shiftSelectedHour(1);
 });
 
-savePin?.addEventListener("click", () => {
-  void savePinSettings();
-});
-
 pinGlobal?.addEventListener("change", () => {
-  if (settings.hasPin) {
-    pinStatus.classList.remove("error");
-    pinStatus.textContent = "Save settings to apply this change.";
-  }
+  void savePinRequirementToggle();
 });
 
 pinCode?.addEventListener("input", () => {
   pinCode.value = sanitizePinValue(pinCode.value);
   updatePinDraftStatus();
+  queuePinAutosave();
+});
+
+pinCode?.addEventListener("blur", () => {
+  if (sanitizePinValue(pinCode.value).length === 4) {
+    void savePinValue();
+  }
 });
 
 changePin?.addEventListener("click", () => {
@@ -221,6 +228,26 @@ changePin?.addEventListener("click", () => {
 togglePinVisibility?.addEventListener("click", () => {
   popupPinVisible = !popupPinVisible;
   setPinVisibility(pinCode, togglePinVisibility, popupPinVisible);
+});
+
+siteDomain?.addEventListener("input", () => {
+  clearFormError();
+  queueEditorAutosave();
+});
+
+dailyAllowance?.addEventListener("input", () => {
+  clearFormError();
+  queueEditorAutosave();
+});
+
+allowExtraTime?.addEventListener("change", () => {
+  clearFormError();
+  queueEditorAutosave({ immediate: true });
+});
+
+requirePinExtra?.addEventListener("change", () => {
+  clearFormError();
+  queueEditorAutosave({ immediate: true });
 });
 
 shareCompact?.addEventListener("click", () => {
@@ -277,6 +304,7 @@ newSite?.addEventListener("click", () => {
   editingIndex = null;
   openEditor({
     domain: "",
+    blockMode: "slots",
     dailyAllowanceMinutes: 0,
     allowExtraTime: false,
     requirePinForExtraTime: false,
@@ -288,9 +316,12 @@ back?.addEventListener("click", showList);
 
 addInterval?.addEventListener("click", () => {
   appendInterval({ ...DEFAULT_INTERVAL }, { expanded: true });
+  queueEditorAutosave({ immediate: true });
 });
 
 deleteSite?.addEventListener("click", async () => {
+  clearTimeout(editorAutosaveTimer);
+
   if (editingIndex === null) {
     showList();
     return;
@@ -312,22 +343,7 @@ deleteSite?.addEventListener("click", async () => {
 
 siteForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  clearFormError();
-
-  try {
-    const site = readSiteForm();
-
-    if (editingIndex === null) {
-      schedule.sites.push(site);
-    } else {
-      schedule.sites[editingIndex] = site;
-    }
-
-    await persistSchedule();
-    showList();
-  } catch (error) {
-    setFormError(cleanError(error));
-  }
+  void autosaveEditor();
 });
 
 intervalList?.addEventListener("click", (event) => {
@@ -340,6 +356,7 @@ intervalList?.addEventListener("click", (event) => {
   const removeButton = target.closest("[data-remove-interval]");
   if (removeButton) {
     removeButton.closest(".interval-row")?.remove();
+    queueEditorAutosave({ immediate: true });
     return;
   }
 
@@ -355,6 +372,7 @@ intervalList?.addEventListener("click", (event) => {
     const isPressed = dayButton.getAttribute("aria-pressed") === "true";
     dayButton.setAttribute("aria-pressed", String(!isPressed));
     updateSlotSummary(dayButton.closest(".interval-row"));
+    queueEditorAutosave({ immediate: true });
   }
 });
 
@@ -394,60 +412,94 @@ async function persistSchedule() {
   renderSiteList();
 }
 
-async function savePinSettings() {
+function queuePinAutosave() {
+  clearTimeout(pinAutosaveTimer);
+
   const nextPin = sanitizePinValue(pinCode.value);
+
+  if (!pinEditorOpen || nextPin.length !== 4 || (settings.hasPin && nextPin === settings.pinValue)) {
+    return;
+  }
+
+  pinAutosaveTimer = window.setTimeout(() => {
+    void savePinValue();
+  }, 350);
+}
+
+async function savePinValue() {
+  const nextPin = sanitizePinValue(pinCode.value);
+
+  if (!pinEditorOpen) {
+    return;
+  }
 
   pinCode.value = nextPin;
 
-  if (pinEditorOpen && nextPin && nextPin.length !== 4) {
-    pinStatus.textContent = "Use exactly 4 digits.";
-    pinStatus.classList.add("error");
+  if (nextPin.length !== 4) {
+    updatePinDraftStatus();
     return;
   }
 
-  if (!settings.hasPin && nextPin.length !== 4) {
-    pinStatus.textContent = "Enter a 4-digit PIN.";
-    pinStatus.classList.add("error");
+  await persistPinSettings({
+    pin: nextPin,
+    successMessage: "PIN saved.",
+    keepEditorOpen: true
+  });
+}
+
+async function savePinRequirementToggle() {
+  if (!settings.hasPin) {
+    pinGlobal.checked = false;
+    syncPinSetupView();
     return;
   }
 
-  savePin.disabled = true;
+  await persistPinSettings({
+    successMessage: pinGlobal.checked
+      ? "PIN required for all websites."
+      : "PIN requirement updated.",
+    keepEditorOpen: pinEditorOpen
+  });
+}
+
+async function persistPinSettings({
+  pin,
+  successMessage = "PIN settings saved.",
+  keepEditorOpen = pinEditorOpen
+} = {}) {
+  if (pinAutosaveInFlight) {
+    pinAutosaveQueued = true;
+    return;
+  }
+
+  pinAutosaveInFlight = true;
+  pinStatus.classList.remove("error");
+  pinStatus.textContent = "Saving...";
+
   if (changePin) {
     changePin.disabled = true;
   }
+
   pinGlobal.disabled = true;
   pinCode.disabled = true;
   togglePinVisibility.disabled = true;
 
   try {
-    const stored = await chrome.storage.local.get(SETTINGS_KEY);
-    let pinHash = typeof stored[SETTINGS_KEY]?.pinHash === "string"
-      ? stored[SETTINGS_KEY].pinHash
-      : "";
-    let pinValue = typeof stored[SETTINGS_KEY]?.pinValue === "string"
-      ? sanitizePinValue(stored[SETTINGS_KEY].pinValue)
-      : "";
+    const response = await chrome.runtime.sendMessage({
+      type: "save-settings",
+      settings: {
+        ...(pin ? { pin } : {}),
+        requirePinForAllExtraTime: Boolean(pinGlobal.checked)
+      }
+    });
 
-    if (nextPin.length === 4) {
-      pinHash = await createPinHash(nextPin);
-      pinValue = nextPin;
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not save PIN settings.");
     }
 
-    const savedSettings = {
-      pinHash,
-      pinValue: pinHash ? pinValue : "",
-      requirePinForAllExtraTime: Boolean(pinGlobal.checked && pinHash)
-    };
-
-    await chrome.storage.local.set({ [SETTINGS_KEY]: savedSettings });
-    settings = normalizeSettings({
-      hasPin: Boolean(savedSettings.pinHash),
-      requirePinForAllExtraTime: savedSettings.requirePinForAllExtraTime,
-      pinValue: savedSettings.pinValue
-    });
-    pinEditorOpen = false;
-    pinCode.value = "";
-    renderPinSettings("PIN settings saved.");
+    settings = normalizeSettings(response.settings || settings);
+    pinEditorOpen = Boolean(keepEditorOpen || !settings.hasPin);
+    renderPinSettings(successMessage);
     renderSiteList();
 
     try {
@@ -463,11 +515,22 @@ async function savePinSettings() {
     pinStatus.textContent = cleanError(error);
     pinStatus.classList.add("error");
   } finally {
-    savePin.disabled = false;
+    pinAutosaveInFlight = false;
     if (changePin) {
       changePin.disabled = false;
     }
     syncPinSetupView();
+
+    if (pinAutosaveQueued) {
+      pinAutosaveQueued = false;
+      const nextPin = sanitizePinValue(pinCode.value);
+
+      if (pinEditorOpen && nextPin.length === 4 && (!settings.hasPin || nextPin !== settings.pinValue)) {
+        queuePinAutosave();
+      } else if (Boolean(pinGlobal.checked) !== Boolean(settings.requirePinForAllExtraTime)) {
+        void savePinRequirementToggle();
+      }
+    }
   }
 }
 
@@ -504,9 +567,9 @@ function syncPinSetupView() {
     changePin.hidden = !hasPin || pinEditorOpen;
   }
 
-  pinCode.disabled = !pinEditorOpen;
-  pinGlobal.disabled = !hasPin;
-  togglePinVisibility.disabled = !pinEditorOpen || pinCode.value.length === 0;
+  pinCode.disabled = !pinEditorOpen || pinAutosaveInFlight;
+  pinGlobal.disabled = !hasPin || pinAutosaveInFlight;
+  togglePinVisibility.disabled = !pinEditorOpen || pinCode.value.length === 0 || pinAutosaveInFlight;
 
   pinGlobalRow?.classList.toggle("is-disabled", !hasPin);
   requirePinExtraRow?.classList.toggle("is-disabled", !hasPin);
@@ -535,12 +598,12 @@ function updatePinDraftStatus() {
   if (nextPin.length === 0) {
     pinStatus.classList.remove("error");
     if (settings.hasPin && pinEditorOpen && !settings.pinValue) {
-      pinStatus.textContent = "This PIN was saved before prefilling was available. Type it once and save to enable prefilling.";
+      pinStatus.textContent = "This PIN was saved before prefilling was available. Type it once to enable prefilling.";
       return;
     }
 
     pinStatus.textContent = settings.hasPin
-      ? "Edit the 4-digit PIN."
+      ? "Edit the 4-digit PIN. Changes save automatically."
       : "Create a 4-digit PIN to enable PIN checks.";
     return;
   }
@@ -548,11 +611,11 @@ function updatePinDraftStatus() {
   if (nextPin.length === 4) {
     pinStatus.classList.remove("error");
     if (settings.hasPin && pinEditorOpen && nextPin === settings.pinValue) {
-      pinStatus.textContent = "Current PIN loaded. Edit it and save when ready.";
+      pinStatus.textContent = "Current PIN loaded.";
       return;
     }
 
-    pinStatus.textContent = settings.hasPin ? "New PIN ready." : "PIN ready.";
+    pinStatus.textContent = settings.hasPin ? "Saving new PIN..." : "Saving PIN...";
   } else {
     pinStatus.classList.add("error");
     pinStatus.textContent = "PIN must be 4 digits.";
@@ -709,19 +772,17 @@ function openEditor(site) {
   requirePinExtra.checked = Boolean(site.requirePinForExtraTime);
   syncPinSetupView();
   intervalList.replaceChildren();
+  clearTimeout(editorAutosaveTimer);
 
-  const isAlwaysBlocked = isAllDaySite(site);
-  const intervals = !isAlwaysBlocked && Array.isArray(site.intervals) && site.intervals.length > 0
+  const blockMode = normalizeBlockMode(site.blockMode, site.intervals);
+  const intervals = Array.isArray(site.intervals) && site.intervals.length > 0
     ? site.intervals
     : [{ ...DEFAULT_INTERVAL }];
 
-  setBlockMode(isAlwaysBlocked ? "always" : "slots");
-
-  if (!isAlwaysBlocked) {
-    intervals.forEach((interval) => {
-      appendInterval(interval, { expanded: editingIndex === null });
-    });
-  }
+  setBlockMode(blockMode);
+  intervals.forEach((interval) => {
+    appendInterval(interval, { expanded: editingIndex === null });
+  });
 
   syncBlockingModeView();
 
@@ -759,9 +820,13 @@ function syncBlockingModeView() {
 }
 
 function isAllDaySite(site) {
+  if (normalizeBlockMode(site?.blockMode, site?.intervals) === "always") {
+    return true;
+  }
+
   const intervals = Array.isArray(site?.intervals) ? site.intervals : [];
 
-  return intervals.length === 1 && isAllDayInterval(intervals[0]);
+  return isLegacyAllDayIntervals(intervals);
 }
 
 function isAllDayInterval(interval) {
@@ -771,7 +836,86 @@ function isAllDayInterval(interval) {
     (!normalized.days || normalized.days.length === DAYS.length);
 }
 
+function isLegacyAllDayIntervals(intervals) {
+  return Array.isArray(intervals) && intervals.length === 1 && isAllDayInterval(intervals[0]);
+}
+
+function queueEditorAutosave({ immediate = false } = {}) {
+  if (editorView.hidden) {
+    return;
+  }
+
+  clearTimeout(editorAutosaveTimer);
+  editorAutosaveTimer = window.setTimeout(() => {
+    void autosaveEditor();
+  }, immediate ? 0 : 350);
+}
+
+async function autosaveEditor() {
+  if (editorView.hidden) {
+    return;
+  }
+
+  if (editorAutosaveInFlight) {
+    editorAutosaveQueued = true;
+    return;
+  }
+
+  clearFormError();
+
+  let site;
+
+  try {
+    site = readSiteForm();
+  } catch (error) {
+    const message = cleanError(error);
+
+    if (editingIndex === null && (message === "Enter a website domain." || message === "Enter a valid website domain.")) {
+      clearFormError();
+      return;
+    }
+
+    setFormError(message);
+    return;
+  }
+
+  editorAutosaveInFlight = true;
+  const previousIndex = editingIndex;
+  const previousSite = previousIndex === null ? null : cloneSite(schedule.sites[previousIndex]);
+
+  if (previousIndex === null) {
+    schedule.sites.push(site);
+    editingIndex = schedule.sites.length - 1;
+  } else {
+    schedule.sites[previousIndex] = site;
+  }
+
+  try {
+    await persistSchedule();
+    deleteSite.hidden = editingIndex === null;
+    clearFormError();
+  } catch (error) {
+    if (previousIndex === null) {
+      schedule.sites.pop();
+      editingIndex = null;
+    } else if (previousSite) {
+      schedule.sites[previousIndex] = previousSite;
+      editingIndex = previousIndex;
+    }
+
+    setFormError(cleanError(error));
+  } finally {
+    editorAutosaveInFlight = false;
+
+    if (editorAutosaveQueued) {
+      editorAutosaveQueued = false;
+      void autosaveEditor();
+    }
+  }
+}
+
 function showList() {
+  clearTimeout(editorAutosaveTimer);
   scheduleTab?.setAttribute("aria-pressed", "true");
   usageTab?.setAttribute("aria-pressed", "false");
   editorView.hidden = true;
@@ -787,6 +931,7 @@ function showScheduleView() {
 }
 
 async function showUsageView() {
+  clearTimeout(editorAutosaveTimer);
   editingIndex = null;
   clearFormError();
   scheduleTab?.setAttribute("aria-pressed", "false");
@@ -1972,11 +2117,13 @@ function attachClockControl(control) {
     event.preventDefault();
     face.setPointerCapture(event.pointerId);
     setClockFromPointer(control, event);
+    queueEditorAutosave();
   });
 
   face.addEventListener("pointermove", (event) => {
     if (face.hasPointerCapture(event.pointerId)) {
       setClockFromPointer(control, event);
+      queueEditorAutosave();
     }
   });
 
@@ -1989,6 +2136,7 @@ function attachClockControl(control) {
 
     event.preventDefault();
     setClockMinutes(control, getClockMinutes(control) + step);
+    queueEditorAutosave();
   });
 
   control.querySelectorAll("[data-period]").forEach((button) => {
@@ -1996,6 +2144,7 @@ function attachClockControl(control) {
       const current = getClockMinutes(control);
       const period = Number(button.dataset.period || "0");
       setClockMinutes(control, period + (current % 720));
+      queueEditorAutosave({ immediate: true });
     });
   });
 
@@ -2065,6 +2214,7 @@ function commitManualTime(control) {
   }
 
   setClockMinutes(control, timeToMinutes(time));
+  queueEditorAutosave();
 }
 
 function parseManualTime(value) {
@@ -2140,13 +2290,16 @@ function minutesToTime(value) {
 
 function readSiteForm() {
   const domain = normalizeDomain(siteDomain.value);
-  const intervals = getBlockMode() === "always"
-    ? [{ ...ALL_DAY_INTERVAL }]
-    : readIntervals();
+  const blockMode = getBlockMode();
+  const intervals = readIntervals();
   const dailyAllowanceMinutes = normalizeAllowanceMinutes(dailyAllowance.value);
 
   if (!domain) {
     throw new Error("Enter a website domain.");
+  }
+
+  if (!isValidWebsiteDomain(domain)) {
+    throw new Error("Enter a valid website domain.");
   }
 
   const duplicate = schedule.sites.some((site, index) => {
@@ -2157,16 +2310,17 @@ function readSiteForm() {
     throw new Error("That website is already in the schedule.");
   }
 
-  if (intervals.length === 0) {
+  if (blockMode === "slots" && intervals.length === 0) {
     throw new Error("Add at least one time slot.");
   }
 
   return {
     domain,
+    blockMode,
     dailyAllowanceMinutes,
     allowExtraTime: allowExtraTime.checked,
     requirePinForExtraTime: settings.hasPin ? requirePinExtra.checked : false,
-    intervals
+    intervals: intervals.length > 0 ? intervals : [{ ...DEFAULT_INTERVAL }]
   };
 }
 
@@ -2260,6 +2414,7 @@ function normalizeSchedule(value) {
     sites: sites
       .map((site) => ({
         domain: normalizeDomain(site.domain || site.domains?.[0] || ""),
+        blockMode: normalizeBlockMode(site.blockMode, site.intervals),
         dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
         allowExtraTime: Boolean(site.allowExtraTime),
         requirePinForExtraTime: Boolean(site.requirePinForExtraTime),
@@ -2310,38 +2465,6 @@ function getEyeOffIcon() {
     '<path d="M9.4 9.4A3.7 3.7 0 0 0 12 15.8"/>',
     "</svg>"
   ].join("");
-}
-
-async function createPinHash(pin) {
-  const shaHash = await createShaPinHash(pin);
-  return shaHash || createFallbackPinHash(pin);
-}
-
-async function createShaPinHash(pin) {
-  if (!globalThis.crypto?.subtle) {
-    return "";
-  }
-
-  try {
-    const data = new TextEncoder().encode(`website-tracker:${pin}`);
-    const digest = await globalThis.crypto.subtle.digest("SHA-256", data);
-    const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-    return `sha256:${hex}`;
-  } catch (_error) {
-    return "";
-  }
-}
-
-function createFallbackPinHash(pin) {
-  const text = `website-tracker:${pin}`;
-  let hash = 2166136261;
-
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return `fnv1a:${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 function normalizeInterval(interval) {
@@ -2414,9 +2537,37 @@ function isValidTime(value) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
+function isValidWebsiteDomain(domain) {
+  return domain === "localhost" || /^([a-z0-9-]+\.)+[a-z0-9-]{2,}$/i.test(domain);
+}
+
+function normalizeBlockMode(mode, intervals = []) {
+  if (mode === "always" || mode === "slots") {
+    return mode;
+  }
+
+  return isLegacyAllDayIntervals(intervals) ? "always" : "slots";
+}
+
+function cloneSite(site) {
+  return {
+    domain: site.domain,
+    blockMode: normalizeBlockMode(site.blockMode, site.intervals),
+    dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
+    allowExtraTime: Boolean(site.allowExtraTime),
+    requirePinForExtraTime: Boolean(site.requirePinForExtraTime),
+    intervals: Array.isArray(site.intervals)
+      ? site.intervals.map((interval) => ({
+        ...interval,
+        ...(Array.isArray(interval.days) ? { days: [...interval.days] } : {})
+      }))
+      : []
+  };
+}
+
 function siteSummary(site, usage = null) {
   const count = site.intervals.length;
-  const slotText = isAllDaySite(site)
+  const slotText = normalizeBlockMode(site.blockMode, site.intervals) === "always"
     ? "always"
     : `during ${count} slot${count === 1 ? "" : "s"}`;
   const parts = [`blocked ${slotText}`];

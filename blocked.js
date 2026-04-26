@@ -8,6 +8,7 @@ const VIEW_STATE = {
   SUCCESS: "success",
   PIN: "pin"
 };
+const FINAL_ACTION_LABEL = "Open website";
 
 let latestStatus = null;
 let currentView = VIEW_STATE.SELECT;
@@ -93,14 +94,14 @@ function createSuccessView() {
 
   view.className = "popup-view popup-view-success";
   message.className = "view-message";
-  message.textContent = `Added ${formatMinutes(pendingMinutes)} for today.`;
+  message.textContent = `${formatMinutes(pendingMinutes)} ready to add.`;
 
   button.type = "button";
   button.className = "panel-button primary";
-  button.textContent = "Continue / Enter Page";
+  button.textContent = FINAL_ACTION_LABEL;
   button.disabled = actionInFlight;
   button.addEventListener("click", () => {
-    navigateToSite();
+    void confirmStagedMinutes();
   });
 
   view.append(message, button);
@@ -158,7 +159,7 @@ function createPinView() {
 
   continueButton.type = "button";
   continueButton.className = "panel-button primary";
-  continueButton.textContent = "Continue / Enter Page";
+  continueButton.textContent = FINAL_ACTION_LABEL;
   continueButton.disabled = actionInFlight || input.value.length !== 4;
   continueButton.addEventListener("click", () => {
     void handlePinSubmit(input);
@@ -186,31 +187,8 @@ async function handleMinuteSelection(minutes) {
     return;
   }
 
-  actionInFlight = true;
+  currentView = VIEW_STATE.SUCCESS;
   renderCurrentView();
-
-  try {
-    const response = await chrome.runtime.sendMessage({
-      type: "add-extra-time",
-      domain: site,
-      minutes: pendingMinutes,
-      pin: ""
-    });
-
-    if (!response?.ok) {
-      throw new Error(cleanError(response?.error || "Could not add extra time."));
-    }
-
-    latestStatus = response.status || latestStatus;
-    currentView = VIEW_STATE.SUCCESS;
-  } catch (error) {
-    console.error("Could not add extra time.", error);
-    window.alert(cleanError(error));
-    currentView = VIEW_STATE.SELECT;
-  } finally {
-    actionInFlight = false;
-    renderCurrentView();
-  }
 }
 
 async function handlePinSubmit(input) {
@@ -267,6 +245,37 @@ async function handlePinSubmit(input) {
       nextInput.focus();
       nextInput.select();
     }
+  }
+}
+
+async function confirmStagedMinutes() {
+  if (pendingMinutes <= 0 || actionInFlight) {
+    return;
+  }
+
+  actionInFlight = true;
+  renderCurrentView();
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "add-extra-time",
+      domain: site,
+      minutes: pendingMinutes,
+      pin: ""
+    });
+
+    if (!response?.ok) {
+      throw new Error(cleanError(response?.error || "Could not add extra time."));
+    }
+
+    latestStatus = response.status || latestStatus;
+    navigateToSite();
+  } catch (error) {
+    console.error("Could not add staged extra time.", error);
+    actionInFlight = false;
+    currentView = VIEW_STATE.SELECT;
+    renderCurrentView();
+    window.alert(cleanError(error));
   }
 }
 
