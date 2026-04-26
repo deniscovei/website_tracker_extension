@@ -552,7 +552,11 @@ function shouldBlockSite(site, now, usage) {
     return false;
   }
 
-  return getRemainingSeconds(site, usage) <= 0;
+  if (hasTemporaryUnblock(site, usage)) {
+    return false;
+  }
+
+  return getAllowanceRemainingSeconds(site, usage) <= 0;
 }
 
 function isSiteInBlockedSlot(site, now) {
@@ -718,11 +722,13 @@ async function accrueActiveUsage() {
   if (previous?.date === today && previous?.domain && Number.isFinite(previous.lastTick)) {
     const previousSite = findSiteForHost(schedule, previous.domain);
 
-    if (previousSite && isSiteInBlockedSlot(previousSite, now)) {
-      const remainingSeconds = getRemainingSeconds(previousSite, usage);
+    if (previousSite && isSiteInBlockedSlot(previousSite, now) && !hasTemporaryUnblock(previousSite, usage, currentTime)) {
+      const remainingSeconds = getAllowanceRemainingSeconds(previousSite, usage);
       const elapsedSeconds = getTrackableElapsedSeconds(previous.lastTick, currentTime);
-      addUsedSeconds(usage, previousSite.domain, Math.min(elapsedSeconds, remainingSeconds));
-      changedUsage = elapsedSeconds > 0;
+      const consumedSeconds = Math.min(elapsedSeconds, remainingSeconds);
+
+      addUsedSeconds(usage, previousSite.domain, consumedSeconds);
+      changedUsage = consumedSeconds > 0;
     }
   }
 
@@ -800,7 +806,7 @@ async function getActiveTrackedInfo(schedule, now, usage) {
   const host = getHostname(tab.url);
   const site = findSiteForHost(schedule, host);
 
-  if (!site || !isSiteInBlockedSlot(site, now) || getRemainingSeconds(site, usage) <= 0) {
+  if (!site || !isSiteInBlockedSlot(site, now) || hasTemporaryUnblock(site, usage) || getAllowanceRemainingSeconds(site, usage) <= 0) {
     return null;
   }
 
@@ -1146,12 +1152,24 @@ function pruneUsageHistory(history) {
 }
 
 function getRemainingSeconds(site, usage, now = Date.now()) {
+  const extraRemaining = getExtraRemainingSeconds(getSiteUsageEntry(usage, site.domain), now);
+
+  if (extraRemaining > 0) {
+    return extraRemaining;
+  }
+
+  return getAllowanceRemainingSeconds(site, usage);
+}
+
+function getAllowanceRemainingSeconds(site, usage) {
   const entry = getSiteUsageEntry(usage, site.domain);
   const allowanceSeconds = site.dailyAllowanceMinutes * 60;
-  const allowanceRemaining = Math.max(0, allowanceSeconds - entry.usedSeconds);
-  const extraRemaining = getExtraRemainingSeconds(entry, now);
 
-  return Math.max(0, allowanceRemaining + extraRemaining);
+  return Math.max(0, allowanceSeconds - entry.usedSeconds);
+}
+
+function hasTemporaryUnblock(site, usage, now = Date.now()) {
+  return getExtraRemainingSeconds(getSiteUsageEntry(usage, site.domain), now) > 0;
 }
 
 function getExtraRemainingSeconds(entry, now = Date.now()) {
