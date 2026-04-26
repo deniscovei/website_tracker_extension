@@ -907,7 +907,7 @@ async function addExtraTime(domain, minutes, pin = "") {
     }
 
     if (!await verifyPin(pin, settings)) {
-      throw new Error("Incorrect PIN.");
+      throw new Error("PIN verification failed.");
     }
   }
 

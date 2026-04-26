@@ -16,6 +16,7 @@ let pendingMinutes = 0;
 let blockedPinVisible = false;
 let actionInFlight = false;
 let pinDraft = "";
+let pinError = "";
 
 void loadExtraTimeStatus();
 
@@ -41,6 +42,7 @@ async function loadExtraTimeStatus() {
     blockedPinVisible = false;
     actionInFlight = false;
     pinDraft = "";
+    pinError = "";
     extraTime.hidden = false;
     renderCurrentView();
   } catch (error) {
@@ -129,6 +131,7 @@ function createPinView() {
   const wrap = document.createElement("div");
   const input = document.createElement("input");
   const visibilityButton = document.createElement("button");
+  const errorMessage = document.createElement("p");
   const actions = document.createElement("div");
   const backButton = document.createElement("button");
   const continueButton = document.createElement("button");
@@ -150,10 +153,13 @@ function createPinView() {
   input.value = pinDraft;
   input.disabled = actionInFlight;
   input.setAttribute("aria-label", "PIN");
+  input.setAttribute("aria-describedby", "pin-error");
   input.addEventListener("input", () => {
     input.value = sanitizePinValue(input.value);
     pinDraft = input.value;
-    input.setCustomValidity("");
+    pinError = "";
+    errorMessage.textContent = "";
+    errorMessage.hidden = true;
     continueButton.disabled = actionInFlight || input.value.length !== 4;
   });
   input.addEventListener("keydown", (event) => {
@@ -173,6 +179,12 @@ function createPinView() {
     blockedPinVisible = !blockedPinVisible;
     renderCurrentView();
   });
+
+  errorMessage.id = "pin-error";
+  errorMessage.className = "pin-error";
+  errorMessage.setAttribute("aria-live", "polite");
+  errorMessage.hidden = !pinError;
+  errorMessage.textContent = pinError;
 
   actions.className = "popup-view-actions";
 
@@ -195,7 +207,7 @@ function createPinView() {
   wrap.append(input, visibilityButton);
   field.append(wrap);
   actions.append(backButton, continueButton);
-  view.append(field, actions);
+  view.append(field, errorMessage, actions);
 
   return view;
 }
@@ -209,6 +221,7 @@ async function handleMinuteSelection(minutes) {
 
   if (latestStatus.requiresPinForExtraTime) {
     pinDraft = "";
+    pinError = "";
     blockedPinVisible = false;
     currentView = VIEW_STATE.PIN;
     renderCurrentView();
@@ -228,14 +241,15 @@ async function handlePinSubmit(input) {
 
   input.value = pin;
   pinDraft = pin;
-  input.setCustomValidity("");
 
   if (pin.length !== 4) {
-    input.setCustomValidity("PIN must be 4 digits.");
-    input.reportValidity();
+    pinError = "Enter the 4-digit PIN.";
+    currentView = VIEW_STATE.PIN;
+    renderCurrentView();
     return;
   }
 
+  pinError = "";
   actionInFlight = true;
   renderCurrentView();
 
@@ -266,6 +280,7 @@ async function handlePinSubmit(input) {
     navigateToSite(response.targetUrl);
   } catch (error) {
     actionInFlight = false;
+    pinError = cleanError(error);
     currentView = VIEW_STATE.PIN;
     renderCurrentView();
 
@@ -274,8 +289,6 @@ async function handlePinSubmit(input) {
     if (nextInput instanceof HTMLInputElement) {
       nextInput.value = pin;
       pinDraft = pin;
-      nextInput.setCustomValidity(cleanError(error));
-      nextInput.reportValidity();
       nextInput.focus();
       nextInput.select();
     }
@@ -314,9 +327,10 @@ async function confirmStagedMinutes() {
     console.error("Could not add staged extra time.", error);
     actionInFlight = false;
 
-    if (isPinRequiredError(error)) {
+    if (isPinAuthError(error)) {
       currentView = VIEW_STATE.PIN;
       pinDraft = "";
+      pinError = "";
       blockedPinVisible = false;
       renderCurrentView();
       return;
@@ -343,6 +357,7 @@ function returnToSelection() {
   currentView = VIEW_STATE.SELECT;
   pendingMinutes = 0;
   pinDraft = "";
+  pinError = "";
   blockedPinVisible = false;
   renderCurrentView();
 }
@@ -430,6 +445,9 @@ function cleanError(error) {
   return String(message || "Something went wrong.").replace(/^Error:\s*/, "");
 }
 
-function isPinRequiredError(error) {
-  return /pin\s+(required|missing)|requires?\s+(a\s+)?pin/i.test(cleanError(error));
+function isPinAuthError(error) {
+  const message = cleanError(error);
+
+  return /\bpin\b/i.test(message)
+    && /(required|missing|incorrect|invalid|wrong|verify|verification)/i.test(message);
 }

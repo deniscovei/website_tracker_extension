@@ -130,6 +130,20 @@ h1 {
   text-align: center;
 }
 
+.pin-error {
+  min-height: 18px;
+  margin: -4px 0 0;
+  color: #a72d4f;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.pin-error[hidden] {
+  display: none;
+}
+
 .popup-view-pin .pin-field,
 .popup-view-pin .pin-input-wrap,
 .popup-view-pin .pin-input,
@@ -284,6 +298,10 @@ h1 {
     border-color: rgba(245, 247, 245, 0.14);
     background: #1f2937;
     color: #dbeafe;
+  }
+
+  .pin-error {
+    color: #f18eaa;
   }
 
   .popup-view-pin .pin-input:focus,

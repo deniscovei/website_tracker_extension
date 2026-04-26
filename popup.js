@@ -446,7 +446,7 @@ async function savePinValue() {
   if (nextPin.length !== 4) {
     pinCode.setCustomValidity("PIN must be 4 digits.");
     updatePinDraftStatus();
-    pinCode.reportValidity();
+    pinCode.focus();
     return;
   }
 
