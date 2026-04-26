@@ -277,12 +277,18 @@ usageShowMore?.addEventListener("click", () => {
   renderUsageForDay(selectedUsageDay, { weekDay: visibleWeekDay });
 });
 
-document.addEventListener("click", (event) => {
-  if (!(event.target instanceof HTMLElement)) {
+document.addEventListener("mousedown", (event) => {
+  const target = event.target;
+
+  if (!(target instanceof Node)) {
     return;
   }
 
-  if (event.target.closest("[data-pie-domain], [data-site-domain], [data-category], [data-hour], .week-chart, .mini-toggle, #usage-show-more, .time-nav")) {
+  if (weekChart.contains(target)) {
+    return;
+  }
+
+  if (target instanceof HTMLElement && target.closest("[data-pie-domain], [data-site-domain], [data-category], [data-hour], .mini-toggle, #usage-show-more, .time-nav")) {
     return;
   }
 
@@ -1020,14 +1026,13 @@ async function loadUsageData() {
 
   const todayKey = dateToDayKey(new Date());
   visibleWeekDay ||= todayKey;
-  renderUsageForDay(selectedUsageDay, { weekDay: visibleWeekDay });
+  renderUsageForDay(getSelectedDayForVisibleWeek(visibleWeekDay), { weekDay: visibleWeekDay });
 }
 
 function shiftUsageWeek(amount) {
   const selectedDate = parseDayKey(visibleWeekDay) || new Date();
   const nextWeekDay = dateToDayKey(addDays(selectedDate, amount * 7));
-  const todayKey = dateToDayKey(new Date());
-  const nextSelectedDay = getWeekDayKeys(nextWeekDay).includes(todayKey) ? todayKey : null;
+  const nextSelectedDay = getSelectedDayForVisibleWeek(nextWeekDay, { keepExistingSelection: false });
 
   clearUsageSelections({ keepWeek: false });
   renderUsageForDay(nextSelectedDay, { weekDay: nextWeekDay });
@@ -1287,7 +1292,8 @@ function renderWeekChart(entries, selectedDay, averageSeconds) {
       button.dataset.day = entry.day;
       button.setAttribute("aria-pressed", String(entry.day === selectedDay));
       button.setAttribute("aria-label", `${formatDayLabel(entry.day)}: ${formatDuration(entry.seconds)}`);
-      button.addEventListener("click", () => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
         const nextSelectedDay = selectedUsageDay === entry.day ? null : entry.day;
         clearUsageSelections({ keepWeek: true });
         renderUsageForDay(nextSelectedDay, { weekDay: entry.day });
@@ -2011,6 +2017,17 @@ function getWeekDayKeys(day) {
 function getPreviousWeekDayKeys(day) {
   const date = parseDayKey(day) || new Date();
   return getWeekDayKeys(dateToDayKey(addDays(getWeekStartDate(date), -7)));
+}
+
+function getSelectedDayForVisibleWeek(weekDay, { keepExistingSelection = true } = {}) {
+  const weekDays = getWeekDayKeys(weekDay);
+  const todayKey = dateToDayKey(new Date());
+
+  if (keepExistingSelection && selectedUsageDay && weekDays.includes(selectedUsageDay)) {
+    return selectedUsageDay;
+  }
+
+  return weekDays.includes(todayKey) ? todayKey : null;
 }
 
 function getWeekStartDate(date) {

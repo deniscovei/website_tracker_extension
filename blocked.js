@@ -324,7 +324,6 @@ async function confirmStagedMinutes() {
 
     currentView = VIEW_STATE.SELECT;
     renderCurrentView();
-    window.alert(cleanError(error));
   }
 }
 
