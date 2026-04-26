@@ -60,7 +60,7 @@ chrome.windows.onFocusChanged.addListener(() => {
   void tick();
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "get-schedule-data") {
     accrueScreenUsage()
       .then(() => accrueActiveUsage())
@@ -134,7 +134,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     addExtraTime(message.domain, message.minutes, message.pin)
       .then(() => refreshRules())
       .then(() => getSiteStatus(message.domain))
-      .then((status) => sendResponse({ ok: true, status }))
+      .then(async (status) => {
+        const targetUrl = getResumeTargetUrl(message.targetUrl, message.domain);
+        const redirected = await reopenGrantedTab(sender?.tab?.id, status, targetUrl);
+        sendResponse({ ok: true, status, redirected, targetUrl });
+      })
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
 
     return true;
@@ -897,7 +901,7 @@ async function addExtraTime(domain, minutes, pin = "") {
     throw new Error("Choose how many minutes to add.");
   }
 
-  addExtraSeconds(usage, site.domain, Math.min(Math.round(extraMinutes), 240) * 60);
+  grantExtraTime(usage, site, Math.min(Math.round(extraMinutes), 240) * 60);
   await saveUsage(usage);
   await chrome.storage.local.remove(TRACKING_KEY);
 }
@@ -998,6 +1002,25 @@ function addUsedSeconds(usage, domain, seconds) {
 function addExtraSeconds(usage, domain, seconds) {
   const entry = ensureUsageEntry(usage, domain);
   entry.extraSeconds += Math.max(0, seconds);
+}
+
+function grantExtraTime(usage, site, seconds) {
+  const addedSeconds = Math.max(0, Number(seconds) || 0);
+
+  if (addedSeconds <= 0) {
+    return;
+  }
+
+  const entry = ensureUsageEntry(usage, site.domain);
+  const allowanceSeconds = normalizeDailyAllowance(site.dailyAllowanceMinutes) * 60;
+  const currentRemaining = Math.max(0, allowanceSeconds + entry.extraSeconds - entry.usedSeconds);
+
+  if (currentRemaining > 0) {
+    addExtraSeconds(usage, site.domain, addedSeconds);
+    return;
+  }
+
+  entry.extraSeconds = Math.max(0, entry.usedSeconds - allowanceSeconds) + addedSeconds;
 }
 
 function getTrackableElapsedSeconds(startTime, endTime) {
@@ -1199,6 +1222,49 @@ function createRedirectRule(id, site) {
 
 function getBlockedPageUrl(domain) {
   return chrome.runtime.getURL(`${BLOCKED_PAGE.slice(1)}?site=${encodeURIComponent(domain)}`);
+}
+
+function getResumeTargetUrl(targetUrl, fallbackDomain) {
+  const directUrl = normalizeHttpUrl(targetUrl);
+
+  if (directUrl) {
+    return directUrl;
+  }
+
+  const normalizedDomain = normalizeDomain(fallbackDomain);
+  return normalizedDomain ? `https://${normalizedDomain}/` : "";
+}
+
+function normalizeHttpUrl(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const text = value.trim();
+
+  if (!/^https?:\/\//i.test(text)) {
+    return "";
+  }
+
+  try {
+    return new URL(text).toString();
+  } catch (_error) {
+    return "";
+  }
+}
+
+async function reopenGrantedTab(tabId, status, targetUrl) {
+  if (typeof tabId !== "number" || !targetUrl || status?.isBlocked) {
+    return false;
+  }
+
+  try {
+    await chrome.tabs.update(tabId, { url: targetUrl });
+    return true;
+  } catch (error) {
+    console.warn("Could not resume the granted website tab.", error);
+    return false;
+  }
 }
 
 async function replaceDynamicRules(rules) {

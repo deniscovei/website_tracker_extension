@@ -249,7 +249,8 @@ async function handlePinSubmit(input) {
       type: "add-extra-time",
       domain: site,
       minutes: pendingMinutes,
-      pin
+      pin,
+      targetUrl: getResumeTarget()
     });
 
     if (!response?.ok) {
@@ -257,7 +258,14 @@ async function handlePinSubmit(input) {
     }
 
     latestStatus = response.status || latestStatus;
-    navigateToSite();
+
+    if (latestStatus?.isBlocked) {
+      throw new Error("This website is still blocked. Try adding time again.");
+    }
+
+    if (!response.redirected) {
+      navigateToSite(response.targetUrl);
+    }
   } catch (error) {
     actionInFlight = false;
     currentView = VIEW_STATE.PIN;
@@ -289,7 +297,8 @@ async function confirmStagedMinutes() {
       type: "add-extra-time",
       domain: site,
       minutes: pendingMinutes,
-      pin: ""
+      pin: "",
+      targetUrl: getResumeTarget()
     });
 
     if (!response?.ok) {
@@ -297,7 +306,14 @@ async function confirmStagedMinutes() {
     }
 
     latestStatus = response.status || latestStatus;
-    navigateToSite();
+
+    if (latestStatus?.isBlocked) {
+      throw new Error("This website is still blocked. Try adding time again.");
+    }
+
+    if (!response.redirected) {
+      navigateToSite(response.targetUrl);
+    }
   } catch (error) {
     console.error("Could not add staged extra time.", error);
     actionInFlight = false;
@@ -307,9 +323,11 @@ async function confirmStagedMinutes() {
   }
 }
 
-function navigateToSite() {
-  if (site) {
-    window.location.href = `https://${site}/`;
+function navigateToSite(targetUrl = "") {
+  const nextUrl = normalizeHttpUrl(targetUrl) || getResumeTarget();
+
+  if (nextUrl) {
+    window.location.href = nextUrl;
   }
 }
 
@@ -332,6 +350,52 @@ function sanitizePinValue(value) {
 function formatMinutes(minutes) {
   const value = Math.max(0, Number(minutes) || 0);
   return `${value} minute${value === 1 ? "" : "s"}`;
+}
+
+function getResumeTarget() {
+  const queryTarget = new URLSearchParams(window.location.search).get("target");
+  const referrerTarget = document.referrer;
+  const target = normalizeHttpUrl(queryTarget) || normalizeHttpUrl(referrerTarget);
+
+  if (target) {
+    const targetHost = getHostname(target);
+
+    if (targetHost && site && domainMatches(targetHost, site)) {
+      return target;
+    }
+  }
+
+  return site ? `https://${site}/` : "";
+}
+
+function normalizeHttpUrl(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const text = value.trim();
+
+  if (!/^https?:\/\//i.test(text)) {
+    return "";
+  }
+
+  try {
+    return new URL(text).toString();
+  } catch (_error) {
+    return "";
+  }
+}
+
+function getHostname(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch (_error) {
+    return "";
+  }
+}
+
+function domainMatches(host, domain) {
+  return host === domain || host.endsWith(`.${domain}`);
 }
 
 function getEyeIcon() {
