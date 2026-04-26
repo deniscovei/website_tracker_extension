@@ -69,17 +69,18 @@ h1 {
   padding: 16px;
 }
 
-.extra-status,
-.extra-panel p {
+.popup-view {
+  display: grid;
+  gap: 12px;
+}
+
+.view-message {
   margin: 0;
   color: #475569;
   font-size: 0.92rem;
+  font-weight: 700;
   line-height: 1.45;
-}
-
-.extra-panel {
-  display: grid;
-  gap: 12px;
+  text-align: center;
 }
 
 .extra-actions {
@@ -103,28 +104,8 @@ h1 {
   background: #eef4ff;
 }
 
-.panel-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.panel-actions.single {
-  grid-template-columns: minmax(0, 1fr);
-  margin-bottom: 12px;
-  justify-items: center;
-}
-
-.panel-actions.single .panel-button {
-  width: min(200px, 100%);
-}
-
 .pin-field {
-  display: grid;
-  gap: 6px;
-  color: #475569;
-  font-size: 0.76rem;
-  font-weight: 800;
+  display: block;
 }
 
 .pin-input-wrap {
@@ -134,7 +115,7 @@ h1 {
   align-items: center;
 }
 
-#panel-pin input {
+.pin-input {
   width: 100%;
   min-width: 0;
   min-height: 42px;
@@ -176,22 +157,6 @@ h1 {
   background: #eff6ff;
 }
 
-#pin-error {
-  min-height: 18px;
-  color: #a72d4f;
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-align: center;
-}
-
-#pin-error[data-state="valid"] {
-  color: #2563eb;
-}
-
-#pin-error[data-state="pending"] {
-  color: #475569;
-}
-
 .panel-button {
   min-height: 42px;
   border-radius: 6px;
@@ -210,19 +175,9 @@ h1 {
   background: #1d4ed8;
 }
 
-.panel-button.secondary {
-  border: 1px solid rgba(37, 99, 235, 0.18);
-  background: #ffffff;
-  color: #1d4ed8;
-}
-
-.panel-button.secondary:hover {
-  background: #eef4ff;
-}
-
 .panel-button:focus-visible,
 .extra-actions button:focus-visible,
-#panel-pin input:focus-visible,
+.pin-input:focus-visible,
 .eye-button:focus-visible {
   outline: 3px solid rgba(37, 99, 235, 0.32);
   outline-offset: 3px;
@@ -233,6 +188,11 @@ h1 {
 .eye-button:disabled {
   cursor: not-allowed;
   opacity: 0.58;
+}
+
+.popup-view > .panel-button {
+  justify-self: center;
+  width: min(240px, 100%);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -267,7 +227,7 @@ h1 {
     background: rgba(96, 165, 250, 0.09);
   }
 
-  .extra-time p {
+  .view-message {
     color: #cbd5e1;
   }
 
@@ -280,21 +240,7 @@ h1 {
     background: #273449;
   }
 
-  .panel-button.secondary {
-    border-color: rgba(148, 163, 184, 0.24);
-    background: #1f2937;
-    color: #dbeafe;
-  }
-
-  .panel-button.secondary:hover {
-    background: #273449;
-  }
-
-  .pin-field {
-    color: #cbd5e1;
-  }
-
-  #panel-pin input,
+  .pin-input,
   .eye-button {
     border-color: rgba(245, 247, 245, 0.14);
     background: #1f2937;
@@ -303,17 +249,5 @@ h1 {
 
   .eye-button:hover {
     background: #273449;
-  }
-
-  #pin-error {
-    color: #f18eaa;
-  }
-
-  #pin-error[data-state="valid"] {
-    color: #93c5fd;
-  }
-
-  #pin-error[data-state="pending"] {
-    color: #cbd5e1;
   }
 }

@@ -1,75 +1,20 @@
 const params = new URLSearchParams(window.location.search);
 const site = params.get("site") || "";
 const extraTime = document.getElementById("extra-time");
-const continuePanel = document.getElementById("panel-continue");
-const continueStatus = document.getElementById("continue-status");
-const continueBack = document.getElementById("continue-back");
-const continueSite = document.getElementById("continue-site");
-const mainPanel = document.getElementById("panel-main");
-const extraActions = document.getElementById("extra-actions");
-const pinPanel = document.getElementById("panel-pin");
-const pinStatusCopy = document.getElementById("pin-status-copy");
-const pinBack = document.getElementById("pin-back");
-const pinContinue = document.getElementById("pin-continue");
-const pinCode = document.getElementById("pin-code");
-const pinVisibility = document.getElementById("pin-visibility");
-const pinError = document.getElementById("pin-error");
+const popupViewRoot = document.getElementById("popup-view-root");
+
+const VIEW_STATE = {
+  SELECT: "select",
+  SUCCESS: "success",
+  PIN: "pin"
+};
 
 let latestStatus = null;
+let currentView = VIEW_STATE.SELECT;
 let pendingMinutes = 0;
-let pinIsValid = false;
-let validatedPin = "";
-let pinValidationId = 0;
 let blockedPinVisible = false;
-let currentPanel = "main";
 let actionInFlight = false;
-
-continueSite?.addEventListener("click", () => {
-  navigateToSite();
-});
-
-continueBack?.addEventListener("click", () => {
-  showMainPanel();
-});
-
-pinBack?.addEventListener("click", () => {
-  resetPinState();
-  showMainPanel();
-});
-
-pinContinue?.addEventListener("click", () => {
-  void handlePinContinue();
-});
-
-extraActions?.addEventListener("click", async (event) => {
-  if (!(event.target instanceof HTMLElement) || actionInFlight) {
-    return;
-  }
-
-  const button = event.target.closest("[data-extra-minutes]");
-
-  if (!button) {
-    return;
-  }
-
-  await requestExtraMinutes(Number(button.dataset.extraMinutes));
-});
-
-pinCode?.addEventListener("input", () => {
-  void handlePinInput();
-});
-
-pinCode?.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !pinContinue.disabled) {
-    event.preventDefault();
-    pinContinue.click();
-  }
-});
-
-pinVisibility?.addEventListener("click", () => {
-  blockedPinVisible = !blockedPinVisible;
-  setPinVisibility(pinCode, pinVisibility, blockedPinVisible);
-});
+let pinDraft = "";
 
 void loadExtraTimeStatus();
 
@@ -78,86 +23,171 @@ async function loadExtraTimeStatus() {
     return;
   }
 
-  extraTime.hidden = false;
-
   try {
     const response = await chrome.runtime.sendMessage({
       type: "get-site-status",
       domain: site
     });
 
-    if (!response?.ok || !response.status?.found) {
+    if (!response?.ok || !response.status?.found || !response.status.allowExtraTime) {
       extraTime.hidden = true;
-      hideAllPanels();
       return;
     }
 
-    renderStatus(response.status);
+    latestStatus = response.status;
+    currentView = VIEW_STATE.SELECT;
+    pendingMinutes = 0;
+    pinDraft = "";
+    extraTime.hidden = false;
+    renderCurrentView();
   } catch (error) {
-    console.error("Could not load blocked-page status.", error);
+    console.error("Could not load add-minutes popup state.", error);
     extraTime.hidden = true;
-    hideAllPanels();
   }
 }
 
-function renderStatus(status) {
-  latestStatus = status;
-  const remainingSeconds = Math.max(0, Number(status.remainingSeconds) || 0);
-  const remainingMinutes = Math.ceil(remainingSeconds / 60);
-  const hasAllowance = remainingSeconds > 0;
-  const canAddExtra = Boolean(status.allowExtraTime);
+function renderCurrentView() {
+  popupViewRoot.replaceChildren();
 
-  if (!hasAllowance && !canAddExtra) {
-    extraTime.hidden = true;
-    hideAllPanels();
-    return;
-  }
-
-  extraTime.hidden = false;
-
-  if (!canAddExtra) {
-    showContinuePanel(`${remainingMinutes} minute${remainingMinutes === 1 ? "" : "s"} available for today.`, {
-      showBack: false
+  if (currentView === VIEW_STATE.SUCCESS) {
+    popupViewRoot.append(createSuccessView());
+  } else if (currentView === VIEW_STATE.PIN) {
+    popupViewRoot.append(createPinView());
+    requestAnimationFrame(() => {
+      popupViewRoot.querySelector("#pin-code")?.focus();
     });
-    return;
+  } else {
+    popupViewRoot.append(createSelectionView());
   }
-
-  if (currentPanel === "continue") {
-    showContinuePanel(`${remainingMinutes} minute${remainingMinutes === 1 ? "" : "s"} available for today.`, {
-      showBack: false,
-      keepStatus: true
-    });
-    return;
-  }
-
-  if (currentPanel === "pin") {
-    showPinPanel({ keepInput: true });
-    return;
-  }
-
-  if (hasAllowance) {
-    showContinuePanel(`${remainingMinutes} minute${remainingMinutes === 1 ? "" : "s"} available for today.`, {
-      showBack: false
-    });
-    return;
-  }
-
-  showMainPanel();
 }
 
-async function requestExtraMinutes(minutes) {
+function createSelectionView() {
+  const view = document.createElement("section");
+  const actions = document.createElement("div");
+  const minuteOptions = [5, 15, 30];
+
+  view.className = "popup-view popup-view-selection";
+  actions.className = "extra-actions";
+
+  minuteOptions.forEach((minutes) => {
+    const button = document.createElement("button");
+
+    button.type = "button";
+    button.className = "minutes-button";
+    button.textContent = `Add ${minutes} min`;
+    button.disabled = actionInFlight;
+    button.addEventListener("click", () => {
+      void handleMinuteSelection(minutes);
+    });
+    actions.append(button);
+  });
+
+  view.append(actions);
+  return view;
+}
+
+function createSuccessView() {
+  const view = document.createElement("section");
+  const message = document.createElement("p");
+  const button = document.createElement("button");
+
+  view.className = "popup-view popup-view-success";
+  message.className = "view-message";
+  message.textContent = `Added ${formatMinutes(pendingMinutes)} for today.`;
+
+  button.type = "button";
+  button.className = "panel-button primary";
+  button.textContent = "Continue / Enter Page";
+  button.disabled = actionInFlight;
+  button.addEventListener("click", () => {
+    navigateToSite();
+  });
+
+  view.append(message, button);
+  return view;
+}
+
+function createPinView() {
+  const view = document.createElement("section");
+  const field = document.createElement("label");
+  const wrap = document.createElement("div");
+  const input = document.createElement("input");
+  const visibilityButton = document.createElement("button");
+  const continueButton = document.createElement("button");
+
+  view.className = "popup-view popup-view-pin";
+
+  field.className = "pin-field";
+  field.setAttribute("aria-label", "PIN entry");
+
+  wrap.className = "pin-input-wrap";
+
+  input.id = "pin-code";
+  input.type = blockedPinVisible ? "text" : "password";
+  input.inputMode = "numeric";
+  input.autocomplete = "off";
+  input.maxLength = 4;
+  input.placeholder = "0000";
+  input.className = "pin-input";
+  input.value = pinDraft;
+  input.disabled = actionInFlight;
+  input.setAttribute("aria-label", "PIN");
+  input.addEventListener("input", () => {
+    input.value = sanitizePinValue(input.value);
+    pinDraft = input.value;
+    input.setCustomValidity("");
+    continueButton.disabled = actionInFlight || input.value.length !== 4;
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !continueButton.disabled) {
+      event.preventDefault();
+      continueButton.click();
+    }
+  });
+
+  visibilityButton.type = "button";
+  visibilityButton.className = "eye-button";
+  visibilityButton.disabled = actionInFlight;
+  visibilityButton.setAttribute("aria-label", `${blockedPinVisible ? "Hide" : "Show"} PIN`);
+  visibilityButton.setAttribute("aria-pressed", String(blockedPinVisible));
+  visibilityButton.innerHTML = blockedPinVisible ? getEyeOffIcon() : getEyeIcon();
+  visibilityButton.addEventListener("click", () => {
+    blockedPinVisible = !blockedPinVisible;
+    renderCurrentView();
+  });
+
+  continueButton.type = "button";
+  continueButton.className = "panel-button primary";
+  continueButton.textContent = "Continue / Enter Page";
+  continueButton.disabled = actionInFlight || input.value.length !== 4;
+  continueButton.addEventListener("click", () => {
+    void handlePinSubmit(input);
+  });
+
+  wrap.append(input, visibilityButton);
+  field.append(wrap);
+  view.append(field, continueButton);
+
+  return view;
+}
+
+async function handleMinuteSelection(minutes) {
   pendingMinutes = Math.max(0, Number(minutes) || 0);
 
-  if (pendingMinutes <= 0) {
+  if (pendingMinutes <= 0 || !latestStatus) {
     return;
   }
 
-  if (latestStatus?.requiresPinForExtraTime) {
-    showPinPanel();
+  if (latestStatus.requiresPinForExtraTime) {
+    pinDraft = "";
+    blockedPinVisible = false;
+    currentView = VIEW_STATE.PIN;
+    renderCurrentView();
     return;
   }
 
-  setBusyState(true);
+  actionInFlight = true;
+  renderCurrentView();
 
   try {
     const response = await chrome.runtime.sendMessage({
@@ -171,220 +201,79 @@ async function requestExtraMinutes(minutes) {
       throw new Error(cleanError(response?.error || "Could not add extra time."));
     }
 
-    renderStatus(response.status || latestStatus);
-    showContinuePanel(`Added ${formatMinutes(pendingMinutes)} for today.`, {
-      showBack: true
-    });
+    latestStatus = response.status || latestStatus;
+    currentView = VIEW_STATE.SUCCESS;
   } catch (error) {
     console.error("Could not add extra time.", error);
-    showMainPanel();
+    window.alert(cleanError(error));
+    currentView = VIEW_STATE.SELECT;
   } finally {
-    setBusyState(false);
+    actionInFlight = false;
+    renderCurrentView();
   }
 }
 
-async function handlePinContinue() {
-  if (!pinIsValid || pendingMinutes <= 0 || actionInFlight) {
+async function handlePinSubmit(input) {
+  const pin = sanitizePinValue(input?.value);
+
+  if (!input) {
     return;
   }
 
-  setBusyState(true);
-  setPinMessage("Adding time...", "pending");
+  input.value = pin;
+  pinDraft = pin;
+  input.setCustomValidity("");
+
+  if (pin.length !== 4) {
+    input.setCustomValidity("PIN must be 4 digits.");
+    input.reportValidity();
+    return;
+  }
+
+  actionInFlight = true;
+  renderCurrentView();
+
+  const refreshedInput = popupViewRoot.querySelector("#pin-code");
+  if (refreshedInput instanceof HTMLInputElement) {
+    refreshedInput.value = pin;
+  }
 
   try {
     const response = await chrome.runtime.sendMessage({
       type: "add-extra-time",
       domain: site,
       minutes: pendingMinutes,
-      pin: validatedPin
+      pin
     });
 
     if (!response?.ok) {
       throw new Error(cleanError(response?.error || "Could not add extra time."));
     }
 
-    renderStatus(response.status || latestStatus);
+    latestStatus = response.status || latestStatus;
     navigateToSite();
   } catch (error) {
-    setPinMessage(cleanError(error), "error");
-  } finally {
-    setBusyState(false);
-    updateActionState();
-  }
-}
+    actionInFlight = false;
+    currentView = VIEW_STATE.PIN;
+    renderCurrentView();
 
-async function handlePinInput() {
-  const pin = sanitizePinValue(pinCode.value);
+    const nextInput = popupViewRoot.querySelector("#pin-code");
 
-  if (pin !== pinCode.value) {
-    pinCode.value = pin;
-  }
-
-  pinIsValid = false;
-  validatedPin = "";
-  pinValidationId += 1;
-
-  if (pin.length === 0) {
-    setPinMessage("Enter the 4-digit PIN to continue.", "idle");
-    updateActionState();
-    return;
-  }
-
-  if (pin.length < 4) {
-    setPinMessage("PIN must be 4 digits.", "error");
-    updateActionState();
-    return;
-  }
-
-  const validationId = pinValidationId;
-  setPinMessage("Checking PIN...", "pending");
-  updateActionState();
-
-  try {
-    const response = await chrome.runtime.sendMessage({
-      type: "validate-pin",
-      pin
-    });
-
-    if (validationId !== pinValidationId) {
-      return;
+    if (nextInput instanceof HTMLInputElement) {
+      nextInput.value = pin;
+      pinDraft = pin;
+      nextInput.setCustomValidity(cleanError(error));
+      nextInput.reportValidity();
+      nextInput.focus();
+      nextInput.select();
     }
-
-    if (!response?.ok) {
-      throw new Error(cleanError(response?.error || "Could not validate the PIN."));
-    }
-
-    if (!response.configured) {
-      setPinMessage("PIN protection is not set yet.", "error");
-      updateActionState();
-      return;
-    }
-
-    if (!response.valid) {
-      setPinMessage("PIN does not match.", "error");
-      updateActionState();
-      return;
-    }
-
-    pinIsValid = true;
-    validatedPin = pin;
-    setPinMessage("PIN is correct.", "valid");
-    updateActionState();
-  } catch (error) {
-    if (validationId !== pinValidationId) {
-      return;
-    }
-
-    setPinMessage(cleanError(error), "error");
-    updateActionState();
   }
-}
-
-function showMainPanel() {
-  currentPanel = "main";
-  resetPinState({ keepPendingMinutes: true });
-  mainPanel.hidden = !latestStatus?.allowExtraTime;
-  continuePanel.hidden = true;
-  pinPanel.hidden = true;
-  updateActionState();
-}
-
-function showContinuePanel(message, { showBack = false, keepStatus = false } = {}) {
-  currentPanel = "continue";
-  mainPanel.hidden = true;
-  continuePanel.hidden = false;
-  pinPanel.hidden = true;
-  continueStatus.textContent = message;
-  continueBack.hidden = !showBack;
-
-  if (!keepStatus) {
-    resetPinState({ keepPendingMinutes: true });
-  }
-
-  updateActionState();
-}
-
-function showPinPanel({ keepInput = false, keepStatus = false } = {}) {
-  currentPanel = "pin";
-  mainPanel.hidden = true;
-  continuePanel.hidden = true;
-  pinPanel.hidden = false;
-  pinStatusCopy.textContent = `${formatMinutes(pendingMinutes)} will be added for today.`;
-
-  if (!keepInput) {
-    resetPinState({ keepPendingMinutes: true });
-  }
-
-  if (!keepStatus) {
-    setPinMessage("Enter the 4-digit PIN to continue.", "idle");
-  }
-
-  updateActionState();
-  pinCode.focus();
-}
-
-function hideAllPanels() {
-  mainPanel.hidden = true;
-  continuePanel.hidden = true;
-  pinPanel.hidden = true;
-}
-
-function resetPinState({ keepPendingMinutes = false } = {}) {
-  if (!keepPendingMinutes) {
-    pendingMinutes = 0;
-  }
-
-  pinCode.value = "";
-  pinIsValid = false;
-  validatedPin = "";
-  pinValidationId += 1;
-  blockedPinVisible = false;
-  setPinVisibility(pinCode, pinVisibility, false);
-  setPinMessage("", "idle");
-}
-
-function updateActionState() {
-  const canContinueWithPin = Boolean(pinIsValid && pendingMinutes > 0 && !actionInFlight);
-
-  continueSite.disabled = actionInFlight;
-  if (continueBack) {
-    continueBack.disabled = actionInFlight;
-  }
-  pinBack.disabled = actionInFlight;
-  pinContinue.disabled = !canContinueWithPin;
-  pinCode.disabled = actionInFlight;
-  pinVisibility.disabled = actionInFlight || pinCode.value.length === 0;
-
-  extraActions.querySelectorAll("button").forEach((button) => {
-    button.disabled = actionInFlight;
-  });
-}
-
-function setBusyState(isBusy) {
-  actionInFlight = isBusy;
-  updateActionState();
-}
-
-function setPinMessage(message, state) {
-  pinError.textContent = message;
-  pinError.dataset.state = state;
 }
 
 function navigateToSite() {
   if (site) {
     window.location.href = `https://${site}/`;
   }
-}
-
-function setPinVisibility(input, button, isVisible) {
-  if (!input || !button) {
-    return;
-  }
-
-  input.type = isVisible ? "text" : "password";
-  button.setAttribute("aria-pressed", String(isVisible));
-  button.setAttribute("aria-label", `${isVisible ? "Hide" : "Show"} PIN`);
-  button.innerHTML = isVisible ? getEyeOffIcon() : getEyeIcon();
 }
 
 function sanitizePinValue(value) {

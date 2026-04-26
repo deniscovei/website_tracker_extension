@@ -15,40 +15,7 @@
           The current time is inside one of its blocked slots.
         </p>
         <section id="extra-time" class="extra-time" hidden>
-          <section id="panel-main" class="extra-panel" hidden>
-            <div id="extra-actions" class="extra-actions">
-              <button type="button" data-extra-minutes="5">Add 5 min</button>
-              <button type="button" data-extra-minutes="15">Add 15 min</button>
-              <button type="button" data-extra-minutes="30">Add 30 min</button>
-            </div>
-          </section>
-          <section id="panel-continue" class="extra-panel" hidden>
-            <p id="continue-status">15 minutes available for today.</p>
-            <div class="panel-actions">
-              <button id="continue-back" class="panel-button secondary" type="button" hidden>Back</button>
-              <button id="continue-site" class="panel-button primary" type="button">Continue</button>
-            </div>
-          </section>
-          <section id="panel-pin" class="extra-panel" hidden>
-            <p id="pin-status-copy">15 minutes will be added for today.</p>
-            <label class="pin-field">
-              <span>Enter PIN</span>
-              <div class="pin-input-wrap">
-                <input id="pin-code" type="password" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="0000">
-                <button id="pin-visibility" class="eye-button" type="button" aria-label="Show PIN" aria-pressed="false">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M1.5 12s3.9-6.5 10.5-6.5S22.5 12 22.5 12s-3.9 6.5-10.5 6.5S1.5 12 1.5 12Z"/>
-                    <circle cx="12" cy="12" r="3.25"/>
-                  </svg>
-                </button>
-              </div>
-            </label>
-            <p id="pin-error" aria-live="polite"></p>
-            <div class="panel-actions">
-              <button id="pin-back" class="panel-button secondary" type="button">Back</button>
-              <button id="pin-continue" class="panel-button primary" type="button" disabled>Continue</button>
-            </div>
-          </section>
+          <div id="popup-view-root"></div>
         </section>
       </section>
     </main>
