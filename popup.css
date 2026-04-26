@@ -184,11 +184,28 @@ h2 {
 
 .analytics-summary {
   display: grid;
+  gap: 10px;
+}
+
+.analytics-group {
+  display: grid;
+  gap: 8px;
+}
+
+.analytics-heading {
+  margin: 0;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.analytics-cards {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
-.analytics-summary div {
+.analytics-card {
   display: grid;
   gap: 4px;
   min-width: 0;
@@ -198,13 +215,13 @@ h2 {
   padding: 10px;
 }
 
-.analytics-summary span {
+.analytics-card span {
   color: #64748b;
   font-size: 0.72rem;
   font-weight: 900;
 }
 
-.analytics-summary strong {
+.analytics-card strong {
   overflow: hidden;
   color: #111827;
   font-size: 0.95rem;
@@ -213,7 +230,7 @@ h2 {
   white-space: nowrap;
 }
 
-.analytics-summary small {
+.analytics-card small {
   overflow: hidden;
   color: #64748b;
   font-size: 0.72rem;
@@ -1558,7 +1575,7 @@ button:focus-visible {
   .field input,
   .mode-option,
   .category-chip,
-  .analytics-summary div,
+  .analytics-card,
   .category-detail-sites li,
   .day-picker select,
   .view-tab[aria-pressed="true"],
@@ -1587,7 +1604,7 @@ button:focus-visible {
   .mode-option,
   .settings-panel,
   .category-chip,
-  .analytics-summary div,
+  .analytics-card,
   .field input,
   .eye-button,
   .day-picker select,
@@ -1648,7 +1665,8 @@ button:focus-visible {
     color: #a8b4c8;
   }
 
-  .analytics-summary strong,
+  .analytics-heading,
+  .analytics-card strong,
   .category-detail-sites strong {
     color: #dbeafe;
   }
@@ -1711,8 +1729,8 @@ button:focus-visible {
   .field,
   .day-picker,
   .panel-heading span,
-  .analytics-summary span,
-  .analytics-summary small,
+  .analytics-card span,
+  .analytics-card small,
   .usage-total span,
   .week-stats span,
   .week-day,
@@ -1724,6 +1742,10 @@ button:focus-visible {
   .clock-label,
   .clock-mark {
     color: #a8b4c8;
+  }
+
+  .analytics-heading {
+    color: #dbeafe;
   }
 
   .mode-option strong {

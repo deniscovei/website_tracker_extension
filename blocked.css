@@ -103,10 +103,16 @@ h1 {
 
 .pin-field {
   display: block;
+  margin: 0;
+  border: 0;
+  padding: 0;
 }
 
 .pin-input-wrap {
   position: relative;
+  border: 0;
+  outline: none;
+  box-shadow: none;
 }
 
 .pin-input {
@@ -122,6 +128,34 @@ h1 {
   letter-spacing: 0.12em;
   padding: 0 42px 0 10px;
   text-align: center;
+}
+
+.popup-view-pin .pin-field,
+.popup-view-pin .pin-input-wrap,
+.popup-view-pin .pin-input,
+.popup-view-pin .eye-button,
+.popup-view-pin .panel-button {
+  box-shadow: none;
+}
+
+.popup-view-pin .pin-input-wrap:focus-within,
+.popup-view-pin .pin-input:focus,
+.popup-view-pin .pin-input:focus-visible,
+.popup-view-pin .pin-input:active,
+.popup-view-pin .eye-button:focus,
+.popup-view-pin .eye-button:focus-visible,
+.popup-view-pin .eye-button:active,
+.popup-view-pin .panel-button:focus,
+.popup-view-pin .panel-button:focus-visible,
+.popup-view-pin .panel-button:active {
+  outline: none;
+  box-shadow: none;
+}
+
+.popup-view-pin .pin-input:focus,
+.popup-view-pin .pin-input:focus-visible,
+.popup-view-pin .pin-input:active {
+  border-color: rgba(22, 32, 28, 0.16);
 }
 
 .eye-button {
@@ -191,7 +225,6 @@ h1 {
 
 .panel-button:focus-visible,
 .extra-actions button:focus-visible,
-.pin-input:focus-visible,
 .eye-button:focus-visible {
   outline: 3px solid rgba(37, 99, 235, 0.32);
   outline-offset: 3px;
@@ -251,6 +284,13 @@ h1 {
     border-color: rgba(245, 247, 245, 0.14);
     background: #1f2937;
     color: #dbeafe;
+  }
+
+  .popup-view-pin .pin-input:focus,
+  .popup-view-pin .pin-input:focus-visible,
+  .popup-view-pin .pin-input:active {
+    border-color: rgba(245, 247, 245, 0.16);
+    background: #1f2937;
   }
 
   .eye-button {

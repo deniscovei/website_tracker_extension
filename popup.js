@@ -984,6 +984,10 @@ async function loadUsageData() {
   const response = await chrome.runtime.sendMessage({ type: "get-usage-data" });
 
   if (!response?.ok) {
+    usageData = {
+      days: [],
+      usageByDay: {}
+    };
     usageTotal.textContent = "0m";
     weekTrend.textContent = response?.error || "Could not load usage.";
     weekSelectedTotal.textContent = "0m";
@@ -997,6 +1001,7 @@ async function loadUsageData() {
     usagePieTooltip.hidden = true;
     usagePieLegend.replaceChildren();
     usageSites.replaceChildren(createEmptyUsageRow("Usage data could not be loaded."));
+    renderAnalyticsSummary(selectedUsageDay || dateToDayKey(new Date()));
     return;
   }
 
@@ -1142,28 +1147,55 @@ function renderAnalyticsSummary(selectedDay) {
   const allTotal = getSitesTotalSeconds(allSites);
   const activeDays = allDays.filter((day) => getDayTotalSeconds(day) > 0).length;
   const allDailyAverage = allTotal / Math.max(1, activeDays);
-  const topSite = allSites[0];
-  const cards = [
-    { label: "Selected day", value: formatDuration(selectedTotal), note: formatDayLabel(selectedDay) },
-    { label: "This week", value: formatDuration(weekTotal), note: `Average ${formatDuration(weekTotal / 7)}` },
-    { label: "All tracked", value: formatDuration(allTotal), note: `${activeDays} active day${activeDays === 1 ? "" : "s"}` },
-    { label: "Daily average", value: formatDuration(allDailyAverage), note: "Across active days" },
-    { label: "Top website", value: topSite ? topSite.domain : "None", note: topSite ? formatDuration(topSite.screenSeconds) : "No usage" },
-    { label: "Websites", value: String(allSites.length), note: "Recorded so far" }
+  const topSite = selectedSites[0];
+  const sections = [
+    {
+      title: "All-Time Overview",
+      cards: [
+        { label: "All tracked", value: formatDuration(allTotal), note: `${activeDays} active day${activeDays === 1 ? "" : "s"}` },
+        { label: "This week", value: formatDuration(weekTotal), note: `Average ${formatDuration(weekTotal / 7)}` },
+        { label: "Daily average", value: formatDuration(allDailyAverage), note: "Across active days" },
+        { label: "Websites", value: String(allSites.length), note: "Recorded so far" }
+      ]
+    },
+    {
+      title: "Today's Overview",
+      cards: [
+        { label: "Selected day", value: formatDuration(selectedTotal), note: formatDayLabel(selectedDay) },
+        { label: "Top website", value: topSite ? topSite.domain : "None", note: topSite ? formatDuration(topSite.screenSeconds) : "No usage" }
+      ]
+    }
   ];
 
   analyticsSummary.replaceChildren(
-    ...cards.map((card) => {
-      const item = document.createElement("div");
-      const label = document.createElement("span");
-      const value = document.createElement("strong");
-      const note = document.createElement("small");
+    ...sections.map((section) => {
+      const wrapper = document.createElement("section");
+      const heading = document.createElement("h3");
+      const cards = document.createElement("div");
 
-      label.textContent = card.label;
-      value.textContent = card.value;
-      note.textContent = card.note;
-      item.append(label, value, note);
-      return item;
+      wrapper.className = "analytics-group";
+      heading.className = "analytics-heading";
+      heading.textContent = section.title;
+      cards.className = "analytics-cards";
+
+      cards.append(
+        ...section.cards.map((card) => {
+          const item = document.createElement("div");
+          const label = document.createElement("span");
+          const value = document.createElement("strong");
+          const note = document.createElement("small");
+
+          item.className = "analytics-card";
+          label.textContent = card.label;
+          value.textContent = card.value;
+          note.textContent = card.note;
+          item.append(label, value, note);
+          return item;
+        })
+      );
+
+      wrapper.append(heading, cards);
+      return wrapper;
     })
   );
 }
