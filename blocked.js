@@ -263,9 +263,7 @@ async function handlePinSubmit(input) {
       throw new Error("This website is still blocked. Try adding time again.");
     }
 
-    if (!response.redirected) {
-      navigateToSite(response.targetUrl);
-    }
+    navigateToSite(response.targetUrl);
   } catch (error) {
     actionInFlight = false;
     currentView = VIEW_STATE.PIN;
@@ -311,9 +309,7 @@ async function confirmStagedMinutes() {
       throw new Error("This website is still blocked. Try adding time again.");
     }
 
-    if (!response.redirected) {
-      navigateToSite(response.targetUrl);
-    }
+    navigateToSite(response.targetUrl);
   } catch (error) {
     console.error("Could not add staged extra time.", error);
     actionInFlight = false;
@@ -327,7 +323,7 @@ function navigateToSite(targetUrl = "") {
   const nextUrl = normalizeHttpUrl(targetUrl) || getResumeTarget();
 
   if (nextUrl) {
-    window.location.href = nextUrl;
+    window.location.replace(nextUrl);
   }
 }
 

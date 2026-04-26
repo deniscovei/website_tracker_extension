@@ -60,7 +60,7 @@ chrome.windows.onFocusChanged.addListener(() => {
   void tick();
 });
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "get-schedule-data") {
     accrueScreenUsage()
       .then(() => accrueActiveUsage())
@@ -134,10 +134,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     addExtraTime(message.domain, message.minutes, message.pin)
       .then(() => refreshRules())
       .then(() => getSiteStatus(message.domain))
-      .then(async (status) => {
+      .then((status) => {
         const targetUrl = getResumeTargetUrl(message.targetUrl, message.domain);
-        const redirected = await reopenGrantedTab(sender?.tab?.id, status, targetUrl);
-        sendResponse({ ok: true, status, redirected, targetUrl });
+
+        if (status?.isBlocked) {
+          throw new Error("Extra time was saved, but this website is still blocked.");
+        }
+
+        sendResponse({ ok: true, status, targetUrl });
       })
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
 
@@ -998,16 +1002,12 @@ function addUsedSeconds(usage, domain, seconds) {
   entry.usedSeconds += seconds;
 }
 
-function addExtraSeconds(usage, domain, seconds) {
-  const entry = ensureUsageEntry(usage, domain);
-  entry.extraSeconds += Math.max(0, seconds);
-}
-
 function resetExtraTimeState(usage, site) {
   const entry = ensureUsageEntry(usage, site.domain);
   const allowanceSeconds = normalizeDailyAllowance(site.dailyAllowanceMinutes) * 60;
 
   entry.extraSeconds = 0;
+  entry.extraUntil = 0;
   entry.usedSeconds = Math.max(0, Math.min(entry.usedSeconds, allowanceSeconds));
 }
 
@@ -1020,14 +1020,10 @@ function grantExtraTime(usage, site, seconds) {
 
   const entry = ensureUsageEntry(usage, site.domain);
   const allowanceSeconds = normalizeDailyAllowance(site.dailyAllowanceMinutes) * 60;
-  const currentRemaining = Math.max(0, allowanceSeconds + entry.extraSeconds - entry.usedSeconds);
 
-  if (currentRemaining > 0) {
-    addExtraSeconds(usage, site.domain, addedSeconds);
-    return;
-  }
-
-  entry.extraSeconds = Math.max(0, entry.usedSeconds - allowanceSeconds) + addedSeconds;
+  entry.usedSeconds = Math.max(entry.usedSeconds, allowanceSeconds);
+  entry.extraSeconds = addedSeconds;
+  entry.extraUntil = Date.now() + addedSeconds * 1000;
 }
 
 function getTrackableElapsedSeconds(startTime, endTime) {
@@ -1078,6 +1074,7 @@ function getSiteUsageEntry(usage, domain) {
   return {
     usedSeconds: Math.max(0, Number(entry?.usedSeconds) || 0),
     extraSeconds: Math.max(0, Number(entry?.extraSeconds) || 0),
+    extraUntil: normalizeTimestamp(entry?.extraUntil),
     screenSeconds: Math.max(0, Number(entry?.screenSeconds) || 0),
     hourlySeconds: normalizeHourlySeconds(entry?.hourlySeconds)
   };
@@ -1106,9 +1103,16 @@ function normalizeUsageEntry(entry = {}) {
   return {
     usedSeconds: Math.max(0, Number(entry.usedSeconds) || 0),
     extraSeconds: Math.max(0, Number(entry.extraSeconds) || 0),
+    extraUntil: normalizeTimestamp(entry.extraUntil),
     screenSeconds: Math.max(0, Number(entry.screenSeconds) || 0),
     hourlySeconds: normalizeHourlySeconds(entry.hourlySeconds)
   };
+}
+
+function normalizeTimestamp(value) {
+  const timestamp = Number(value);
+
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0;
 }
 
 function normalizeHourlySeconds(value) {
@@ -1141,11 +1145,23 @@ function pruneUsageHistory(history) {
   );
 }
 
-function getRemainingSeconds(site, usage) {
+function getRemainingSeconds(site, usage, now = Date.now()) {
   const entry = getSiteUsageEntry(usage, site.domain);
-  const totalSeconds = site.dailyAllowanceMinutes * 60 + entry.extraSeconds;
+  const allowanceSeconds = site.dailyAllowanceMinutes * 60;
+  const allowanceRemaining = Math.max(0, allowanceSeconds - entry.usedSeconds);
+  const extraRemaining = getExtraRemainingSeconds(entry, now);
 
-  return Math.max(0, totalSeconds - entry.usedSeconds);
+  return Math.max(0, allowanceRemaining + extraRemaining);
+}
+
+function getExtraRemainingSeconds(entry, now = Date.now()) {
+  const remainingMilliseconds = normalizeTimestamp(entry.extraUntil) - Number(now);
+
+  if (!Number.isFinite(remainingMilliseconds) || remainingMilliseconds <= 0) {
+    return 0;
+  }
+
+  return Math.ceil(remainingMilliseconds / 1000);
 }
 
 function getSiteUsageStates(schedule, now, usage, settings) {
@@ -1159,6 +1175,7 @@ function getSiteUsageStates(schedule, now, usage, settings) {
 
 function buildSiteUsageState(site, now, usage, settings = {}) {
   const entry = getSiteUsageEntry(usage, site.domain);
+  const currentTime = Date.now();
 
   return {
     found: true,
@@ -1166,10 +1183,12 @@ function buildSiteUsageState(site, now, usage, settings = {}) {
     allowExtraTime: site.allowExtraTime,
     dailyAllowanceMinutes: site.dailyAllowanceMinutes,
     extraSeconds: entry.extraSeconds,
+    extraUntil: entry.extraUntil,
+    extraRemainingSeconds: getExtraRemainingSeconds(entry, currentTime),
     inBlockedSlot: isSiteInBlockedSlot(site, now),
     isBlocked: shouldBlockSite(site, now, usage),
     pinConfigured: Boolean(settings.pinHash),
-    remainingSeconds: getRemainingSeconds(site, usage),
+    remainingSeconds: getRemainingSeconds(site, usage, currentTime),
     requiresPinForExtraTime: isExtraTimePinRequired(site, settings),
     usedSeconds: entry.usedSeconds
   };
@@ -1257,20 +1276,6 @@ function normalizeHttpUrl(value) {
     return new URL(text).toString();
   } catch (_error) {
     return "";
-  }
-}
-
-async function reopenGrantedTab(tabId, status, targetUrl) {
-  if (typeof tabId !== "number" || !targetUrl || status?.isBlocked) {
-    return false;
-  }
-
-  try {
-    await chrome.tabs.update(tabId, { url: targetUrl });
-    return true;
-  } catch (error) {
-    console.warn("Could not resume the granted website tab.", error);
-    return false;
   }
 }
 
