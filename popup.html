@@ -42,9 +42,12 @@
               <h2 id="pin-settings-title">PIN protection</h2>
               <p id="pin-status">PIN not set</p>
             </div>
-            <button id="change-pin" class="secondary-button small" type="button" hidden>Change PIN</button>
+            <div class="pin-panel-actions">
+              <button id="create-pin" class="secondary-button small" type="button" hidden>Create PIN</button>
+              <button id="change-pin" class="secondary-button small" type="button" hidden>Change PIN</button>
+            </div>
           </div>
-          <div id="pin-editor" class="pin-editor">
+          <div id="pin-editor" class="pin-editor" hidden>
             <label class="field pin-field">
               <span>4-digit PIN</span>
               <div class="pin-input-wrap">
@@ -57,6 +60,7 @@
                 </button>
               </div>
             </label>
+            <button id="save-pin" class="primary-button small pin-save-button" type="button">Save</button>
           </div>
           <label id="pin-global-row" class="toggle-field">
             <input id="pin-global" type="checkbox">
@@ -120,6 +124,7 @@
           <p id="form-error" class="form-error" aria-live="polite"></p>
 
           <div class="form-actions">
+            <button id="editor-back" class="secondary-button" type="button">Back</button>
             <button id="delete-site" class="danger-button" type="button">Delete</button>
           </div>
         </form>

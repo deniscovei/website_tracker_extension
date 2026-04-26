@@ -37,14 +37,17 @@ const slotHeading = document.getElementById("slot-heading");
 const intervalList = document.getElementById("interval-list");
 const addInterval = document.getElementById("add-interval");
 const deleteSite = document.getElementById("delete-site");
+const editorBack = document.getElementById("editor-back");
 const formError = document.getElementById("form-error");
 const pinGlobal = document.getElementById("pin-global");
 const pinGlobalRow = document.getElementById("pin-global-row");
+const createPin = document.getElementById("create-pin");
 const changePin = document.getElementById("change-pin");
 const pinEditor = document.getElementById("pin-editor");
 const pinCode = document.getElementById("pin-code");
 const pinStatus = document.getElementById("pin-status");
 const togglePinVisibility = document.getElementById("toggle-pin-visibility");
+const savePin = document.getElementById("save-pin");
 const analyticsSummary = document.getElementById("analytics-summary");
 const prevWeek = document.getElementById("prev-week");
 const nextWeek = document.getElementById("next-week");
@@ -152,9 +155,7 @@ let websitesExpanded = false;
 let selectedWeekDay = "";
 let popupPinVisible = false;
 let pinEditorOpen = false;
-let pinAutosaveTimer = 0;
-let pinAutosaveInFlight = false;
-let pinAutosaveQueued = false;
+let pinSaveInFlight = false;
 let editorAutosaveTimer = 0;
 let editorAutosaveInFlight = false;
 let editorAutosaveQueued = false;
@@ -205,29 +206,36 @@ pinGlobal?.addEventListener("change", () => {
 
 pinCode?.addEventListener("input", () => {
   pinCode.value = sanitizePinValue(pinCode.value);
+  pinCode.setCustomValidity("");
   updatePinDraftStatus();
-  queuePinAutosave();
 });
 
-pinCode?.addEventListener("blur", () => {
-  if (sanitizePinValue(pinCode.value).length === 4) {
+pinCode?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
     void savePinValue();
   }
 });
 
+createPin?.addEventListener("click", () => {
+  openPinEditor();
+});
+
 changePin?.addEventListener("click", () => {
-  pinEditorOpen = true;
-  pinCode.value = settings.pinValue || "";
-  popupPinVisible = Boolean(pinCode.value);
-  setPinVisibility(pinCode, togglePinVisibility, popupPinVisible);
-  syncPinSetupView();
-  updatePinDraftStatus();
-  pinCode.focus();
+  openPinEditor({
+    value: settings.pinValue || "",
+    visible: Boolean(settings.pinValue)
+  });
 });
 
 togglePinVisibility?.addEventListener("click", () => {
   popupPinVisible = !popupPinVisible;
   setPinVisibility(pinCode, togglePinVisibility, popupPinVisible);
+  updatePinDraftStatus();
+});
+
+savePin?.addEventListener("click", () => {
+  void savePinValue();
 });
 
 siteDomain?.addEventListener("input", () => {
@@ -313,6 +321,7 @@ newSite?.addEventListener("click", () => {
 });
 
 back?.addEventListener("click", showList);
+editorBack?.addEventListener("click", showList);
 
 addInterval?.addEventListener("click", () => {
   appendInterval({ ...DEFAULT_INTERVAL }, { expanded: true });
@@ -412,20 +421,6 @@ async function persistSchedule() {
   renderSiteList();
 }
 
-function queuePinAutosave() {
-  clearTimeout(pinAutosaveTimer);
-
-  const nextPin = sanitizePinValue(pinCode.value);
-
-  if (!pinEditorOpen || nextPin.length !== 4 || (settings.hasPin && nextPin === settings.pinValue)) {
-    return;
-  }
-
-  pinAutosaveTimer = window.setTimeout(() => {
-    void savePinValue();
-  }, 350);
-}
-
 async function savePinValue() {
   const nextPin = sanitizePinValue(pinCode.value);
 
@@ -434,16 +429,18 @@ async function savePinValue() {
   }
 
   pinCode.value = nextPin;
+  pinCode.setCustomValidity("");
 
   if (nextPin.length !== 4) {
+    pinCode.setCustomValidity("PIN must be 4 digits.");
     updatePinDraftStatus();
+    pinCode.reportValidity();
     return;
   }
 
   await persistPinSettings({
     pin: nextPin,
-    successMessage: "PIN saved.",
-    keepEditorOpen: true
+    successMessage: settings.hasPin ? "PIN updated." : "PIN created."
   });
 }
 
@@ -454,27 +451,34 @@ async function savePinRequirementToggle() {
     return;
   }
 
-  await persistPinSettings({
+  const previousValue = Boolean(settings.requirePinForAllExtraTime);
+  const saved = await persistPinSettings({
     successMessage: pinGlobal.checked
       ? "PIN required for all websites."
-      : "PIN requirement updated.",
-    keepEditorOpen: pinEditorOpen
+      : "PIN requirement updated."
   });
+
+  if (!saved) {
+    pinGlobal.checked = previousValue;
+    syncPinSetupView();
+  }
 }
 
 async function persistPinSettings({
   pin,
-  successMessage = "PIN settings saved.",
-  keepEditorOpen = pinEditorOpen
+  successMessage = "PIN settings saved."
 } = {}) {
-  if (pinAutosaveInFlight) {
-    pinAutosaveQueued = true;
-    return;
+  if (pinSaveInFlight) {
+    return false;
   }
 
-  pinAutosaveInFlight = true;
+  pinSaveInFlight = true;
   pinStatus.classList.remove("error");
   pinStatus.textContent = "Saving...";
+
+  if (createPin) {
+    createPin.disabled = true;
+  }
 
   if (changePin) {
     changePin.disabled = true;
@@ -483,6 +487,9 @@ async function persistPinSettings({
   pinGlobal.disabled = true;
   pinCode.disabled = true;
   togglePinVisibility.disabled = true;
+  if (savePin) {
+    savePin.disabled = true;
+  }
 
   try {
     const response = await chrome.runtime.sendMessage({
@@ -498,7 +505,14 @@ async function persistPinSettings({
     }
 
     settings = normalizeSettings(response.settings || settings);
-    pinEditorOpen = Boolean(keepEditorOpen || !settings.hasPin);
+
+    if (pin) {
+      pinEditorOpen = false;
+      pinCode.value = "";
+      popupPinVisible = false;
+      setPinVisibility(pinCode, togglePinVisibility, false);
+    }
+
     renderPinSettings(successMessage);
     renderSiteList();
 
@@ -511,35 +525,33 @@ async function persistPinSettings({
     } catch (_error) {
       // Saving the PIN already succeeded; refreshing status can wait for the next tick.
     }
+    return true;
   } catch (error) {
     pinStatus.textContent = cleanError(error);
     pinStatus.classList.add("error");
+    return false;
   } finally {
-    pinAutosaveInFlight = false;
+    pinSaveInFlight = false;
+    if (createPin) {
+      createPin.disabled = false;
+    }
     if (changePin) {
       changePin.disabled = false;
     }
     syncPinSetupView();
-
-    if (pinAutosaveQueued) {
-      pinAutosaveQueued = false;
-      const nextPin = sanitizePinValue(pinCode.value);
-
-      if (pinEditorOpen && nextPin.length === 4 && (!settings.hasPin || nextPin !== settings.pinValue)) {
-        queuePinAutosave();
-      } else if (Boolean(pinGlobal.checked) !== Boolean(settings.requirePinForAllExtraTime)) {
-        void savePinRequirementToggle();
-      }
-    }
   }
 }
 
 function renderPinSettings(message = "") {
-  pinEditorOpen = settings.hasPin ? pinEditorOpen : true;
   pinGlobal.checked = Boolean(settings.requirePinForAllExtraTime);
-  pinCode.value = pinEditorOpen ? settings.pinValue || "" : "";
-  popupPinVisible = false;
-  setPinVisibility(pinCode, togglePinVisibility, false);
+  pinCode.setCustomValidity("");
+
+  if (!pinEditorOpen) {
+    pinCode.value = "";
+    popupPinVisible = false;
+  }
+
+  setPinVisibility(pinCode, togglePinVisibility, popupPinVisible);
   syncPinSetupView();
 
   if (message) {
@@ -555,7 +567,6 @@ function syncPinSetupView() {
   const hasPin = Boolean(settings.hasPin);
 
   if (!hasPin) {
-    pinEditorOpen = true;
     pinGlobal.checked = false;
   }
 
@@ -563,15 +574,26 @@ function syncPinSetupView() {
     pinEditor.hidden = !pinEditorOpen;
   }
 
-  if (changePin) {
-    changePin.hidden = !hasPin || pinEditorOpen;
+  if (createPin) {
+    createPin.hidden = hasPin || pinEditorOpen;
+    createPin.disabled = pinSaveInFlight;
   }
 
-  pinCode.disabled = !pinEditorOpen || pinAutosaveInFlight;
-  pinGlobal.disabled = !hasPin || pinAutosaveInFlight;
-  togglePinVisibility.disabled = !pinEditorOpen || pinCode.value.length === 0 || pinAutosaveInFlight;
+  if (changePin) {
+    changePin.hidden = !hasPin || pinEditorOpen;
+    changePin.disabled = pinSaveInFlight;
+  }
 
-  pinGlobalRow?.classList.toggle("is-disabled", !hasPin);
+  if (savePin) {
+    savePin.hidden = !pinEditorOpen;
+    savePin.disabled = !pinEditorOpen || sanitizePinValue(pinCode.value).length !== 4 || pinSaveInFlight;
+  }
+
+  pinCode.disabled = !pinEditorOpen || pinSaveInFlight;
+  pinGlobal.disabled = !hasPin || pinSaveInFlight;
+  togglePinVisibility.disabled = !pinEditorOpen || pinCode.value.length === 0 || pinSaveInFlight;
+
+  pinGlobalRow?.classList.toggle("is-disabled", !hasPin || pinSaveInFlight);
   requirePinExtraRow?.classList.toggle("is-disabled", !hasPin);
 
   if (requirePinExtra) {
@@ -586,12 +608,17 @@ function syncPinSetupView() {
 function updatePinDraftStatus() {
   const nextPin = sanitizePinValue(pinCode.value);
   togglePinVisibility.disabled = !pinEditorOpen || nextPin.length === 0;
+  if (savePin) {
+    savePin.disabled = !pinEditorOpen || nextPin.length !== 4 || pinSaveInFlight;
+  }
 
-  if (!pinEditorOpen && settings.hasPin) {
+  if (!pinEditorOpen) {
     pinStatus.classList.remove("error");
-    pinStatus.textContent = pinGlobal.checked
-      ? "PIN is set and required for all websites."
-      : "PIN is set.";
+    pinStatus.textContent = settings.hasPin
+      ? pinGlobal.checked
+        ? "PIN is active and required for all websites."
+        : "PIN is active."
+      : "No PIN set yet.";
     return;
   }
 
@@ -603,23 +630,32 @@ function updatePinDraftStatus() {
     }
 
     pinStatus.textContent = settings.hasPin
-      ? "Edit the 4-digit PIN. Changes save automatically."
-      : "Create a 4-digit PIN to enable PIN checks.";
+      ? "Edit the 4-digit PIN and save it."
+      : "Create a 4-digit PIN and save it.";
     return;
   }
 
   if (nextPin.length === 4) {
     pinStatus.classList.remove("error");
-    if (settings.hasPin && pinEditorOpen && nextPin === settings.pinValue) {
-      pinStatus.textContent = "Current PIN loaded.";
-      return;
-    }
-
-    pinStatus.textContent = settings.hasPin ? "Saving new PIN..." : "Saving PIN...";
+    pinStatus.textContent = settings.hasPin && nextPin === settings.pinValue
+      ? "Current PIN loaded. Save after you change it."
+      : "PIN ready to save.";
   } else {
     pinStatus.classList.add("error");
     pinStatus.textContent = "PIN must be 4 digits.";
   }
+}
+
+function openPinEditor({ value = "", visible = false } = {}) {
+  pinEditorOpen = true;
+  pinCode.value = sanitizePinValue(value);
+  popupPinVisible = Boolean(visible && pinCode.value);
+  pinCode.setCustomValidity("");
+  setPinVisibility(pinCode, togglePinVisibility, popupPinVisible);
+  syncPinSetupView();
+  updatePinDraftStatus();
+  pinCode.focus();
+  pinCode.select();
 }
 
 function renderStatus() {
@@ -2291,7 +2327,7 @@ function minutesToTime(value) {
 function readSiteForm() {
   const domain = normalizeDomain(siteDomain.value);
   const blockMode = getBlockMode();
-  const intervals = readIntervals();
+  const intervals = readIntervalsForSave(blockMode);
   const dailyAllowanceMinutes = normalizeAllowanceMinutes(dailyAllowance.value);
 
   if (!domain) {
@@ -2324,6 +2360,18 @@ function readSiteForm() {
   };
 }
 
+function readIntervalsForSave(blockMode) {
+  if (blockMode !== "always") {
+    return readIntervals();
+  }
+
+  try {
+    return readIntervals();
+  } catch (_error) {
+    return getStoredIntervalsFallback();
+  }
+}
+
 function readIntervals() {
   return Array.from(intervalList.querySelectorAll(".interval-row")).map((row) => {
     const start = row.querySelector('[data-field="start"]')?.value;
@@ -2347,6 +2395,28 @@ function readIntervals() {
     }
 
     return interval;
+  });
+}
+
+function getStoredIntervalsFallback() {
+  const source = editingIndex === null
+    ? []
+    : Array.isArray(schedule.sites[editingIndex]?.intervals)
+      ? schedule.sites[editingIndex].intervals
+      : [];
+
+  if (source.length === 0) {
+    return [{ ...DEFAULT_INTERVAL }];
+  }
+
+  return source.map((interval) => {
+    const normalized = normalizeInterval(interval);
+
+    return {
+      start: normalized.start,
+      end: normalized.end,
+      ...(normalized.days ? { days: [...normalized.days] } : {})
+    };
   });
 }
 

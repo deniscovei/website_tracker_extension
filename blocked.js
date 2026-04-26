@@ -8,7 +8,7 @@ const VIEW_STATE = {
   SUCCESS: "success",
   PIN: "pin"
 };
-const FINAL_ACTION_LABEL = "Open website";
+const FINAL_ACTION_LABEL = "Enter Page";
 
 let latestStatus = null;
 let currentView = VIEW_STATE.SELECT;
@@ -38,6 +38,8 @@ async function loadExtraTimeStatus() {
     latestStatus = response.status;
     currentView = VIEW_STATE.SELECT;
     pendingMinutes = 0;
+    blockedPinVisible = false;
+    actionInFlight = false;
     pinDraft = "";
     extraTime.hidden = false;
     renderCurrentView();
@@ -90,11 +92,23 @@ function createSelectionView() {
 function createSuccessView() {
   const view = document.createElement("section");
   const message = document.createElement("p");
+  const actions = document.createElement("div");
+  const backButton = document.createElement("button");
   const button = document.createElement("button");
 
   view.className = "popup-view popup-view-success";
   message.className = "view-message";
-  message.textContent = `${formatMinutes(pendingMinutes)} ready to add.`;
+  message.textContent = `Add ${formatMinutes(pendingMinutes)} and enter the page.`;
+
+  actions.className = "popup-view-actions";
+
+  backButton.type = "button";
+  backButton.className = "panel-button secondary";
+  backButton.textContent = "Back";
+  backButton.disabled = actionInFlight;
+  backButton.addEventListener("click", () => {
+    returnToSelection();
+  });
 
   button.type = "button";
   button.className = "panel-button primary";
@@ -104,7 +118,8 @@ function createSuccessView() {
     void confirmStagedMinutes();
   });
 
-  view.append(message, button);
+  actions.append(backButton, button);
+  view.append(message, actions);
   return view;
 }
 
@@ -114,6 +129,8 @@ function createPinView() {
   const wrap = document.createElement("div");
   const input = document.createElement("input");
   const visibilityButton = document.createElement("button");
+  const actions = document.createElement("div");
+  const backButton = document.createElement("button");
   const continueButton = document.createElement("button");
 
   view.className = "popup-view popup-view-pin";
@@ -157,6 +174,16 @@ function createPinView() {
     renderCurrentView();
   });
 
+  actions.className = "popup-view-actions";
+
+  backButton.type = "button";
+  backButton.className = "panel-button secondary";
+  backButton.textContent = "Back";
+  backButton.disabled = actionInFlight;
+  backButton.addEventListener("click", () => {
+    returnToSelection();
+  });
+
   continueButton.type = "button";
   continueButton.className = "panel-button primary";
   continueButton.textContent = FINAL_ACTION_LABEL;
@@ -167,7 +194,8 @@ function createPinView() {
 
   wrap.append(input, visibilityButton);
   field.append(wrap);
-  view.append(field, continueButton);
+  actions.append(backButton, continueButton);
+  view.append(field, actions);
 
   return view;
 }
@@ -283,6 +311,18 @@ function navigateToSite() {
   if (site) {
     window.location.href = `https://${site}/`;
   }
+}
+
+function returnToSelection() {
+  if (actionInFlight) {
+    return;
+  }
+
+  currentView = VIEW_STATE.SELECT;
+  pendingMinutes = 0;
+  pinDraft = "";
+  blockedPinVisible = false;
+  renderCurrentView();
 }
 
 function sanitizePinValue(value) {
