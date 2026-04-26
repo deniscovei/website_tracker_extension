@@ -143,10 +143,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "cut-off-site") {
     cutOffSite(message.domain)
       .then(() => refreshRules())
-      .then(async (state) => {
-        await enforceActiveTabBlock(state);
-        return state;
-      })
       .then(() => getSiteStatus(message.domain))
       .then((status) => sendResponse({ ok: true, status }))
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));

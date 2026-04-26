@@ -1,4 +1,4 @@
-# Website Tracker
+# Focus Tracker
 
 A small Manifest V3 Chrome extension that tracks daily website screen time and blocks websites during editable time slots.
 

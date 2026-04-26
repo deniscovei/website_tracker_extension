@@ -15,13 +15,26 @@
           The current time is inside one of its blocked slots.
         </p>
         <section id="extra-time" class="extra-time" hidden>
-          <p id="extra-status">Checking today&apos;s allowance...</p>
-          <div id="extra-actions" class="extra-actions" hidden>
-            <button type="button" data-extra-minutes="5">Add 5 min</button>
-            <button type="button" data-extra-minutes="15">Add 15 min</button>
-            <button type="button" data-extra-minutes="30">Add 30 min</button>
+          <p id="extra-status" class="extra-status">Checking today&apos;s allowance...</p>
+          <div id="allowance-actions" class="panel-actions single" hidden>
+            <button id="continue-site" class="panel-button primary" type="button">Continue</button>
           </div>
-          <div id="pin-panel" class="pin-panel" hidden>
+          <section id="panel-main" class="extra-panel" hidden>
+            <div id="extra-actions" class="extra-actions">
+              <button type="button" data-extra-minutes="5">Add 5 min</button>
+              <button type="button" data-extra-minutes="15">Add 15 min</button>
+              <button type="button" data-extra-minutes="30">Add 30 min</button>
+            </div>
+          </section>
+          <section id="panel-added" class="extra-panel" hidden>
+            <p id="added-status">Added 15 minutes for today.</p>
+            <div class="panel-actions">
+              <button id="added-back" class="panel-button secondary" type="button">Back</button>
+              <button id="added-continue" class="panel-button primary" type="button">Continue</button>
+            </div>
+          </section>
+          <section id="panel-pin" class="extra-panel" hidden>
+            <p id="pin-status-copy">15 minutes will be added for today.</p>
             <label class="pin-field">
               <span>Enter PIN</span>
               <div class="pin-input-wrap">
@@ -35,11 +48,12 @@
               </div>
             </label>
             <p id="pin-error" aria-live="polite"></p>
-          </div>
+            <div class="panel-actions">
+              <button id="pin-back" class="panel-button secondary" type="button">Back</button>
+              <button id="pin-continue" class="panel-button primary" type="button" disabled>Continue</button>
+            </div>
+          </section>
         </section>
-        <div class="actions">
-          <button id="continue-site" type="button" hidden disabled>Continue</button>
-        </div>
       </section>
     </main>
     <script src="blocked.js"></script>

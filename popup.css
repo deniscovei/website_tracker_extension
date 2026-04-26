@@ -128,6 +128,10 @@ h2 {
   line-height: 1.45;
 }
 
+#summary.error {
+  color: #a72d4f;
+}
+
 #active-sites {
   display: grid;
   gap: 8px;
@@ -874,9 +878,18 @@ h2 {
   font-weight: 800;
 }
 
+#pin-status.error {
+  color: #a72d4f;
+}
+
 .pin-field {
   display: grid;
   gap: 6px;
+}
+
+.pin-editor {
+  display: grid;
+  gap: 10px;
 }
 
 .pin-input-wrap {
@@ -939,7 +952,7 @@ h2 {
 
 .site-card {
   display: grid;
-  gap: 4px;
+  gap: 8px;
   border: 1px solid rgba(22, 32, 28, 0.12);
   border-radius: 8px;
   background: #f8fbff;
@@ -952,9 +965,33 @@ h2 {
 }
 
 .site-row-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 2px;
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid rgba(22, 32, 28, 0.08);
+  padding-top: 10px;
+}
+
+.site-extra-note {
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.revoke-button {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid rgba(190, 24, 93, 0.16);
+  border-radius: 6px;
+  background: rgba(190, 24, 93, 0.08);
+  color: #be185d;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 0 10px;
+}
+
+.revoke-button:hover {
+  background: rgba(190, 24, 93, 0.12);
 }
 
 .site-row {
@@ -973,7 +1010,9 @@ h2 {
   text-align: left;
 }
 
-.site-row:hover {
+.site-row:hover,
+.site-card .site-row,
+.site-card .site-row:hover {
   background: transparent;
 }
 
@@ -1142,6 +1181,11 @@ h2 {
   height: 18px;
   flex: 0 0 auto;
   accent-color: #2563eb;
+}
+
+.toggle-field.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .interval-row {
@@ -1519,7 +1563,6 @@ button:focus-visible {
   .secondary-button:hover,
   .eye-button:hover,
   .site-card:hover,
-  .site-row:hover,
   .category-chip[aria-pressed="true"],
   .category-chip.is-highlighted,
   .slot-summary:hover {
@@ -1638,6 +1681,11 @@ button:focus-visible {
     color: #e5edf8;
   }
 
+  #summary.error,
+  #pin-status.error {
+    color: #f18eaa;
+  }
+
   #active-sites li {
     background: rgba(96, 165, 250, 0.13);
     color: #dbeafe;
@@ -1645,6 +1693,7 @@ button:focus-visible {
 
   #updated,
   #pin-status,
+  .site-extra-note,
   .week-heading-copy span,
   .week-trend,
   .site-meta,
@@ -1705,9 +1754,18 @@ button:focus-visible {
 
   .active-badge,
   .danger-button,
-  .remove-button {
-    background: rgba(241, 142, 170, 0.13);
+  .remove-button,
+  .revoke-button {
     color: #f18eaa;
+  }
+
+  .revoke-button {
+    border-color: rgba(241, 142, 170, 0.24);
+    background: rgba(241, 142, 170, 0.1);
+  }
+
+  .site-row-actions {
+    border-color: rgba(247, 242, 232, 0.1);
   }
 
   .form-error,

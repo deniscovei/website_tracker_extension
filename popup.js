@@ -40,6 +40,9 @@ const deleteSite = document.getElementById("delete-site");
 const formError = document.getElementById("form-error");
 const SETTINGS_KEY = "websiteTrackerSettings";
 const pinGlobal = document.getElementById("pin-global");
+const pinGlobalRow = document.getElementById("pin-global-row");
+const changePin = document.getElementById("change-pin");
+const pinEditor = document.getElementById("pin-editor");
 const pinCode = document.getElementById("pin-code");
 const savePin = document.getElementById("save-pin");
 const pinStatus = document.getElementById("pin-status");
@@ -149,6 +152,7 @@ let shareMode = "compact";
 let websitesExpanded = false;
 let selectedWeekDay = "";
 let popupPinVisible = false;
+let pinEditorOpen = false;
 let selectedUsageDay = dateToDayKey(new Date());
 let currentDaySites = [];
 let currentHourlyTotals = [];
@@ -192,15 +196,25 @@ savePin?.addEventListener("click", () => {
 });
 
 pinGlobal?.addEventListener("change", () => {
-  if (pinGlobal.checked && !settings.hasPin) {
-    pinGlobal.checked = false;
-    pinStatus.textContent = "Set and save a 4-digit PIN first.";
+  if (settings.hasPin) {
+    pinStatus.classList.remove("error");
+    pinStatus.textContent = "Save settings to apply this change.";
   }
 });
 
 pinCode?.addEventListener("input", () => {
   pinCode.value = sanitizePinValue(pinCode.value);
   updatePinDraftStatus();
+});
+
+changePin?.addEventListener("click", () => {
+  pinEditorOpen = true;
+  pinCode.value = "";
+  popupPinVisible = false;
+  setPinVisibility(pinCode, togglePinVisibility, false);
+  syncPinSetupView();
+  updatePinDraftStatus();
+  pinCode.focus();
 });
 
 togglePinVisibility?.addEventListener("click", () => {
@@ -384,17 +398,22 @@ async function savePinSettings() {
 
   pinCode.value = nextPin;
 
-  if (nextPin && nextPin.length !== 4) {
+  if (pinEditorOpen && nextPin && nextPin.length !== 4) {
     pinStatus.textContent = "Use exactly 4 digits.";
+    pinStatus.classList.add("error");
     return;
   }
 
   if (!settings.hasPin && nextPin.length !== 4) {
     pinStatus.textContent = "Enter a 4-digit PIN.";
+    pinStatus.classList.add("error");
     return;
   }
 
   savePin.disabled = true;
+  if (changePin) {
+    changePin.disabled = true;
+  }
   pinGlobal.disabled = true;
   pinCode.disabled = true;
   togglePinVisibility.disabled = true;
@@ -419,6 +438,7 @@ async function savePinSettings() {
       hasPin: Boolean(savedSettings.pinHash),
       requirePinForAllExtraTime: savedSettings.requirePinForAllExtraTime
     });
+    pinEditorOpen = false;
     pinCode.value = "";
     renderPinSettings("PIN settings saved.");
     renderSiteList();
@@ -434,13 +454,18 @@ async function savePinSettings() {
     }
   } catch (error) {
     pinStatus.textContent = cleanError(error);
+    pinStatus.classList.add("error");
   } finally {
     savePin.disabled = false;
+    if (changePin) {
+      changePin.disabled = false;
+    }
     syncPinSetupView();
   }
 }
 
 function renderPinSettings(message = "") {
+  pinEditorOpen = settings.hasPin ? pinEditorOpen : true;
   pinGlobal.checked = Boolean(settings.requirePinForAllExtraTime);
   pinCode.value = "";
   popupPinVisible = false;
@@ -449,6 +474,7 @@ function renderPinSettings(message = "") {
 
   if (message) {
     pinStatus.textContent = message;
+    pinStatus.classList.remove("error");
     return;
   }
 
@@ -458,17 +484,25 @@ function renderPinSettings(message = "") {
 function syncPinSetupView() {
   const hasPin = Boolean(settings.hasPin);
 
-  pinCode.disabled = false;
-  pinGlobal.disabled = false;
-  togglePinVisibility.disabled = false;
-
   if (!hasPin) {
+    pinEditorOpen = true;
     pinGlobal.checked = false;
   }
 
-  if (requirePinExtraRow) {
-    requirePinExtraRow.hidden = !hasPin;
+  if (pinEditor) {
+    pinEditor.hidden = !pinEditorOpen;
   }
+
+  if (changePin) {
+    changePin.hidden = !hasPin || pinEditorOpen;
+  }
+
+  pinCode.disabled = !pinEditorOpen;
+  pinGlobal.disabled = !hasPin;
+  togglePinVisibility.disabled = !pinEditorOpen || pinCode.value.length === 0;
+
+  pinGlobalRow?.classList.toggle("is-disabled", !hasPin);
+  requirePinExtraRow?.classList.toggle("is-disabled", !hasPin);
 
   if (requirePinExtra) {
     requirePinExtra.disabled = !hasPin;
@@ -481,21 +515,36 @@ function syncPinSetupView() {
 
 function updatePinDraftStatus() {
   const nextPin = sanitizePinValue(pinCode.value);
+  togglePinVisibility.disabled = !pinEditorOpen || nextPin.length === 0;
 
-  if (nextPin.length === 0) {
-    pinStatus.textContent = settings.hasPin
-      ? "Leave the field blank to keep the current PIN."
-      : "Enter a new 4-digit PIN.";
+  if (!pinEditorOpen && settings.hasPin) {
+    pinStatus.classList.remove("error");
+    pinStatus.textContent = pinGlobal.checked
+      ? "PIN is set and required for all websites."
+      : "PIN is set.";
     return;
   }
 
-  pinStatus.textContent = nextPin.length === 4
-    ? "PIN ready."
-    : "PIN must be 4 digits.";
+  if (nextPin.length === 0) {
+    pinStatus.classList.remove("error");
+    pinStatus.textContent = settings.hasPin
+      ? "Enter a new 4-digit PIN to change it."
+      : "Create a 4-digit PIN to enable PIN checks.";
+    return;
+  }
+
+  if (nextPin.length === 4) {
+    pinStatus.classList.remove("error");
+    pinStatus.textContent = settings.hasPin ? "New PIN ready." : "PIN ready.";
+  } else {
+    pinStatus.classList.add("error");
+    pinStatus.textContent = "PIN must be 4 digits.";
+  }
 }
 
 function renderStatus() {
   activeSites.replaceChildren();
+  summary.classList.remove("error");
 
   if (!state) {
     summary.textContent = "No schedule status yet.";
@@ -505,6 +554,7 @@ function renderStatus() {
 
   if (state.error) {
     summary.textContent = "Schedule error. Blocking rules were cleared.";
+    summary.classList.add("error");
     updated.textContent = state.error;
     return;
   }
@@ -592,12 +642,15 @@ function renderSiteList() {
 
       if ((usage?.extraSeconds || 0) > 0) {
         const actions = document.createElement("div");
+        const note = document.createElement("span");
         const cutOffButton = document.createElement("button");
 
         actions.className = "site-row-actions";
+        note.className = "site-extra-note";
+        note.textContent = `${formatDuration(usage.extraSeconds)} added today`;
         cutOffButton.type = "button";
-        cutOffButton.className = "secondary-button small";
-        cutOffButton.textContent = "Ignore added minutes";
+        cutOffButton.className = "revoke-button";
+        cutOffButton.textContent = "Revoke added time";
         cutOffButton.addEventListener("click", async (event) => {
           event.stopPropagation();
           cutOffButton.disabled = true;
@@ -609,10 +662,10 @@ function renderSiteList() {
             });
 
             if (!response?.ok) {
-              throw new Error(response?.error || "Could not cut off website.");
+              throw new Error(response?.error || "Could not revoke extra time.");
             }
 
-            window.location.reload();
+            await loadData();
           } catch (error) {
             renderError(cleanError(error));
           } finally {
@@ -620,7 +673,7 @@ function renderSiteList() {
           }
         });
 
-        actions.append(cutOffButton);
+        actions.append(note, cutOffButton);
         item.append(actions);
       }
 
@@ -1362,6 +1415,9 @@ function createPieSlice(segment, startAngle, endAngle) {
     showPieTooltip(segment.domain, formatDuration(segment.seconds));
     movePieTooltip(event);
     updatePieHighlight();
+  });
+  path.addEventListener("mousedown", (event) => {
+    event.preventDefault();
   });
   path.addEventListener("mousemove", (event) => {
     movePieTooltip(event);
@@ -2381,6 +2437,7 @@ function findSiteIndex(domains) {
 
 function renderError(message) {
   summary.textContent = message;
+  summary.classList.add("error");
   activeSites.replaceChildren();
   updated.textContent = "";
 }
