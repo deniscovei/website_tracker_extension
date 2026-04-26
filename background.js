@@ -901,8 +901,14 @@ async function addExtraTime(domain, minutes, pin = "") {
     throw new Error("Extra time is disabled for this website.");
   }
 
-  if (isExtraTimePinRequired(site, settings) && !await verifyPin(pin, settings)) {
-    throw new Error("Incorrect PIN.");
+  if (isExtraTimePinRequired(site, settings)) {
+    if (!String(pin || "").trim()) {
+      throw new Error("PIN required.");
+    }
+
+    if (!await verifyPin(pin, settings)) {
+      throw new Error("Incorrect PIN.");
+    }
   }
 
   const extraMinutes = Number(minutes);

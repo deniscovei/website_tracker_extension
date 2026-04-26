@@ -160,6 +160,7 @@ let editorAutosaveTimer = 0;
 let editorAutosaveInFlight = false;
 let editorAutosaveQueued = false;
 let selectedUsageDay = dateToDayKey(new Date());
+let visibleWeekDay = selectedUsageDay;
 let currentDaySites = [];
 let currentHourlyTotals = [];
 let currentHourlyCategories = [];
@@ -261,19 +262,19 @@ requirePinExtra?.addEventListener("change", () => {
 shareCompact?.addEventListener("click", () => {
   shareMode = "compact";
   clearUsageSelections();
-  renderUsageForDay(selectedUsageDay);
+  renderUsageForDay(selectedUsageDay, { weekDay: visibleWeekDay });
 });
 
 shareAll?.addEventListener("click", () => {
   shareMode = "all";
   clearUsageSelections();
-  renderUsageForDay(selectedUsageDay);
+  renderUsageForDay(selectedUsageDay, { weekDay: visibleWeekDay });
 });
 
 usageShowMore?.addEventListener("click", () => {
   websitesExpanded = !websitesExpanded;
   clearUsageSelections();
-  renderUsageForDay(selectedUsageDay);
+  renderUsageForDay(selectedUsageDay, { weekDay: visibleWeekDay });
 });
 
 document.addEventListener("click", (event) => {
@@ -281,11 +282,16 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  if (event.target.closest("[data-pie-domain], [data-site-domain], [data-category], [data-hour], .week-day, .mini-toggle, #usage-show-more, .time-nav")) {
+  if (event.target.closest("[data-pie-domain], [data-site-domain], [data-category], [data-hour], .week-chart, .mini-toggle, #usage-show-more, .time-nav")) {
     return;
   }
 
+  const shouldDeselectDay = !usageView.hidden && Boolean(selectedUsageDay);
   clearUsageSelections();
+
+  if (shouldDeselectDay) {
+    renderUsageForDay(null, { weekDay: visibleWeekDay });
+  }
 });
 
 refresh?.addEventListener("click", async () => {
@@ -1001,7 +1007,7 @@ async function loadUsageData() {
     usagePieTooltip.hidden = true;
     usagePieLegend.replaceChildren();
     usageSites.replaceChildren(createEmptyUsageRow("Usage data could not be loaded."));
-    renderAnalyticsSummary(selectedUsageDay || dateToDayKey(new Date()));
+    renderAnalyticsSummary(selectedUsageDay, visibleWeekDay || dateToDayKey(new Date()));
     return;
   }
 
@@ -1012,15 +1018,19 @@ async function loadUsageData() {
       : {}
   };
 
-  const selectedDay = selectedUsageDay || usageData.days[0] || dateToDayKey(new Date());
-  renderUsageForDay(selectedDay);
+  const todayKey = dateToDayKey(new Date());
+  visibleWeekDay ||= todayKey;
+  renderUsageForDay(selectedUsageDay, { weekDay: visibleWeekDay });
 }
 
 function shiftUsageWeek(amount) {
-  const selectedDate = parseDayKey(selectedUsageDay) || new Date();
-  const nextDay = dateToDayKey(addDays(selectedDate, amount * 7));
+  const selectedDate = parseDayKey(visibleWeekDay) || new Date();
+  const nextWeekDay = dateToDayKey(addDays(selectedDate, amount * 7));
+  const todayKey = dateToDayKey(new Date());
+  const nextSelectedDay = getWeekDayKeys(nextWeekDay).includes(todayKey) ? todayKey : null;
+
   clearUsageSelections({ keepWeek: false });
-  renderUsageForDay(nextDay);
+  renderUsageForDay(nextSelectedDay, { weekDay: nextWeekDay });
 }
 
 function shiftSelectedHour(amount) {
@@ -1038,10 +1048,17 @@ function shiftSelectedHour(amount) {
   updateCategoryHighlight();
 }
 
-function renderUsageForDay(day) {
-  const selectedDay = day || dateToDayKey(new Date());
+function renderUsageForDay(day, { weekDay = day || visibleWeekDay || dateToDayKey(new Date()) } = {}) {
+  const selectedDay = day || null;
+  visibleWeekDay = weekDay || selectedDay || dateToDayKey(new Date());
   selectedUsageDay = selectedDay;
-  renderWeekOverview(selectedDay);
+  selectedWeekDay = selectedDay || "";
+  renderWeekOverview(visibleWeekDay, selectedDay);
+
+  if (!selectedDay) {
+    renderNoSelectedDayDetails();
+    return;
+  }
 
   currentDaySites = getDaySites(selectedDay);
   currentContext = {
@@ -1076,6 +1093,27 @@ function renderUsageForDay(day) {
   renderHourChart(currentHourlyTotals, currentHourlyCategories);
   renderUsagePie(currentContext.sites, currentContext.totalSeconds);
   renderUsageSites(currentContext.sites, currentContext.totalSeconds);
+  updatePieHighlight();
+}
+
+function renderNoSelectedDayDetails() {
+  currentDaySites = [];
+  currentContext = {
+    days: [],
+    sites: [],
+    totalSeconds: 0
+  };
+  currentHourlyTotals = Array.from({ length: 24 }, () => 0);
+  currentHourlyCategories = Array.from({ length: 24 }, () => ({}));
+
+  usageTotal.textContent = "0m";
+  usageCount.textContent = "Select a day";
+  usagePeak.textContent = "Select a day to view details";
+
+  renderAnalyticsSummary(null, visibleWeekDay);
+  renderHourChart(currentHourlyTotals, currentHourlyCategories);
+  renderUsagePie([], 0, "Select a day to view website share.");
+  renderUsageSites([], 0, "Select a day to view details.");
   updatePieHighlight();
 }
 
@@ -1136,10 +1174,10 @@ function getSitesTotalSeconds(sites) {
   return sites.reduce((sum, site) => sum + site.screenSeconds, 0);
 }
 
-function renderAnalyticsSummary(selectedDay) {
+function renderAnalyticsSummary(selectedDay, weekDay = selectedDay || visibleWeekDay || dateToDayKey(new Date())) {
   const allDays = Object.keys(usageData.usageByDay || {}).sort();
-  const weekDays = getWeekDayKeys(selectedDay);
-  const selectedSites = getDaySites(selectedDay);
+  const weekDays = getWeekDayKeys(weekDay);
+  const selectedSites = selectedDay ? getDaySites(selectedDay) : [];
   const weekSites = aggregateSitesForDays(weekDays);
   const allSites = aggregateSitesForDays(allDays);
   const selectedTotal = getSitesTotalSeconds(selectedSites);
@@ -1148,6 +1186,9 @@ function renderAnalyticsSummary(selectedDay) {
   const activeDays = allDays.filter((day) => getDayTotalSeconds(day) > 0).length;
   const allDailyAverage = allTotal / Math.max(1, activeDays);
   const topSite = selectedSites[0];
+  const topSiteNote = selectedDay
+    ? topSite ? formatDuration(topSite.screenSeconds) : "No usage"
+    : "Select a day";
   const sections = [
     {
       title: "All-Time Overview",
@@ -1161,8 +1202,8 @@ function renderAnalyticsSummary(selectedDay) {
     {
       title: "Today's Overview",
       cards: [
-        { label: "Selected day", value: formatDuration(selectedTotal), note: formatDayLabel(selectedDay) },
-        { label: "Top website", value: topSite ? topSite.domain : "None", note: topSite ? formatDuration(topSite.screenSeconds) : "No usage" }
+        { label: "Selected day", value: selectedDay ? formatDuration(selectedTotal) : "None", note: selectedDay ? formatDayLabel(selectedDay) : "Select a day" },
+        { label: "Top website", value: topSite ? topSite.domain : "None", note: topSiteNote }
       ]
     }
   ];
@@ -1200,9 +1241,9 @@ function renderAnalyticsSummary(selectedDay) {
   );
 }
 
-function renderWeekOverview(selectedDay) {
-  const weekDays = getWeekDayKeys(selectedDay);
-  const previousWeekDays = getPreviousWeekDayKeys(selectedDay);
+function renderWeekOverview(weekDay, selectedDay) {
+  const weekDays = getWeekDayKeys(weekDay);
+  const previousWeekDays = getPreviousWeekDayKeys(weekDay);
   const weekEntries = weekDays.map((day) => ({
     day,
     seconds: getDayTotalSeconds(day)
@@ -1211,15 +1252,15 @@ function renderWeekOverview(selectedDay) {
     day,
     seconds: getDayTotalSeconds(day)
   }));
-  const selectedEntry = weekEntries.find((entry) => entry.day === selectedDay) || weekEntries[0];
-  const currentAverage = getWeekAverageSeconds(weekEntries, selectedDay);
+  const selectedEntry = selectedDay ? weekEntries.find((entry) => entry.day === selectedDay) : null;
+  const currentAverage = getWeekAverageSeconds(weekEntries, weekDay);
   const previousAverage = getWeekAverageSeconds(previousEntries, previousWeekDays[0], { fullWeek: true });
 
-  weekSelectedLabel.textContent = formatDayLabel(selectedDay);
-  weekSelectedTotal.textContent = formatDuration(selectedEntry?.seconds || 0);
+  weekSelectedLabel.textContent = selectedDay ? formatDayLabel(selectedDay) : "Select a day";
+  weekSelectedTotal.textContent = selectedEntry ? formatDuration(selectedEntry.seconds) : "0m";
   weekAverageTotal.textContent = formatDuration(currentAverage);
   weekRange.textContent = formatWeekRange(weekDays);
-  weekTrend.textContent = formatWeekTrend(currentAverage, previousAverage, selectedDay);
+  weekTrend.textContent = formatWeekTrend(currentAverage, previousAverage, weekDay);
   renderWeekChart(weekEntries, selectedDay, currentAverage);
 }
 
@@ -1244,13 +1285,12 @@ function renderWeekChart(entries, selectedDay, averageSeconds) {
       button.type = "button";
       button.className = "week-day";
       button.dataset.day = entry.day;
-      button.setAttribute("aria-pressed", String(entry.day === (selectedWeekDay || selectedDay)));
+      button.setAttribute("aria-pressed", String(entry.day === selectedDay));
       button.setAttribute("aria-label", `${formatDayLabel(entry.day)}: ${formatDuration(entry.seconds)}`);
       button.addEventListener("click", () => {
-        const nextWeekDay = selectedWeekDay === entry.day ? "" : entry.day;
+        const nextSelectedDay = selectedUsageDay === entry.day ? null : entry.day;
         clearUsageSelections({ keepWeek: true });
-        selectedWeekDay = nextWeekDay;
-        renderUsageForDay(entry.day);
+        renderUsageForDay(nextSelectedDay, { weekDay: entry.day });
       });
 
       track.className = "week-bar-track";
@@ -1268,7 +1308,7 @@ function renderWeekChart(entries, selectedDay, averageSeconds) {
 }
 
 function updateWeekHighlight() {
-  const activeDay = selectedWeekDay || selectedUsageDay;
+  const activeDay = selectedUsageDay;
 
   weekChart.querySelectorAll(".week-day").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.day === activeDay));
@@ -1544,7 +1584,7 @@ function getActiveCategories(hourlyCategories) {
     .map(([category]) => category);
 }
 
-function renderUsagePie(sites, totalSeconds) {
+function renderUsagePie(sites, totalSeconds, emptyMessage = "No website share yet.") {
   updateShareModeButtons();
 
   if (sites.length === 0 || totalSeconds <= 0) {
@@ -1553,7 +1593,7 @@ function renderUsagePie(sites, totalSeconds) {
     usagePie.replaceChildren();
     usagePie.classList.add("is-empty");
     usagePieTooltip.hidden = true;
-    usagePieLegend.replaceChildren(createEmptyUsageRow("No website share yet."));
+    usagePieLegend.replaceChildren(createEmptyUsageRow(emptyMessage));
     return;
   }
 
@@ -1794,9 +1834,9 @@ function categorizeDomain(domain) {
   return match?.id || "other";
 }
 
-function renderUsageSites(sites, totalSeconds) {
+function renderUsageSites(sites, totalSeconds, emptyMessage = "No website usage recorded for this day.") {
   if (sites.length === 0) {
-    usageSites.replaceChildren(createEmptyUsageRow("No website usage recorded for this day."));
+    usageSites.replaceChildren(createEmptyUsageRow(emptyMessage));
     usageShowMore.hidden = true;
     return;
   }

@@ -313,6 +313,15 @@ async function confirmStagedMinutes() {
   } catch (error) {
     console.error("Could not add staged extra time.", error);
     actionInFlight = false;
+
+    if (isPinRequiredError(error)) {
+      currentView = VIEW_STATE.PIN;
+      pinDraft = "";
+      blockedPinVisible = false;
+      renderCurrentView();
+      return;
+    }
+
     currentView = VIEW_STATE.SELECT;
     renderCurrentView();
     window.alert(cleanError(error));
@@ -420,4 +429,8 @@ function cleanError(error) {
     : error;
 
   return String(message || "Something went wrong.").replace(/^Error:\s*/, "");
+}
+
+function isPinRequiredError(error) {
+  return /pin\s+(required|missing)|requires?\s+(a\s+)?pin/i.test(cleanError(error));
 }
