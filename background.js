@@ -254,9 +254,11 @@ async function loadPublicSettings() {
 async function saveSettings(value = {}) {
   const current = await loadSettings();
   let pinHash = current.pinHash;
+  let pinValue = current.pinValue;
 
   if (value.clearPin) {
     pinHash = "";
+    pinValue = "";
   } else if (value.pin) {
     const pin = String(value.pin);
 
@@ -265,11 +267,13 @@ async function saveSettings(value = {}) {
     }
 
     pinHash = await hashPin(pin);
+    pinValue = pin;
   }
 
   const requirePinForAllExtraTime = Boolean(value.requirePinForAllExtraTime) && Boolean(pinHash);
   const next = normalizeSettingsForStorage({
     pinHash,
+    pinValue,
     requirePinForAllExtraTime
   });
 
@@ -278,8 +282,12 @@ async function saveSettings(value = {}) {
 }
 
 function normalizeSettingsForStorage(value = {}) {
+  const pinHash = typeof value.pinHash === "string" ? value.pinHash : "";
+  const pinValue = typeof value.pinValue === "string" ? String(value.pinValue).replace(/\D+/g, "").slice(0, 4) : "";
+
   return {
-    pinHash: typeof value.pinHash === "string" ? value.pinHash : "",
+    pinHash,
+    pinValue: pinHash ? pinValue : "",
     requirePinForAllExtraTime: Boolean(value.requirePinForAllExtraTime)
   };
 }
@@ -287,7 +295,8 @@ function normalizeSettingsForStorage(value = {}) {
 function publicSettings(settings) {
   return {
     hasPin: Boolean(settings.pinHash),
-    requirePinForAllExtraTime: Boolean(settings.pinHash && settings.requirePinForAllExtraTime)
+    requirePinForAllExtraTime: Boolean(settings.pinHash && settings.requirePinForAllExtraTime),
+    pinValue: settings.pinHash ? settings.pinValue : ""
   };
 }
 

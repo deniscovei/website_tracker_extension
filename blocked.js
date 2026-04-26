@@ -1,15 +1,12 @@
 const params = new URLSearchParams(window.location.search);
 const site = params.get("site") || "";
 const extraTime = document.getElementById("extra-time");
-const extraStatus = document.getElementById("extra-status");
-const allowanceActions = document.getElementById("allowance-actions");
+const continuePanel = document.getElementById("panel-continue");
+const continueStatus = document.getElementById("continue-status");
+const continueBack = document.getElementById("continue-back");
 const continueSite = document.getElementById("continue-site");
 const mainPanel = document.getElementById("panel-main");
 const extraActions = document.getElementById("extra-actions");
-const addedPanel = document.getElementById("panel-added");
-const addedStatus = document.getElementById("added-status");
-const addedBack = document.getElementById("added-back");
-const addedContinue = document.getElementById("added-continue");
 const pinPanel = document.getElementById("panel-pin");
 const pinStatusCopy = document.getElementById("pin-status-copy");
 const pinBack = document.getElementById("pin-back");
@@ -31,12 +28,8 @@ continueSite?.addEventListener("click", () => {
   navigateToSite();
 });
 
-addedBack?.addEventListener("click", () => {
+continueBack?.addEventListener("click", () => {
   showMainPanel();
-});
-
-addedContinue?.addEventListener("click", () => {
-  navigateToSite();
 });
 
 pinBack?.addEventListener("click", () => {
@@ -86,7 +79,6 @@ async function loadExtraTimeStatus() {
   }
 
   extraTime.hidden = false;
-  extraStatus.textContent = "Checking today's allowance...";
 
   try {
     const response = await chrome.runtime.sendMessage({
@@ -95,14 +87,15 @@ async function loadExtraTimeStatus() {
     });
 
     if (!response?.ok || !response.status?.found) {
-      extraStatus.textContent = "This website is blocked by the current schedule.";
+      extraTime.hidden = true;
       hideAllPanels();
       return;
     }
 
     renderStatus(response.status);
   } catch (error) {
-    extraStatus.textContent = cleanError(error);
+    console.error("Could not load blocked-page status.", error);
+    extraTime.hidden = true;
     hideAllPanels();
   }
 }
@@ -121,23 +114,31 @@ function renderStatus(status) {
   }
 
   extraTime.hidden = false;
-  extraStatus.textContent = hasAllowance
-    ? `${remainingMinutes} minute${remainingMinutes === 1 ? "" : "s"} available for today.`
-    : "Today's allowance is used up. Add more time for today.";
-  allowanceActions.hidden = currentPanel !== "main" || !hasAllowance;
 
   if (!canAddExtra) {
-    hideAllPanels({ keepAllowance: true });
+    showContinuePanel(`${remainingMinutes} minute${remainingMinutes === 1 ? "" : "s"} available for today.`, {
+      showBack: false
+    });
     return;
   }
 
-  if (currentPanel === "added") {
-    showAddedPanel(pendingMinutes || 0, { keepStatus: true });
+  if (currentPanel === "continue") {
+    showContinuePanel(`${remainingMinutes} minute${remainingMinutes === 1 ? "" : "s"} available for today.`, {
+      showBack: false,
+      keepStatus: true
+    });
     return;
   }
 
   if (currentPanel === "pin") {
-    showPinPanel({ keepInput: true, keepStatus: true });
+    showPinPanel({ keepInput: true });
+    return;
+  }
+
+  if (hasAllowance) {
+    showContinuePanel(`${remainingMinutes} minute${remainingMinutes === 1 ? "" : "s"} available for today.`, {
+      showBack: false
+    });
     return;
   }
 
@@ -157,7 +158,6 @@ async function requestExtraMinutes(minutes) {
   }
 
   setBusyState(true);
-  extraStatus.textContent = `Adding ${formatMinutes(pendingMinutes)}...`;
 
   try {
     const response = await chrome.runtime.sendMessage({
@@ -172,10 +172,12 @@ async function requestExtraMinutes(minutes) {
     }
 
     renderStatus(response.status || latestStatus);
-    showAddedPanel(pendingMinutes);
+    showContinuePanel(`Added ${formatMinutes(pendingMinutes)} for today.`, {
+      showBack: true
+    });
   } catch (error) {
+    console.error("Could not add extra time.", error);
     showMainPanel();
-    extraStatus.textContent = cleanError(error);
   } finally {
     setBusyState(false);
   }
@@ -282,23 +284,21 @@ function showMainPanel() {
   currentPanel = "main";
   resetPinState({ keepPendingMinutes: true });
   mainPanel.hidden = !latestStatus?.allowExtraTime;
-  addedPanel.hidden = true;
+  continuePanel.hidden = true;
   pinPanel.hidden = true;
-  allowanceActions.hidden = !latestStatus?.remainingSeconds;
   updateActionState();
 }
 
-function showAddedPanel(minutes, { keepStatus = false } = {}) {
-  currentPanel = "added";
+function showContinuePanel(message, { showBack = false, keepStatus = false } = {}) {
+  currentPanel = "continue";
   mainPanel.hidden = true;
-  addedPanel.hidden = false;
+  continuePanel.hidden = false;
   pinPanel.hidden = true;
-  allowanceActions.hidden = true;
-  addedStatus.textContent = `Added ${formatMinutes(minutes)} for today.`;
+  continueStatus.textContent = message;
+  continueBack.hidden = !showBack;
 
-  if (!keepStatus && latestStatus) {
-    const remainingMinutes = Math.ceil((latestStatus.remainingSeconds || 0) / 60);
-    extraStatus.textContent = `${remainingMinutes} minute${remainingMinutes === 1 ? "" : "s"} available for today.`;
+  if (!keepStatus) {
+    resetPinState({ keepPendingMinutes: true });
   }
 
   updateActionState();
@@ -307,9 +307,8 @@ function showAddedPanel(minutes, { keepStatus = false } = {}) {
 function showPinPanel({ keepInput = false, keepStatus = false } = {}) {
   currentPanel = "pin";
   mainPanel.hidden = true;
-  addedPanel.hidden = true;
+  continuePanel.hidden = true;
   pinPanel.hidden = false;
-  allowanceActions.hidden = true;
   pinStatusCopy.textContent = `${formatMinutes(pendingMinutes)} will be added for today.`;
 
   if (!keepInput) {
@@ -324,11 +323,10 @@ function showPinPanel({ keepInput = false, keepStatus = false } = {}) {
   pinCode.focus();
 }
 
-function hideAllPanels({ keepAllowance = false } = {}) {
+function hideAllPanels() {
   mainPanel.hidden = true;
-  addedPanel.hidden = true;
+  continuePanel.hidden = true;
   pinPanel.hidden = true;
-  allowanceActions.hidden = keepAllowance ? allowanceActions.hidden : true;
 }
 
 function resetPinState({ keepPendingMinutes = false } = {}) {
@@ -346,12 +344,12 @@ function resetPinState({ keepPendingMinutes = false } = {}) {
 }
 
 function updateActionState() {
-  const hasAllowance = Boolean(site && latestStatus?.remainingSeconds > 0);
   const canContinueWithPin = Boolean(pinIsValid && pendingMinutes > 0 && !actionInFlight);
 
-  continueSite.disabled = !hasAllowance || actionInFlight;
-  addedBack.disabled = actionInFlight;
-  addedContinue.disabled = actionInFlight;
+  continueSite.disabled = actionInFlight;
+  if (continueBack) {
+    continueBack.disabled = actionInFlight;
+  }
   pinBack.disabled = actionInFlight;
   pinContinue.disabled = !canContinueWithPin;
   pinCode.disabled = actionInFlight;

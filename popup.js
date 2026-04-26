@@ -135,7 +135,8 @@ let schedule = {
 let state = null;
 let settings = {
   hasPin: false,
-  requirePinForAllExtraTime: false
+  requirePinForAllExtraTime: false,
+  pinValue: ""
 };
 let editingIndex = null;
 let usageData = {
@@ -209,9 +210,9 @@ pinCode?.addEventListener("input", () => {
 
 changePin?.addEventListener("click", () => {
   pinEditorOpen = true;
-  pinCode.value = "";
-  popupPinVisible = false;
-  setPinVisibility(pinCode, togglePinVisibility, false);
+  pinCode.value = settings.pinValue || "";
+  popupPinVisible = Boolean(pinCode.value);
+  setPinVisibility(pinCode, togglePinVisibility, popupPinVisible);
   syncPinSetupView();
   updatePinDraftStatus();
   pinCode.focus();
@@ -423,20 +424,26 @@ async function savePinSettings() {
     let pinHash = typeof stored[SETTINGS_KEY]?.pinHash === "string"
       ? stored[SETTINGS_KEY].pinHash
       : "";
+    let pinValue = typeof stored[SETTINGS_KEY]?.pinValue === "string"
+      ? sanitizePinValue(stored[SETTINGS_KEY].pinValue)
+      : "";
 
     if (nextPin.length === 4) {
       pinHash = await createPinHash(nextPin);
+      pinValue = nextPin;
     }
 
     const savedSettings = {
       pinHash,
+      pinValue: pinHash ? pinValue : "",
       requirePinForAllExtraTime: Boolean(pinGlobal.checked && pinHash)
     };
 
     await chrome.storage.local.set({ [SETTINGS_KEY]: savedSettings });
     settings = normalizeSettings({
       hasPin: Boolean(savedSettings.pinHash),
-      requirePinForAllExtraTime: savedSettings.requirePinForAllExtraTime
+      requirePinForAllExtraTime: savedSettings.requirePinForAllExtraTime,
+      pinValue: savedSettings.pinValue
     });
     pinEditorOpen = false;
     pinCode.value = "";
@@ -467,7 +474,7 @@ async function savePinSettings() {
 function renderPinSettings(message = "") {
   pinEditorOpen = settings.hasPin ? pinEditorOpen : true;
   pinGlobal.checked = Boolean(settings.requirePinForAllExtraTime);
-  pinCode.value = "";
+  pinCode.value = pinEditorOpen ? settings.pinValue || "" : "";
   popupPinVisible = false;
   setPinVisibility(pinCode, togglePinVisibility, false);
   syncPinSetupView();
@@ -527,14 +534,24 @@ function updatePinDraftStatus() {
 
   if (nextPin.length === 0) {
     pinStatus.classList.remove("error");
+    if (settings.hasPin && pinEditorOpen && !settings.pinValue) {
+      pinStatus.textContent = "This PIN was saved before prefilling was available. Type it once and save to enable prefilling.";
+      return;
+    }
+
     pinStatus.textContent = settings.hasPin
-      ? "Enter a new 4-digit PIN to change it."
+      ? "Edit the 4-digit PIN."
       : "Create a 4-digit PIN to enable PIN checks.";
     return;
   }
 
   if (nextPin.length === 4) {
     pinStatus.classList.remove("error");
+    if (settings.hasPin && pinEditorOpen && nextPin === settings.pinValue) {
+      pinStatus.textContent = "Current PIN loaded. Edit it and save when ready.";
+      return;
+    }
+
     pinStatus.textContent = settings.hasPin ? "New PIN ready." : "PIN ready.";
   } else {
     pinStatus.classList.add("error");
@@ -2255,7 +2272,8 @@ function normalizeSchedule(value) {
 function normalizeSettings(value) {
   return {
     hasPin: Boolean(value?.hasPin),
-    requirePinForAllExtraTime: Boolean(value?.requirePinForAllExtraTime)
+    requirePinForAllExtraTime: Boolean(value?.requirePinForAllExtraTime),
+    pinValue: sanitizePinValue(value?.pinValue)
   };
 }
 
