@@ -915,8 +915,7 @@ async function cutOffSite(domain) {
     return;
   }
 
-  const entry = ensureUsageEntry(usage, site.domain);
-  entry.extraSeconds = 0;
+  resetExtraTimeState(usage, site);
   await saveUsage(usage);
   await chrome.storage.local.remove(TRACKING_KEY);
 }
@@ -1002,6 +1001,14 @@ function addUsedSeconds(usage, domain, seconds) {
 function addExtraSeconds(usage, domain, seconds) {
   const entry = ensureUsageEntry(usage, domain);
   entry.extraSeconds += Math.max(0, seconds);
+}
+
+function resetExtraTimeState(usage, site) {
+  const entry = ensureUsageEntry(usage, site.domain);
+  const allowanceSeconds = normalizeDailyAllowance(site.dailyAllowanceMinutes) * 60;
+
+  entry.extraSeconds = 0;
+  entry.usedSeconds = Math.max(0, Math.min(entry.usedSeconds, allowanceSeconds));
 }
 
 function grantExtraTime(usage, site, seconds) {
