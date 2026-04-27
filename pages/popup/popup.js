@@ -277,6 +277,23 @@ usageShowMore?.addEventListener("click", () => {
   renderUsageForDay(selectedUsageDay, { weekDay: visibleWeekDay });
 });
 
+weekChart?.addEventListener("click", (event) => {
+  const target = event.target;
+
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+
+  if (target.closest(".week-day, .time-nav")) {
+    return;
+  }
+
+  if (!usageView.hidden && selectedUsageDay) {
+    clearUsageSelections({ keepWeek: true });
+    renderUsageForDay(null, { weekDay: visibleWeekDay });
+  }
+});
+
 document.addEventListener("mousedown", (event) => {
   const target = event.target;
 
@@ -292,12 +309,7 @@ document.addEventListener("mousedown", (event) => {
     return;
   }
 
-  const shouldDeselectDay = !usageView.hidden && Boolean(selectedUsageDay);
   clearUsageSelections();
-
-  if (shouldDeselectDay) {
-    renderUsageForDay(null, { weekDay: visibleWeekDay });
-  }
 });
 
 refresh?.addEventListener("click", async () => {
@@ -1249,6 +1261,11 @@ function renderAnalyticsSummary(selectedDay, weekDay = selectedDay || visibleWee
 function renderWeekOverview(weekDay, selectedDay) {
   const weekDays = getWeekDayKeys(weekDay);
   const previousWeekDays = getPreviousWeekDayKeys(weekDay);
+  const todayKey = dateToDayKey(new Date());
+  const firstVisibleDay = weekDays[0];
+  const visibleWeekIncludesToday = weekDays.includes(todayKey);
+  const visibleWeekStartsInFuture = firstVisibleDay > todayKey;
+  const hasOlderUsage = usageData.days.some((day) => day < firstVisibleDay);
   const weekEntries = weekDays.map((day) => ({
     day,
     seconds: getDayTotalSeconds(day)
@@ -1266,6 +1283,14 @@ function renderWeekOverview(weekDay, selectedDay) {
   weekAverageTotal.textContent = formatDuration(currentAverage);
   weekRange.textContent = formatWeekRange(weekDays);
   weekTrend.textContent = formatWeekTrend(currentAverage, previousAverage, weekDay);
+  if (prevWeek) {
+    prevWeek.disabled = !hasOlderUsage;
+  }
+
+  if (nextWeek) {
+    nextWeek.disabled = visibleWeekIncludesToday || visibleWeekStartsInFuture;
+  }
+
   renderWeekChart(weekEntries, selectedDay, currentAverage);
 }
 
