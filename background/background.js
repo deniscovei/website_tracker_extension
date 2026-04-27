@@ -8,6 +8,8 @@ const USAGE_HISTORY_KEY = "scheduleBlockerUsageHistory";
 const TRACKING_KEY = "scheduleBlockerTracking";
 const SCREEN_TRACKING_KEY = "scheduleBlockerScreenTracking";
 const SETTINGS_KEY = "websiteTrackerSettings";
+const POMODORO_KEY = "scheduleBlockerPomodoro";
+const POMODORO_ALARM = "schedule-blocker-pomodoro";
 const MAX_USAGE_HISTORY_DAYS = 30;
 const MAX_TRACKING_GAP_SECONDS = 2 * 60;
 const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -43,6 +45,8 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === REFRESH_ALARM) {
     void tick();
+  } else if (alarm.name === POMODORO_ALARM) {
+    void stopPomodoro();
   }
 });
 
@@ -158,11 +162,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "get-pomodoro-state") {
+    loadPomodoroState()
+      .then((pomodoro) => sendResponse({ ok: true, pomodoro }))
+      .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
+
+    return true;
+  }
+
+  if (message?.type === "start-pomodoro") {
+    startPomodoro(message)
+      .then((data) => sendResponse({ ok: true, ...data }))
+      .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
+
+    return true;
+  }
+
+  if (message?.type === "stop-pomodoro") {
+    stopPomodoro()
+      .then((data) => sendResponse({ ok: true, ...data }))
+      .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
+
+    return true;
+  }
+
   return false;
 });
 
 async function initialize() {
   await chrome.alarms.create(REFRESH_ALARM, { periodInMinutes: REFRESH_MINUTES });
+  await restorePomodoroAlarm();
   await refreshRules();
 }
 
@@ -178,14 +207,21 @@ async function tick() {
 
 async function refreshRules() {
   try {
-    const [schedule, usage, settings] = await Promise.all([
+    const [schedule, usage, settings, pomodoro] = await Promise.all([
       loadSchedule(),
       getUsage(),
-      loadSettings()
+      loadSettings(),
+      loadPomodoroState()
     ]);
     const now = getTimeParts(schedule.timezone);
-    const activeSites = getActiveSites(schedule, now, usage);
-    const rules = activeSites.map((site, index) => createRedirectRule(index + 1, site));
+    const activeSites = pomodoro.active && pomodoro.mode === "standard"
+      ? getPomodoroStandardSites(schedule)
+      : pomodoro.active && pomodoro.mode === "strict"
+        ? []
+        : getActiveSites(schedule, now, usage);
+    const rules = pomodoro.active && pomodoro.mode === "strict"
+      ? [createStrictPomodoroRule(pomodoro)]
+      : activeSites.map((site, index) => createRedirectRule(index + 1, site));
 
     await replaceDynamicRules(rules);
 
@@ -193,12 +229,13 @@ async function refreshRules() {
       activeSites,
       error: "",
       lastUpdated: Date.now(),
-      siteUsage: getSiteUsageStates(schedule, now, usage, settings),
+      pomodoro,
+      siteUsage: getSiteUsageStates(schedule, now, usage, settings, pomodoro),
       timezone: schedule.timezone || "local"
     };
 
     await saveState(state);
-    await updateBadge(activeSites.length);
+    await updateBadge(pomodoro.active ? "F" : activeSites.length);
     return state;
   } catch (error) {
     await replaceDynamicRules([]);
@@ -206,6 +243,7 @@ async function refreshRules() {
       activeSites: [],
       error: serializeError(error),
       lastUpdated: Date.now(),
+      pomodoro: normalizePomodoroState(),
       timezone: "local"
     });
     await updateBadge(null, true);
@@ -227,14 +265,16 @@ async function loadSchedule() {
 }
 
 async function getScheduleData() {
-  const [schedule, settings, stored] = await Promise.all([
+  const [schedule, settings, pomodoro, stored] = await Promise.all([
     loadSchedule(),
     loadPublicSettings(),
+    loadPomodoroState(),
     chrome.storage.local.get(STATE_KEY)
   ]);
   const state = stored[STATE_KEY] || await refreshRules();
 
   return {
+    pomodoro,
     schedule: normalizeScheduleForStorage(schedule),
     settings,
     state
@@ -285,6 +325,80 @@ async function saveSettings(value = {}) {
 
   await chrome.storage.local.set({ [SETTINGS_KEY]: next });
   return publicSettings(next);
+}
+
+async function loadPomodoroState() {
+  const stored = await chrome.storage.local.get(POMODORO_KEY);
+  const pomodoro = normalizePomodoroState(stored[POMODORO_KEY]);
+
+  if (stored[POMODORO_KEY]?.active && !pomodoro.active) {
+    await savePomodoroState(pomodoro);
+    await chrome.alarms.clear(POMODORO_ALARM);
+  }
+
+  return pomodoro;
+}
+
+async function savePomodoroState(value = {}) {
+  const pomodoro = normalizePomodoroState(value);
+  await chrome.storage.local.set({ [POMODORO_KEY]: pomodoro });
+  return pomodoro;
+}
+
+async function restorePomodoroAlarm() {
+  const pomodoro = await loadPomodoroState();
+
+  await chrome.alarms.clear(POMODORO_ALARM);
+
+  if (pomodoro.active) {
+    await chrome.alarms.create(POMODORO_ALARM, { when: pomodoro.until });
+  }
+}
+
+async function startPomodoro({ duration = 25, mode = "standard", whitelist = [] } = {}) {
+  const minutes = Math.max(1, Math.min(240, Math.round(Number(duration) || 25)));
+  const pomodoro = await savePomodoroState({
+    active: true,
+    until: Date.now() + minutes * 60 * 1000,
+    mode,
+    whitelist
+  });
+
+  await chrome.alarms.create(POMODORO_ALARM, { when: pomodoro.until });
+  const state = await refreshRules();
+  await enforceActiveTabBlock(state);
+
+  return { pomodoro, state };
+}
+
+async function stopPomodoro() {
+  await chrome.alarms.clear(POMODORO_ALARM);
+  const pomodoro = await savePomodoroState();
+  const state = await refreshRules();
+
+  return { pomodoro, state };
+}
+
+function normalizePomodoroState(value = {}) {
+  const until = normalizeTimestamp(value?.until);
+  const active = Boolean(value?.active) && until > Date.now();
+
+  return {
+    active,
+    until: active ? until : 0,
+    mode: value?.mode === "strict" ? "strict" : "standard",
+    whitelist: normalizeWhitelist(value?.whitelist)
+  };
+}
+
+function normalizeWhitelist(value) {
+  const items = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[\s,]+/)
+      : [];
+
+  return Array.from(new Set(items.map((item) => normalizeDomain(item)).filter(Boolean)));
 }
 
 function normalizeSettingsForStorage(value = {}) {
@@ -462,6 +576,19 @@ function minutesToClock(totalMinutes) {
 }
 
 function getActiveSites(schedule, now, usage) {
+  return getNormalizedScheduleSites(schedule)
+    .filter((site) => shouldBlockSite(site, now, usage))
+    .map((site) => toActiveSite(site));
+}
+
+function getPomodoroStandardSites(schedule) {
+  return getNormalizedScheduleSites(schedule).map((site) => toActiveSite({
+    ...site,
+    allowExtraTime: false
+  }));
+}
+
+function getNormalizedScheduleSites(schedule) {
   const sites = Array.isArray(schedule.sites)
     ? schedule.sites
     : Array.isArray(schedule.websites)
@@ -470,14 +597,16 @@ function getActiveSites(schedule, now, usage) {
 
   return sites
     .map((site) => normalizeSite(site))
-    .filter((site) => site.domains.length > 0)
-    .filter((site) => shouldBlockSite(site, now, usage))
-    .map((site) => ({
-      name: site.name,
-      domain: site.domain,
-      allowExtraTime: site.allowExtraTime,
-      domains: site.domains
-    }));
+    .filter((site) => site.domains.length > 0);
+}
+
+function toActiveSite(site) {
+  return {
+    name: site.name,
+    domain: site.domain,
+    allowExtraTime: site.allowExtraTime,
+    domains: site.domains
+  };
 }
 
 function normalizeSite(site) {
@@ -819,6 +948,15 @@ async function enforceActiveTabBlock(state) {
   }
 
   const host = getHostname(tab.url);
+
+  if (state.pomodoro?.active && state.pomodoro.mode === "strict") {
+    if (!isStrictPomodoroAllowed(host, state.pomodoro)) {
+      await chrome.tabs.update(tab.id, { url: getPomodoroBlockedPageUrl() });
+    }
+
+    return;
+  }
+
   const blockedSite = (state.activeSites || []).find((site) => {
     return (site.domains || []).some((domain) => domainMatches(host, domain));
   });
@@ -872,24 +1010,29 @@ function getHostname(url) {
 
 async function getSiteStatus(domain) {
   const normalizedDomain = normalizeDomain(domain);
-  const [schedule, usage, settings] = await Promise.all([loadSchedule(), getUsage(), loadSettings()]);
+  const [schedule, usage, settings, pomodoro] = await Promise.all([loadSchedule(), getUsage(), loadSettings(), loadPomodoroState()]);
   const now = getTimeParts(schedule.timezone);
   const site = findSiteForHost(schedule, normalizedDomain);
 
   if (!site) {
     return {
       found: false,
-      domain: normalizedDomain
+      domain: normalizedDomain,
+      pomodoro
     };
   }
 
-  return buildSiteUsageState(site, now, usage, settings);
+  return buildSiteUsageState(site, now, usage, settings, pomodoro);
 }
 
 async function addExtraTime(domain, minutes, pin = "") {
   const normalizedDomain = normalizeDomain(domain);
-  const [schedule, usage, settings] = await Promise.all([loadSchedule(), getUsage(), loadSettings()]);
+  const [schedule, usage, settings, pomodoro] = await Promise.all([loadSchedule(), getUsage(), loadSettings(), loadPomodoroState()]);
   const site = findSiteForHost(schedule, normalizedDomain);
+
+  if (pomodoro.active) {
+    throw new Error("Focus session active.");
+  }
 
   if (!site) {
     throw new Error("This website is not in the schedule.");
@@ -1186,34 +1329,40 @@ function getExtraRemainingSeconds(entry, now = Date.now()) {
   return Math.ceil(remainingMilliseconds / 1000);
 }
 
-function getSiteUsageStates(schedule, now, usage, settings) {
+function getSiteUsageStates(schedule, now, usage, settings, pomodoro = normalizePomodoroState()) {
   const sites = Array.isArray(schedule.sites) ? schedule.sites : [];
 
   return sites
     .map((site) => normalizeSite(site))
     .filter((site) => site.domain)
-    .map((site) => buildSiteUsageState(site, now, usage, settings));
+    .map((site) => buildSiteUsageState(site, now, usage, settings, pomodoro));
 }
 
-function buildSiteUsageState(site, now, usage, settings = {}) {
+function buildSiteUsageState(site, now, usage, settings = {}, pomodoro = normalizePomodoroState()) {
   const entry = getSiteUsageEntry(usage, site.domain);
   const currentTime = Date.now();
+  const pomodoroBlocking = isPomodoroBlockingSite(site, pomodoro);
 
   return {
     found: true,
     domain: site.domain,
-    allowExtraTime: site.allowExtraTime,
+    allowExtraTime: pomodoroBlocking ? false : site.allowExtraTime,
     dailyAllowanceMinutes: site.dailyAllowanceMinutes,
     extraSeconds: entry.extraSeconds,
     extraUntil: entry.extraUntil,
     extraRemainingSeconds: getExtraRemainingSeconds(entry, currentTime),
-    inBlockedSlot: isSiteInBlockedSlot(site, now),
-    isBlocked: shouldBlockSite(site, now, usage),
+    inBlockedSlot: pomodoroBlocking || isSiteInBlockedSlot(site, now),
+    isBlocked: pomodoroBlocking || shouldBlockSite(site, now, usage),
     pinConfigured: Boolean(settings.pinHash),
-    remainingSeconds: getRemainingSeconds(site, usage, currentTime),
-    requiresPinForExtraTime: isExtraTimePinRequired(site, settings),
+    pomodoro,
+    remainingSeconds: pomodoroBlocking ? 0 : getRemainingSeconds(site, usage, currentTime),
+    requiresPinForExtraTime: !pomodoroBlocking && isExtraTimePinRequired(site, settings),
     usedSeconds: entry.usedSeconds
   };
+}
+
+function isPomodoroBlockingSite(site, pomodoro = normalizePomodoroState()) {
+  return Boolean(pomodoro.active && pomodoro.mode === "standard" && site.domain);
 }
 
 function isExtraTimePinRequired(site, settings = {}) {
@@ -1267,8 +1416,48 @@ function createRedirectRule(id, site) {
   };
 }
 
+function createStrictPomodoroRule(pomodoro) {
+  const excludedRequestDomains = getStrictPomodoroExcludedDomains(pomodoro);
+  const condition = {
+    regexFilter: "^https?://",
+    resourceTypes: ["main_frame"]
+  };
+
+  if (excludedRequestDomains.length > 0) {
+    condition.excludedRequestDomains = excludedRequestDomains;
+  }
+
+  return {
+    id: 1,
+    priority: 1,
+    action: {
+      type: "redirect",
+      redirect: {
+        url: getPomodoroBlockedPageUrl()
+      }
+    },
+    condition
+  };
+}
+
+function getStrictPomodoroExcludedDomains(pomodoro) {
+  return Array.from(new Set([
+    ...normalizeWhitelist(pomodoro?.whitelist),
+    chrome.runtime.id
+  ].filter(Boolean)));
+}
+
+function isStrictPomodoroAllowed(host, pomodoro) {
+  const normalizedHost = normalizeDomain(host);
+  return normalizeWhitelist(pomodoro?.whitelist).some((domain) => domainMatches(normalizedHost, domain));
+}
+
 function getBlockedPageUrl(domain) {
   return chrome.runtime.getURL(`${BLOCKED_PAGE.slice(1)}?site=${encodeURIComponent(domain)}`);
+}
+
+function getPomodoroBlockedPageUrl() {
+  return chrome.runtime.getURL(`${BLOCKED_PAGE.slice(1)}?pomodoro=1`);
 }
 
 function getResumeTargetUrl(targetUrl, fallbackDomain) {
@@ -1315,7 +1504,7 @@ async function saveState(state) {
 }
 
 async function updateBadge(activeCount, hasError = false) {
-  const text = hasError ? "!" : activeCount > 0 ? String(activeCount) : "";
+  const text = hasError ? "!" : typeof activeCount === "string" ? activeCount : activeCount > 0 ? String(activeCount) : "";
   const color = hasError ? "#b42318" : "#2563eb";
 
   await chrome.action.setBadgeText({ text });

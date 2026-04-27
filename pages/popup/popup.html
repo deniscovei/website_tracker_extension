@@ -17,6 +17,47 @@
         </div>
       </header>
 
+      <section id="pomodoro-panel" class="pomodoro-panel" aria-labelledby="pomodoro-title">
+        <div class="pomodoro-heading">
+          <div>
+            <p class="eyebrow">Deep Work</p>
+            <h2 id="pomodoro-title">Focus session</h2>
+          </div>
+          <span id="pomodoro-timer" class="pomodoro-timer" hidden>25:00</span>
+        </div>
+
+        <div id="pomodoro-inactive" class="pomodoro-inactive">
+          <div class="pomodoro-modes" aria-label="Focus mode">
+            <label class="pomodoro-mode">
+              <input type="radio" name="pomodoro-mode" value="standard" checked>
+              <span>
+                <strong>Standard</strong>
+                <small>Block scheduled websites.</small>
+              </span>
+            </label>
+            <label class="pomodoro-mode">
+              <input type="radio" name="pomodoro-mode" value="strict">
+              <span>
+                <strong>Strict</strong>
+                <small>Only whitelist stays open.</small>
+              </span>
+            </label>
+          </div>
+
+          <label id="pomodoro-whitelist-field" class="field pomodoro-whitelist-field" hidden>
+            <span>Whitelist domains</span>
+            <textarea id="pomodoro-whitelist" rows="2" spellcheck="false" placeholder="docs.google.com, github.com"></textarea>
+          </label>
+
+          <button id="pomodoro-start" class="primary-button pomodoro-start" type="button">Start 25m Focus</button>
+        </div>
+
+        <div id="pomodoro-active" class="pomodoro-active" hidden>
+          <p id="pomodoro-active-mode">Standard focus active</p>
+          <button id="pomodoro-stop" class="secondary-button small" type="button">Stop Early</button>
+        </div>
+      </section>
+
       <nav class="view-tabs" aria-label="Popup views">
         <button id="schedule-tab" class="view-tab" type="button" aria-pressed="true">Schedule</button>
         <button id="usage-tab" class="view-tab" type="button" aria-pressed="false">Usage</button>

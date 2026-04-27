@@ -76,6 +76,16 @@ const shareCompact = document.getElementById("share-compact");
 const shareAll = document.getElementById("share-all");
 const usageSites = document.getElementById("usage-sites");
 const usageShowMore = document.getElementById("usage-show-more");
+const pomodoroPanel = document.getElementById("pomodoro-panel");
+const pomodoroInactive = document.getElementById("pomodoro-inactive");
+const pomodoroActive = document.getElementById("pomodoro-active");
+const pomodoroModeRadios = Array.from(document.querySelectorAll('input[name="pomodoro-mode"]'));
+const pomodoroWhitelistField = document.getElementById("pomodoro-whitelist-field");
+const pomodoroWhitelist = document.getElementById("pomodoro-whitelist");
+const pomodoroStart = document.getElementById("pomodoro-start");
+const pomodoroStop = document.getElementById("pomodoro-stop");
+const pomodoroTimer = document.getElementById("pomodoro-timer");
+const pomodoroActiveMode = document.getElementById("pomodoro-active-mode");
 
 const ALL_DAY_INTERVAL = {
   start: "00:00",
@@ -85,6 +95,8 @@ const ALL_DAY_INTERVAL = {
 const COMPACT_SITE_LIMIT = 8;
 const WEBSITE_LIST_LIMIT = 8;
 const OTHER_WEBSITES_LABEL = "Other websites";
+const POMODORO_DRAFT_KEY = "scheduleBlockerPomodoroWhitelistDraft";
+const POMODORO_DURATION_MINUTES = 25;
 
 const PIE_COLORS = [
   "#2563eb",
@@ -139,6 +151,12 @@ let settings = {
   requirePinForAllExtraTime: false,
   pinValue: ""
 };
+let pomodoro = {
+  active: false,
+  until: 0,
+  mode: "standard",
+  whitelist: []
+};
 let editingIndex = null;
 let usageData = {
   days: [],
@@ -159,6 +177,7 @@ let pinSaveInFlight = false;
 let editorAutosaveTimer = 0;
 let editorAutosaveInFlight = false;
 let editorAutosaveQueued = false;
+let pomodoroTickTimer = 0;
 let selectedUsageDay = dateToDayKey(new Date());
 let visibleWeekDay = selectedUsageDay;
 let currentDaySites = [];
@@ -277,6 +296,24 @@ usageShowMore?.addEventListener("click", () => {
   renderUsageForDay(selectedUsageDay, { weekDay: visibleWeekDay });
 });
 
+pomodoroModeRadios.forEach((radio) => {
+  radio.addEventListener("change", () => {
+    syncPomodoroModeView();
+  });
+});
+
+pomodoroWhitelist?.addEventListener("input", () => {
+  void chrome.storage.local.set({ [POMODORO_DRAFT_KEY]: pomodoroWhitelist.value });
+});
+
+pomodoroStart?.addEventListener("click", () => {
+  void startPomodoroSession();
+});
+
+pomodoroStop?.addEventListener("click", () => {
+  void stopPomodoroSession();
+});
+
 weekChart?.addEventListener("click", (event) => {
   const target = event.target;
 
@@ -323,6 +360,8 @@ refresh?.addEventListener("click", async () => {
     }
 
     state = response.state;
+    pomodoro = normalizePomodoro(state?.pomodoro || pomodoro);
+    renderPomodoro();
     renderStatus();
     renderSiteList();
   } catch (error) {
@@ -412,7 +451,10 @@ intervalList?.addEventListener("click", (event) => {
 void loadData();
 
 async function loadData() {
-  const response = await chrome.runtime.sendMessage({ type: "get-schedule-data" });
+  const [response] = await Promise.all([
+    chrome.runtime.sendMessage({ type: "get-schedule-data" }),
+    loadPomodoroWhitelistDraft()
+  ]);
 
   if (!response?.ok) {
     renderError(response?.error || "Could not load schedule.");
@@ -422,7 +464,9 @@ async function loadData() {
   schedule = normalizeSchedule(response.schedule);
   state = response.state;
   settings = normalizeSettings(response.settings);
+  pomodoro = normalizePomodoro(response.pomodoro || state?.pomodoro);
   renderPinSettings();
+  renderPomodoro();
   renderStatus();
   renderSiteList();
 }
@@ -440,7 +484,9 @@ async function persistSchedule() {
   schedule = normalizeSchedule(response.schedule);
   state = response.state;
   settings = normalizeSettings(response.settings || settings);
+  pomodoro = normalizePomodoro(state?.pomodoro || pomodoro);
   renderPinSettings();
+  renderPomodoro();
   renderStatus();
   renderSiteList();
 }
@@ -699,6 +745,27 @@ function renderStatus() {
     return;
   }
 
+  const activePomodoro = normalizePomodoro(state.pomodoro || pomodoro);
+
+  if (activePomodoro.active) {
+    summary.textContent = activePomodoro.mode === "strict"
+      ? "Strict focus session active. Internet is blocked except your whitelist."
+      : "Standard focus session active. Scheduled websites are blocked.";
+    updated.textContent = `Ends ${new Date(activePomodoro.until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+
+    if (activePomodoro.mode === "strict" && activePomodoro.whitelist.length > 0) {
+      activeSites.append(
+        ...activePomodoro.whitelist.map((domain) => {
+          const item = document.createElement("li");
+          item.textContent = `Allowed: ${domain}`;
+          return item;
+        })
+      );
+    }
+
+    return;
+  }
+
   const sites = Array.isArray(state.activeSites) ? state.activeSites : [];
 
   if (sites.length === 0) {
@@ -733,6 +800,168 @@ function renderStatus() {
   updated.textContent = state.lastUpdated
     ? `Updated ${new Date(state.lastUpdated).toLocaleString()}`
     : "";
+}
+
+async function loadPomodoroWhitelistDraft() {
+  if (!pomodoroWhitelist) {
+    return;
+  }
+
+  const stored = await chrome.storage.local.get(POMODORO_DRAFT_KEY);
+  const draft = typeof stored[POMODORO_DRAFT_KEY] === "string" ? stored[POMODORO_DRAFT_KEY] : "";
+
+  if (!pomodoroWhitelist.value) {
+    pomodoroWhitelist.value = draft;
+  }
+}
+
+function renderPomodoro() {
+  const active = normalizePomodoro(pomodoro);
+
+  pomodoro = active;
+
+  if (active.active) {
+    setPomodoroMode(active.mode);
+  }
+
+  syncPomodoroModeView();
+
+  if (!pomodoroPanel || !pomodoroInactive || !pomodoroActive || !pomodoroTimer || !pomodoroActiveMode) {
+    return;
+  }
+
+  pomodoroInactive.hidden = active.active;
+  pomodoroActive.hidden = !active.active;
+  pomodoroTimer.hidden = !active.active;
+
+  if (active.active) {
+    pomodoroActiveMode.textContent = active.mode === "strict"
+      ? `Strict focus active${active.whitelist.length > 0 ? ` · ${active.whitelist.length} allowed` : ""}`
+      : "Standard focus active";
+    updatePomodoroCountdown();
+    startPomodoroTicker();
+  } else {
+    stopPomodoroTicker();
+    pomodoroTimer.textContent = "25:00";
+  }
+}
+
+function syncPomodoroModeView() {
+  const mode = getSelectedPomodoroMode();
+  const isStrict = mode === "strict";
+
+  pomodoroModeRadios.forEach((radio) => {
+    radio.closest(".pomodoro-mode")?.classList.toggle("is-selected", radio.checked);
+  });
+
+  if (pomodoroWhitelistField) {
+    pomodoroWhitelistField.hidden = !isStrict;
+  }
+}
+
+function getSelectedPomodoroMode() {
+  return pomodoroModeRadios.find((radio) => radio.checked)?.value === "strict" ? "strict" : "standard";
+}
+
+function setPomodoroMode(mode) {
+  const normalizedMode = mode === "strict" ? "strict" : "standard";
+
+  pomodoroModeRadios.forEach((radio) => {
+    radio.checked = radio.value === normalizedMode;
+  });
+}
+
+async function startPomodoroSession() {
+  if (!pomodoroStart) {
+    return;
+  }
+
+  const mode = getSelectedPomodoroMode();
+  const whitelistText = pomodoroWhitelist?.value || "";
+
+  pomodoroStart.disabled = true;
+
+  try {
+    await chrome.storage.local.set({ [POMODORO_DRAFT_KEY]: whitelistText });
+    const response = await chrome.runtime.sendMessage({
+      type: "start-pomodoro",
+      duration: POMODORO_DURATION_MINUTES,
+      mode,
+      whitelist: parsePomodoroWhitelist(whitelistText)
+    });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not start focus session.");
+    }
+
+    state = response.state || state;
+    pomodoro = normalizePomodoro(response.pomodoro || state?.pomodoro);
+    renderPomodoro();
+    renderStatus();
+    renderSiteList();
+  } catch (error) {
+    renderError(cleanError(error));
+  } finally {
+    pomodoroStart.disabled = false;
+  }
+}
+
+async function stopPomodoroSession() {
+  if (!pomodoroStop) {
+    return;
+  }
+
+  pomodoroStop.disabled = true;
+
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "stop-pomodoro" });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not stop focus session.");
+    }
+
+    state = response.state || state;
+    pomodoro = normalizePomodoro(response.pomodoro || state?.pomodoro);
+    renderPomodoro();
+    renderStatus();
+    renderSiteList();
+  } catch (error) {
+    renderError(cleanError(error));
+  } finally {
+    pomodoroStop.disabled = false;
+  }
+}
+
+function startPomodoroTicker() {
+  stopPomodoroTicker();
+  pomodoroTickTimer = window.setInterval(() => {
+    updatePomodoroCountdown();
+  }, 1000);
+}
+
+function stopPomodoroTicker() {
+  if (pomodoroTickTimer) {
+    window.clearInterval(pomodoroTickTimer);
+    pomodoroTickTimer = 0;
+  }
+}
+
+function updatePomodoroCountdown() {
+  if (!pomodoroTimer) {
+    return;
+  }
+
+  const remainingSeconds = Math.max(0, Math.ceil((pomodoro.until - Date.now()) / 1000));
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds % 60;
+
+  pomodoroTimer.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+  if (remainingSeconds <= 0 && pomodoro.active) {
+    pomodoro = normalizePomodoro();
+    renderPomodoro();
+    void loadData();
+  }
 }
 
 function renderSiteList() {
@@ -2618,6 +2847,32 @@ function normalizeSettings(value) {
     requirePinForAllExtraTime: Boolean(value?.requirePinForAllExtraTime),
     pinValue: sanitizePinValue(value?.pinValue)
   };
+}
+
+function normalizePomodoro(value = {}) {
+  const until = normalizeTimestamp(value?.until);
+  const active = Boolean(value?.active) && until > Date.now();
+
+  return {
+    active,
+    until: active ? until : 0,
+    mode: value?.mode === "strict" ? "strict" : "standard",
+    whitelist: parsePomodoroWhitelist(Array.isArray(value?.whitelist) ? value.whitelist.join(", ") : value?.whitelist)
+  };
+}
+
+function parsePomodoroWhitelist(value) {
+  const items = Array.isArray(value)
+    ? value
+    : String(value || "").split(/[\s,]+/);
+
+  return Array.from(new Set(items.map((item) => normalizeDomain(item)).filter(Boolean)));
+}
+
+function normalizeTimestamp(value) {
+  const timestamp = Number(value);
+
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0;
 }
 
 function sanitizePinValue(value) {

@@ -2,6 +2,8 @@ const params = new URLSearchParams(window.location.search);
 const site = params.get("site") || "";
 const extraTime = document.getElementById("extra-time");
 const popupViewRoot = document.getElementById("popup-view-root");
+const blockedTitle = document.getElementById("blocked-title");
+const blockedMessage = document.getElementById("blocked-message");
 
 const VIEW_STATE = {
   SELECT: "select",
@@ -21,6 +23,13 @@ let pinError = "";
 void loadExtraTimeStatus();
 
 async function loadExtraTimeStatus() {
+  const pomodoro = await loadPomodoroState();
+
+  if (pomodoro.active) {
+    renderPomodoroBlock(pomodoro);
+    return;
+  }
+
   if (!site) {
     return;
   }
@@ -30,6 +39,11 @@ async function loadExtraTimeStatus() {
       type: "get-site-status",
       domain: site
     });
+
+    if (response?.status?.pomodoro?.active) {
+      renderPomodoroBlock(response.status.pomodoro);
+      return;
+    }
 
     if (!response?.ok || !response.status?.found || !response.status.allowExtraTime) {
       extraTime.hidden = true;
@@ -48,6 +62,34 @@ async function loadExtraTimeStatus() {
   } catch {
     extraTime.hidden = true;
   }
+}
+
+async function loadPomodoroState() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "get-pomodoro-state" });
+
+    if (response?.ok) {
+      return normalizePomodoro(response.pomodoro);
+    }
+  } catch (_error) {
+    return normalizePomodoro();
+  }
+
+  return normalizePomodoro();
+}
+
+function renderPomodoroBlock(pomodoro) {
+  if (blockedTitle) {
+    blockedTitle.textContent = "Focus Session Active.";
+  }
+
+  if (blockedMessage) {
+    blockedMessage.textContent = pomodoro.mode === "strict"
+      ? "Strict Mode is blocking the internet except your whitelist."
+      : "Standard Mode is keeping your scheduled websites blocked until the focus session ends.";
+  }
+
+  extraTime.hidden = true;
 }
 
 function renderCurrentView() {
@@ -392,6 +434,18 @@ function returnToSelection() {
 
 function sanitizePinValue(value) {
   return String(value || "").replace(/\D+/g, "").slice(0, 4);
+}
+
+function normalizePomodoro(value = {}) {
+  const until = Number(value?.until);
+  const active = Boolean(value?.active) && Number.isFinite(until) && until > Date.now();
+
+  return {
+    active,
+    until: active ? until : 0,
+    mode: value?.mode === "strict" ? "strict" : "standard",
+    whitelist: Array.isArray(value?.whitelist) ? value.whitelist : []
+  };
 }
 
 function formatMinutes(minutes) {
