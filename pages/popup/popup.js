@@ -326,7 +326,8 @@ pomodoroWhitelist?.addEventListener("input", () => {
   void chrome.storage.local.set({ [POMODORO_DRAFT_KEY]: pomodoroWhitelist.value });
 });
 
-pomodoroStart?.addEventListener("click", () => {
+pomodoroStart?.addEventListener("click", (event) => {
+  event.preventDefault();
   void startPomodoroSession();
 });
 
@@ -472,9 +473,10 @@ intervalList?.addEventListener("click", (event) => {
 void loadData();
 
 async function loadData() {
-  const [response, pomodoroResponse] = await Promise.all([
+  const [response, pomodoroResponse, storedSettings] = await Promise.all([
     chrome.runtime.sendMessage({ type: "get-schedule-data" }),
     chrome.runtime.sendMessage({ type: "get-pomodoro-state" }).catch(() => null),
+    chrome.storage.local.get(SETTINGS_KEY).catch(() => ({})),
     loadPomodoroPreferences()
   ]);
 
@@ -486,6 +488,7 @@ async function loadData() {
   schedule = normalizeSchedule(response.schedule);
   state = response.state;
   settings = normalizeSettings(response.settings);
+  applyStoredGlobalSettings(storedSettings);
   pomodoro = normalizePomodoro(pomodoroResponse?.ok ? pomodoroResponse.pomodoro : response.pomodoro || state?.pomodoro);
   renderPinSettings();
   renderPomodoro();
@@ -1170,12 +1173,35 @@ async function startPomodoroSession() {
     renderStatus();
     renderSiteList();
   } catch (error) {
-    pomodoro = normalizePomodoro();
-    renderPomodoro();
-    renderError(cleanError(error));
+    const recoveredPomodoro = await fetchPomodoroState();
+
+    if (recoveredPomodoro.active) {
+      pomodoro = recoveredPomodoro;
+      renderPomodoro();
+      renderStatus();
+      renderSiteList();
+    } else {
+      pomodoro = normalizePomodoro();
+      renderPomodoro();
+      renderError(cleanError(error));
+    }
   } finally {
     pomodoroStart.disabled = false;
   }
+}
+
+async function fetchPomodoroState() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "get-pomodoro-state" });
+
+    if (response?.ok) {
+      return normalizePomodoro(response.pomodoro);
+    }
+  } catch (_error) {
+    return normalizePomodoro();
+  }
+
+  return normalizePomodoro();
 }
 
 async function stopPomodoroSession() {
@@ -3154,6 +3180,18 @@ function normalizeSettings(value) {
     allowExtraTimeForAll: Boolean(value?.allowExtraTimeForAll),
     pinValue: sanitizePinValue(value?.pinValue)
   };
+}
+
+function applyStoredGlobalSettings(storedSettings) {
+  const stored = storedSettings?.[SETTINGS_KEY];
+
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "allowExtraTimeForAll")) {
+    settings.allowExtraTimeForAll = Boolean(stored.allowExtraTimeForAll);
+  }
+
+  if (globalExtraTime) {
+    globalExtraTime.checked = Boolean(settings.allowExtraTimeForAll);
+  }
 }
 
 function normalizePomodoro(value = {}) {
