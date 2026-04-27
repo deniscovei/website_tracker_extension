@@ -103,6 +103,7 @@ const ALL_DAY_INTERVAL = {
 const COMPACT_SITE_LIMIT = 8;
 const WEBSITE_LIST_LIMIT = 8;
 const OTHER_WEBSITES_LABEL = "Other websites";
+const SETTINGS_KEY = "websiteTrackerSettings";
 const POMODORO_DRAFT_KEY = "scheduleBlockerPomodoroWhitelistDraft";
 const PREFERRED_POMODORO_MINUTES_KEY = "preferredPomodoroMinutes";
 const DEFAULT_POMODORO_MINUTES = 30;
@@ -556,17 +557,56 @@ async function savePinRequirementToggle() {
 }
 
 async function saveGlobalExtraTimeToggle() {
-  const previousValue = Boolean(settings.allowExtraTimeForAll);
-  const saved = await persistPinSettings({
-    statusTarget: "global",
-    successMessage: globalExtraTime.checked
-      ? "Adding minutes is allowed for all websites."
-      : "Adding-minutes override updated."
-  });
+  if (!globalExtraTime) {
+    return;
+  }
 
-  if (!saved) {
+  const previousValue = Boolean(settings.allowExtraTimeForAll);
+  const nextValue = Boolean(globalExtraTime.checked);
+
+  settings.allowExtraTimeForAll = nextValue;
+  globalExtraTime.checked = nextValue;
+  setSettingsStatus("global", "Saving...");
+  syncGlobalSettingsView();
+  syncEditorGlobalOverrideView();
+  renderSiteList();
+
+  try {
+    const stored = await chrome.storage.local.get(SETTINGS_KEY);
+    const current = stored[SETTINGS_KEY] && typeof stored[SETTINGS_KEY] === "object"
+      ? stored[SETTINGS_KEY]
+      : {};
+
+    await chrome.storage.local.set({
+      [SETTINGS_KEY]: {
+        ...current,
+        allowExtraTimeForAll: nextValue
+      }
+    });
+
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "refresh-rules" });
+
+      if (response?.ok) {
+        state = response.state || state;
+      }
+    } catch (_error) {
+      // The setting is already saved; the next background tick will refresh rules.
+    }
+
+    renderGlobalSettings(nextValue
+      ? "Extra time is allowed for all websites."
+      : "Extra-time override updated.");
+    syncEditorGlobalOverrideView();
+    renderStatus();
+    renderSiteList();
+  } catch (error) {
+    settings.allowExtraTimeForAll = previousValue;
     globalExtraTime.checked = previousValue;
+    setSettingsStatus("global", cleanError(error), { error: true });
     syncGlobalSettingsView();
+    syncEditorGlobalOverrideView();
+    renderSiteList();
   }
 }
 

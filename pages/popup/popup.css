@@ -1074,8 +1074,21 @@ h2 {
   gap: 10px;
 }
 
+.pin-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pin-status-row #pin-status {
+  min-width: 0;
+}
+
 .pin-panel-actions {
   display: flex;
+  flex: 0 0 auto;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;

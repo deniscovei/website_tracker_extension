@@ -38,13 +38,15 @@
 
         <div class="section-heading">
           <h2 id="pin-settings-title">PIN protection</h2>
-          <div class="pin-panel-actions">
-            <button id="create-pin" class="secondary-button small" type="button" hidden>Create PIN</button>
-            <button id="change-pin" class="secondary-button small" type="button" hidden>Change PIN</button>
-          </div>
         </div>
         <section class="settings-panel" aria-labelledby="pin-settings-title">
-          <p id="pin-status">PIN not set</p>
+          <div class="pin-status-row">
+            <p id="pin-status">PIN not set</p>
+            <div class="pin-panel-actions">
+              <button id="create-pin" class="secondary-button small" type="button" hidden>Create PIN</button>
+              <button id="change-pin" class="secondary-button small" type="button" hidden>Change PIN</button>
+            </div>
+          </div>
           <div id="pin-editor" class="pin-editor" hidden>
             <label class="field pin-field">
               <span>4-digit PIN</span>
