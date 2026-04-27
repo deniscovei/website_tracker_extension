@@ -82,6 +82,7 @@ const pomodoroActive = document.getElementById("pomodoro-active");
 const pomodoroModeRadios = Array.from(document.querySelectorAll('input[name="pomodoro-mode"]'));
 const pomodoroWhitelistField = document.getElementById("pomodoro-whitelist-field");
 const pomodoroWhitelist = document.getElementById("pomodoro-whitelist");
+const pomodoroDuration = document.getElementById("pomodoro-duration");
 const pomodoroStart = document.getElementById("pomodoro-start");
 const pomodoroStop = document.getElementById("pomodoro-stop");
 const pomodoroTimer = document.getElementById("pomodoro-timer");
@@ -96,7 +97,8 @@ const COMPACT_SITE_LIMIT = 8;
 const WEBSITE_LIST_LIMIT = 8;
 const OTHER_WEBSITES_LABEL = "Other websites";
 const POMODORO_DRAFT_KEY = "scheduleBlockerPomodoroWhitelistDraft";
-const POMODORO_DURATION_MINUTES = 25;
+const PREFERRED_POMODORO_MINUTES_KEY = "preferredPomodoroMinutes";
+const DEFAULT_POMODORO_MINUTES = 30;
 
 const PIE_COLORS = [
   "#2563eb",
@@ -306,6 +308,13 @@ pomodoroWhitelist?.addEventListener("input", () => {
   void chrome.storage.local.set({ [POMODORO_DRAFT_KEY]: pomodoroWhitelist.value });
 });
 
+pomodoroDuration?.addEventListener("input", () => {
+  const minutes = getPreferredPomodoroMinutes();
+
+  pomodoroDuration.value = String(minutes);
+  void chrome.storage.local.set({ [PREFERRED_POMODORO_MINUTES_KEY]: minutes });
+});
+
 pomodoroStart?.addEventListener("click", () => {
   void startPomodoroSession();
 });
@@ -453,7 +462,7 @@ void loadData();
 async function loadData() {
   const [response] = await Promise.all([
     chrome.runtime.sendMessage({ type: "get-schedule-data" }),
-    loadPomodoroWhitelistDraft()
+    loadPomodoroPreferences()
   ]);
 
   if (!response?.ok) {
@@ -802,16 +811,17 @@ function renderStatus() {
     : "";
 }
 
-async function loadPomodoroWhitelistDraft() {
-  if (!pomodoroWhitelist) {
-    return;
+async function loadPomodoroPreferences() {
+  const stored = await chrome.storage.local.get([POMODORO_DRAFT_KEY, PREFERRED_POMODORO_MINUTES_KEY]);
+  const draft = typeof stored[POMODORO_DRAFT_KEY] === "string" ? stored[POMODORO_DRAFT_KEY] : "";
+  const minutes = normalizePomodoroMinutes(stored[PREFERRED_POMODORO_MINUTES_KEY]);
+
+  if (pomodoroWhitelist && !pomodoroWhitelist.value) {
+    pomodoroWhitelist.value = draft;
   }
 
-  const stored = await chrome.storage.local.get(POMODORO_DRAFT_KEY);
-  const draft = typeof stored[POMODORO_DRAFT_KEY] === "string" ? stored[POMODORO_DRAFT_KEY] : "";
-
-  if (!pomodoroWhitelist.value) {
-    pomodoroWhitelist.value = draft;
+  if (pomodoroDuration) {
+    pomodoroDuration.value = String(minutes);
   }
 }
 
@@ -842,7 +852,7 @@ function renderPomodoro() {
     startPomodoroTicker();
   } else {
     stopPomodoroTicker();
-    pomodoroTimer.textContent = "25:00";
+    pomodoroTimer.textContent = `${String(getPreferredPomodoroMinutes()).padStart(2, "0")}:00`;
   }
 }
 
@@ -871,6 +881,20 @@ function setPomodoroMode(mode) {
   });
 }
 
+function getPreferredPomodoroMinutes() {
+  return normalizePomodoroMinutes(pomodoroDuration?.value);
+}
+
+function normalizePomodoroMinutes(value) {
+  const minutes = Number.parseInt(String(value ?? ""), 10);
+
+  if (!Number.isFinite(minutes)) {
+    return DEFAULT_POMODORO_MINUTES;
+  }
+
+  return Math.max(1, Math.min(240, minutes));
+}
+
 async function startPomodoroSession() {
   if (!pomodoroStart) {
     return;
@@ -878,14 +902,18 @@ async function startPomodoroSession() {
 
   const mode = getSelectedPomodoroMode();
   const whitelistText = pomodoroWhitelist?.value || "";
+  const duration = getPreferredPomodoroMinutes();
 
   pomodoroStart.disabled = true;
 
   try {
-    await chrome.storage.local.set({ [POMODORO_DRAFT_KEY]: whitelistText });
+    await chrome.storage.local.set({
+      [POMODORO_DRAFT_KEY]: whitelistText,
+      [PREFERRED_POMODORO_MINUTES_KEY]: duration
+    });
     const response = await chrome.runtime.sendMessage({
       type: "start-pomodoro",
-      duration: POMODORO_DURATION_MINUTES,
+      duration,
       mode,
       whitelist: parsePomodoroWhitelist(whitelistText)
     });

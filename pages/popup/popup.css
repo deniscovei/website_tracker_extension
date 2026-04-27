@@ -136,6 +136,23 @@ button {
   margin: 0;
 }
 
+.pomodoro-duration-field {
+  grid-template-columns: minmax(0, 1fr) 96px;
+  align-items: center;
+  margin: 0;
+}
+
+.pomodoro-duration-field span {
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.pomodoro-duration-field input {
+  text-align: center;
+  font-weight: 900;
+}
+
 .pomodoro-whitelist-field textarea {
   min-height: 58px;
   resize: vertical;
@@ -1832,6 +1849,7 @@ button:focus-visible {
   #updated,
   #pin-status,
   .site-extra-note,
+  .pomodoro-duration-field span,
   .week-heading-copy span,
   .week-trend,
   .site-meta,
