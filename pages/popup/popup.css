@@ -461,6 +461,16 @@ h2 {
   background: #dbeafe;
 }
 
+.nav-button:disabled,
+.nav-button.disabled {
+  cursor: default;
+}
+
+.nav-button:disabled:hover,
+.nav-button.disabled:hover {
+  background: #eaf1ff;
+}
+
 .day-picker {
   display: flex;
   align-items: center;
@@ -1781,6 +1791,11 @@ button:focus-visible {
   .category-chip.is-highlighted,
   .slot-summary:hover {
     background: #273449;
+  }
+
+  .nav-button:disabled:hover,
+  .nav-button.disabled:hover {
+    background: #1f2937;
   }
 
   .status,
