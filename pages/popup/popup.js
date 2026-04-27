@@ -1206,6 +1206,10 @@ function renderAnalyticsSummary(selectedDay, weekDay = selectedDay || visibleWee
   const topSiteNote = selectedDay
     ? topSite ? formatDuration(topSite.screenSeconds) : "No usage"
     : "Select a day";
+  const todayKey = dateToDayKey(new Date());
+  const dailyOverviewTitle = selectedDay
+    ? selectedDay === todayKey ? "Today's Overview" : `${formatDayLabel(selectedDay)} Overview`
+    : "Daily Overview";
   const sections = [
     {
       title: "All-Time Overview",
@@ -1217,7 +1221,7 @@ function renderAnalyticsSummary(selectedDay, weekDay = selectedDay || visibleWee
       ]
     },
     {
-      title: "Today's Overview",
+      title: dailyOverviewTitle,
       cards: [
         { label: "Selected day", value: selectedDay ? formatDuration(selectedTotal) : "None", note: selectedDay ? formatDayLabel(selectedDay) : "Select a day" },
         { label: "Top website", value: topSite ? topSite.domain : "None", note: topSiteNote }
