@@ -1,6 +1,6 @@
 const REFRESH_ALARM = "refresh-block-rules";
 const REFRESH_MINUTES = 0.5;
-const BLOCKED_PAGE = "/blocked.html";
+const BLOCKED_PAGE = "/pages/blocked/blocked.html";
 const SCHEDULE_KEY = "scheduleBlockerSchedule";
 const STATE_KEY = "scheduleBlockerState";
 const USAGE_KEY = "scheduleBlockerUsage";
@@ -172,8 +172,7 @@ async function tick() {
     await accrueActiveUsage();
     const state = await refreshRules();
     await enforceActiveTabBlock(state);
-  } catch (error) {
-    console.error("Could not update scheduled blocking state.", error);
+  } catch {
   }
 }
 
@@ -202,7 +201,6 @@ async function refreshRules() {
     await updateBadge(activeSites.length);
     return state;
   } catch (error) {
-    console.error("Could not refresh scheduled blocking rules.", error);
     await replaceDynamicRules([]);
     await saveState({
       activeSites: [],
@@ -1247,8 +1245,7 @@ function getTimeParts(timezone = "local") {
       day: DAY_ALIASES.get(weekday) ?? new Date().getDay(),
       minutes: hour * 60 + minute
     };
-  } catch (error) {
-    console.warn(`Invalid timezone "${timezone}", using browser local time.`, error);
+  } catch {
     return getTimeParts("local");
   }
 }

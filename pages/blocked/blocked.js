@@ -45,8 +45,7 @@ async function loadExtraTimeStatus() {
     pinError = "";
     extraTime.hidden = false;
     renderCurrentView();
-  } catch (error) {
-    console.error("Could not load add-minutes popup state.", error);
+  } catch {
     extraTime.hidden = true;
   }
 }
@@ -236,8 +235,7 @@ async function handleMinuteSelection(minutes) {
     } else {
       refreshedStatus = response.status;
     }
-  } catch (error) {
-    console.error("Could not refresh add-minutes popup state.", error);
+  } catch {
   } finally {
     actionInFlight = false;
   }
@@ -355,7 +353,6 @@ async function confirmStagedMinutes() {
 
     navigateToSite(response.targetUrl);
   } catch (error) {
-    console.error("Could not add staged extra time.", error);
     actionInFlight = false;
 
     if (isPinAuthError(error)) {
