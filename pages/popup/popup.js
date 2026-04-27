@@ -21,9 +21,11 @@ const refresh = document.getElementById("refresh");
 const back = document.getElementById("back");
 const scheduleTab = document.getElementById("schedule-tab");
 const usageTab = document.getElementById("usage-tab");
+const focusTab = document.getElementById("focus-tab");
 const listView = document.getElementById("list-view");
 const editorView = document.getElementById("editor-view");
 const usageView = document.getElementById("usage-view");
+const focusView = document.getElementById("focus-view");
 const siteList = document.getElementById("site-list");
 const newSite = document.getElementById("new-site");
 const siteForm = document.getElementById("site-form");
@@ -82,7 +84,8 @@ const pomodoroActive = document.getElementById("pomodoro-active");
 const pomodoroModeRadios = Array.from(document.querySelectorAll('input[name="pomodoro-mode"]'));
 const pomodoroWhitelistField = document.getElementById("pomodoro-whitelist-field");
 const pomodoroWhitelist = document.getElementById("pomodoro-whitelist");
-const pomodoroDuration = document.getElementById("pomodoro-duration");
+const pomodoroDial = document.getElementById("pomodoro-dial");
+const pomodoroDurationValue = document.getElementById("pomodoro-duration-value");
 const pomodoroStart = document.getElementById("pomodoro-start");
 const pomodoroStop = document.getElementById("pomodoro-stop");
 const pomodoroTimer = document.getElementById("pomodoro-timer");
@@ -99,6 +102,7 @@ const OTHER_WEBSITES_LABEL = "Other websites";
 const POMODORO_DRAFT_KEY = "scheduleBlockerPomodoroWhitelistDraft";
 const PREFERRED_POMODORO_MINUTES_KEY = "preferredPomodoroMinutes";
 const DEFAULT_POMODORO_MINUTES = 30;
+const MAX_POMODORO_MINUTES = 120;
 
 const PIE_COLORS = [
   "#2563eb",
@@ -197,6 +201,10 @@ scheduleTab?.addEventListener("click", () => {
 
 usageTab?.addEventListener("click", () => {
   void showUsageView();
+});
+
+focusTab?.addEventListener("click", () => {
+  showFocusView();
 });
 
 blockModeRadios.forEach((radio) => {
@@ -308,19 +316,35 @@ pomodoroWhitelist?.addEventListener("input", () => {
   void chrome.storage.local.set({ [POMODORO_DRAFT_KEY]: pomodoroWhitelist.value });
 });
 
-pomodoroDuration?.addEventListener("input", () => {
-  const minutes = getPreferredPomodoroMinutes();
-
-  pomodoroDuration.value = String(minutes);
-  void chrome.storage.local.set({ [PREFERRED_POMODORO_MINUTES_KEY]: minutes });
-});
-
 pomodoroStart?.addEventListener("click", () => {
   void startPomodoroSession();
 });
 
 pomodoroStop?.addEventListener("click", () => {
   void stopPomodoroSession();
+});
+
+pomodoroDial?.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  pomodoroDial.setPointerCapture(event.pointerId);
+  setPomodoroDurationFromPointer(event);
+});
+
+pomodoroDial?.addEventListener("pointermove", (event) => {
+  if (pomodoroDial.hasPointerCapture(event.pointerId)) {
+    setPomodoroDurationFromPointer(event);
+  }
+});
+
+pomodoroDial?.addEventListener("keydown", (event) => {
+  const step = getPomodoroKeyboardStep(event);
+
+  if (step === 0) {
+    return;
+  }
+
+  event.preventDefault();
+  setPomodoroDuration(getPreferredPomodoroMinutes() + step);
 });
 
 weekChart?.addEventListener("click", (event) => {
@@ -820,9 +844,7 @@ async function loadPomodoroPreferences() {
     pomodoroWhitelist.value = draft;
   }
 
-  if (pomodoroDuration) {
-    pomodoroDuration.value = String(minutes);
-  }
+  setPomodoroDuration(minutes, { persist: false });
 }
 
 function renderPomodoro() {
@@ -852,6 +874,7 @@ function renderPomodoro() {
     startPomodoroTicker();
   } else {
     stopPomodoroTicker();
+    updatePomodoroDial();
     pomodoroTimer.textContent = `${String(getPreferredPomodoroMinutes()).padStart(2, "0")}:00`;
   }
 }
@@ -882,7 +905,7 @@ function setPomodoroMode(mode) {
 }
 
 function getPreferredPomodoroMinutes() {
-  return normalizePomodoroMinutes(pomodoroDuration?.value);
+  return normalizePomodoroMinutes(pomodoroDial?.dataset.minutes);
 }
 
 function normalizePomodoroMinutes(value) {
@@ -892,7 +915,74 @@ function normalizePomodoroMinutes(value) {
     return DEFAULT_POMODORO_MINUTES;
   }
 
-  return Math.max(1, Math.min(240, minutes));
+  return Math.max(1, Math.min(MAX_POMODORO_MINUTES, minutes));
+}
+
+function setPomodoroDuration(minutes, { persist = true } = {}) {
+  const normalized = normalizePomodoroMinutes(minutes);
+
+  if (pomodoroDial) {
+    pomodoroDial.dataset.minutes = String(normalized);
+  }
+
+  updatePomodoroDial();
+
+  if (persist) {
+    void chrome.storage.local.set({ [PREFERRED_POMODORO_MINUTES_KEY]: normalized });
+  }
+}
+
+function updatePomodoroDial() {
+  const minutes = getPreferredPomodoroMinutes();
+  const rotation = minutes / MAX_POMODORO_MINUTES * 360;
+
+  if (pomodoroDurationValue) {
+    pomodoroDurationValue.textContent = String(minutes);
+  }
+
+  if (pomodoroDial) {
+    pomodoroDial.style.setProperty("--rotation", `${rotation}deg`);
+    pomodoroDial.setAttribute("aria-valuenow", String(minutes));
+    pomodoroDial.setAttribute("aria-valuetext", `${minutes} minute${minutes === 1 ? "" : "s"}`);
+  }
+}
+
+function setPomodoroDurationFromPointer(event) {
+  if (!pomodoroDial) {
+    return;
+  }
+
+  const rect = pomodoroDial.getBoundingClientRect();
+  const x = event.clientX - (rect.left + rect.width / 2);
+  const y = event.clientY - (rect.top + rect.height / 2);
+  let angle = Math.atan2(y, x) * 180 / Math.PI + 90;
+
+  if (angle < 0) {
+    angle += 360;
+  }
+
+  const rawMinutes = Math.round(angle / 360 * MAX_POMODORO_MINUTES);
+  setPomodoroDuration(rawMinutes <= 0 ? MAX_POMODORO_MINUTES : rawMinutes);
+}
+
+function getPomodoroKeyboardStep(event) {
+  if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+    return 5;
+  }
+
+  if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+    return -5;
+  }
+
+  if (event.key === "Home") {
+    return 1 - getPreferredPomodoroMinutes();
+  }
+
+  if (event.key === "End") {
+    return MAX_POMODORO_MINUTES - getPreferredPomodoroMinutes();
+  }
+
+  return 0;
 }
 
 async function startPomodoroSession() {
@@ -1106,6 +1196,7 @@ function openEditor(site) {
   listView.hidden = true;
   editorView.hidden = false;
   usageView.hidden = true;
+  focusView.hidden = true;
   statusPanel.hidden = false;
   back.hidden = false;
   deleteSite.hidden = editingIndex === null;
@@ -1235,9 +1326,11 @@ function showList() {
   clearTimeout(editorAutosaveTimer);
   scheduleTab?.setAttribute("aria-pressed", "true");
   usageTab?.setAttribute("aria-pressed", "false");
+  focusTab?.setAttribute("aria-pressed", "false");
   editorView.hidden = true;
   listView.hidden = false;
   usageView.hidden = true;
+  focusView.hidden = true;
   statusPanel.hidden = false;
   back.hidden = true;
   editingIndex = null;
@@ -1253,12 +1346,30 @@ async function showUsageView() {
   clearFormError();
   scheduleTab?.setAttribute("aria-pressed", "false");
   usageTab?.setAttribute("aria-pressed", "true");
+  focusTab?.setAttribute("aria-pressed", "false");
   statusPanel.hidden = true;
   listView.hidden = true;
   editorView.hidden = true;
   usageView.hidden = false;
+  focusView.hidden = true;
   back.hidden = true;
   await loadUsageData();
+}
+
+function showFocusView() {
+  clearTimeout(editorAutosaveTimer);
+  editingIndex = null;
+  clearFormError();
+  scheduleTab?.setAttribute("aria-pressed", "false");
+  usageTab?.setAttribute("aria-pressed", "false");
+  focusTab?.setAttribute("aria-pressed", "true");
+  statusPanel.hidden = true;
+  listView.hidden = true;
+  editorView.hidden = true;
+  usageView.hidden = true;
+  focusView.hidden = false;
+  back.hidden = true;
+  renderPomodoro();
 }
 
 async function loadUsageData() {

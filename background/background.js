@@ -356,7 +356,7 @@ async function restorePomodoroAlarm() {
 }
 
 async function startPomodoro({ duration = 30, mode = "standard", whitelist = [] } = {}) {
-  const minutes = Math.max(1, Math.min(240, Math.round(Number(duration) || 30)));
+  const minutes = Math.max(1, Math.min(120, Math.round(Number(duration) || 30)));
   const pomodoro = await savePomodoroState({
     active: true,
     until: Date.now() + minutes * 60 * 1000,
