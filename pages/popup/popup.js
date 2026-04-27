@@ -1624,9 +1624,11 @@ function openEditor(site) {
   back.hidden = false;
   deleteSite.hidden = editingIndex === null;
   siteForm?.classList.toggle("is-new-site", editingIndex === null);
+  siteForm?.classList.toggle("is-existing-site", editingIndex !== null);
 
   if (saveSite) {
-    saveSite.textContent = editingIndex === null ? "Add website" : "Save changes";
+    saveSite.hidden = editingIndex !== null;
+    saveSite.textContent = "Add website";
     saveSite.disabled = false;
   }
 
@@ -1683,11 +1685,16 @@ function queueEditorAutosave({ immediate = false } = {}) {
     return;
   }
 
+  // New websites must be explicitly created with the Add website button.
+  // Existing websites still autosave like before.
   if (editingIndex === null) {
     return;
   }
 
-  clearTimeout(editorAutosaveTimer);
+  if (editorAutosaveTimer) {
+    window.clearTimeout(editorAutosaveTimer);
+  }
+
   editorAutosaveTimer = window.setTimeout(() => {
     void autosaveEditor();
   }, immediate ? 0 : 350);
@@ -1727,9 +1734,9 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
 
   editorAutosaveInFlight = true;
 
-  if (saveSite) {
+  if (saveSite && editingIndex === null) {
     saveSite.disabled = true;
-    saveSite.textContent = editingIndex === null ? "Adding..." : "Saving...";
+    saveSite.textContent = "Adding...";
   }
 
   const previousIndex = editingIndex;
@@ -1748,7 +1755,8 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
     clearFormError();
 
     if (saveSite) {
-      saveSite.textContent = editingIndex === null ? "Add website" : "Save changes";
+      saveSite.textContent = "Add website";
+      saveSite.hidden = editingIndex !== null;
     }
 
     if (fromSubmit && previousIndex === null) {
@@ -1770,7 +1778,8 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
 
     if (saveSite) {
       saveSite.disabled = false;
-      saveSite.textContent = editingIndex === null ? "Add website" : "Save changes";
+      saveSite.textContent = "Add website";
+      saveSite.hidden = editingIndex !== null;
     }
 
     if (editorAutosaveQueued) {
@@ -1783,6 +1792,7 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
 function showList() {
   clearTimeout(editorAutosaveTimer);
   siteForm?.classList.remove("is-new-site");
+  siteForm?.classList.remove("is-existing-site");
   scheduleTab?.setAttribute("aria-pressed", "true");
   usageTab?.setAttribute("aria-pressed", "false");
   focusTab?.setAttribute("aria-pressed", "false");

@@ -1863,11 +1863,15 @@ h2 {
 
 .form-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
 #site-form.is-new-site .form-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#site-form.is-existing-site .form-actions {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
