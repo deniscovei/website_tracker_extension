@@ -472,8 +472,9 @@ intervalList?.addEventListener("click", (event) => {
 void loadData();
 
 async function loadData() {
-  const [response] = await Promise.all([
+  const [response, pomodoroResponse] = await Promise.all([
     chrome.runtime.sendMessage({ type: "get-schedule-data" }),
+    chrome.runtime.sendMessage({ type: "get-pomodoro-state" }).catch(() => null),
     loadPomodoroPreferences()
   ]);
 
@@ -485,7 +486,7 @@ async function loadData() {
   schedule = normalizeSchedule(response.schedule);
   state = response.state;
   settings = normalizeSettings(response.settings);
-  pomodoro = normalizePomodoro(response.pomodoro || state?.pomodoro);
+  pomodoro = normalizePomodoro(pomodoroResponse?.ok ? pomodoroResponse.pomodoro : response.pomodoro || state?.pomodoro);
   renderPinSettings();
   renderPomodoro();
   renderStatus();
@@ -1134,9 +1135,18 @@ async function startPomodoroSession() {
 
   const mode = getSelectedPomodoroMode();
   const whitelistText = pomodoroWhitelist?.value || "";
+  const whitelist = parsePomodoroWhitelist(whitelistText);
   const duration = getPreferredPomodoroMinutes();
+  const optimisticPomodoro = normalizePomodoro({
+    active: true,
+    until: Date.now() + duration * 60 * 1000,
+    mode,
+    whitelist
+  });
 
   pomodoroStart.disabled = true;
+  pomodoro = optimisticPomodoro;
+  renderPomodoro();
 
   try {
     await chrome.storage.local.set({
@@ -1147,7 +1157,7 @@ async function startPomodoroSession() {
       type: "start-pomodoro",
       duration,
       mode,
-      whitelist: parsePomodoroWhitelist(whitelistText)
+      whitelist
     });
 
     if (!response?.ok) {
@@ -1160,6 +1170,8 @@ async function startPomodoroSession() {
     renderStatus();
     renderSiteList();
   } catch (error) {
+    pomodoro = normalizePomodoro();
+    renderPomodoro();
     renderError(cleanError(error));
   } finally {
     pomodoroStart.disabled = false;
@@ -1171,7 +1183,11 @@ async function stopPomodoroSession() {
     return;
   }
 
+  const previousPomodoro = pomodoro;
+
   pomodoroStop.disabled = true;
+  pomodoro = normalizePomodoro();
+  renderPomodoro();
 
   try {
     const response = await chrome.runtime.sendMessage({ type: "stop-pomodoro" });
@@ -1186,6 +1202,8 @@ async function stopPomodoroSession() {
     renderStatus();
     renderSiteList();
   } catch (error) {
+    pomodoro = previousPomodoro;
+    renderPomodoro();
     renderError(cleanError(error));
   } finally {
     pomodoroStop.disabled = false;
