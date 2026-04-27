@@ -17,7 +17,6 @@ const summary = document.getElementById("summary");
 const activeSites = document.getElementById("active-sites");
 const updated = document.getElementById("updated");
 const statusPanel = document.querySelector(".status");
-const refresh = document.getElementById("refresh");
 const back = document.getElementById("back");
 const scheduleTab = document.getElementById("schedule-tab");
 const usageTab = document.getElementById("usage-tab");
@@ -392,28 +391,6 @@ document.addEventListener("mousedown", (event) => {
   clearUsageSelections();
 });
 
-refresh?.addEventListener("click", async () => {
-  refresh.disabled = true;
-
-  try {
-    const response = await chrome.runtime.sendMessage({ type: "refresh-rules" });
-
-    if (!response?.ok) {
-      throw new Error(response?.error || "Refresh failed.");
-    }
-
-    state = response.state;
-    pomodoro = normalizePomodoro(state?.pomodoro || pomodoro);
-    renderPomodoro();
-    renderStatus();
-    renderSiteList();
-  } catch (error) {
-    renderError(cleanError(error));
-  } finally {
-    refresh.disabled = false;
-  }
-});
-
 newSite?.addEventListener("click", () => {
   editingIndex = null;
   openEditor({
@@ -583,8 +560,8 @@ async function saveGlobalExtraTimeToggle() {
   const saved = await persistPinSettings({
     statusTarget: "global",
     successMessage: globalExtraTime.checked
-      ? "Extra time is allowed for all websites."
-      : "Extra-time override updated."
+      ? "Adding minutes is allowed for all websites."
+      : "Adding-minutes override updated."
   });
 
   if (!saved) {
@@ -769,10 +746,10 @@ function syncGlobalSettingsView() {
   globalExtraTimeRow?.classList.toggle("is-disabled", pinSaveInFlight);
 }
 
-function syncEditorGlobalOverrideView() {
+function syncEditorGlobalOverrideView(siteOverride = null) {
   const extraTimeEnforced = Boolean(settings.allowExtraTimeForAll);
   const pinEnforced = Boolean(settings.hasPin && settings.requirePinForAllExtraTime);
-  const editingSite = !editorView.hidden && editingIndex !== null ? schedule.sites[editingIndex] : null;
+  const editingSite = siteOverride || (editingIndex !== null ? schedule.sites[editingIndex] : null);
 
   if (allowExtraTime) {
     const wasExtraTimeDisabled = allowExtraTime.disabled;
@@ -824,7 +801,7 @@ function updateGlobalSettingsStatus() {
 
   const enabled = [
     settings.requirePinForAllExtraTime ? "PIN" : "",
-    settings.allowExtraTimeForAll ? "extra time" : ""
+    settings.allowExtraTimeForAll ? "adding minutes" : ""
   ].filter(Boolean);
 
   globalSettingsStatus.classList.remove("error");
@@ -1274,7 +1251,7 @@ function renderSiteList() {
             });
 
             if (!response?.ok) {
-              throw new Error(response?.error || "Could not revoke extra time.");
+              throw new Error(response?.error || "Could not revoke added minutes.");
             }
 
             await loadData();
@@ -1303,7 +1280,7 @@ function openEditor(site) {
   allowExtraTime.checked = Boolean(site.allowExtraTime);
   requirePinExtra.checked = Boolean(site.requirePinForExtraTime);
   syncPinSetupView();
-  syncEditorGlobalOverrideView();
+  syncEditorGlobalOverrideView(site);
   intervalList.replaceChildren();
   clearTimeout(editorAutosaveTimer);
 
@@ -3296,11 +3273,11 @@ function siteSummary(site, usage = null) {
   }
 
   if (settings.allowExtraTimeForAll || site.allowExtraTime) {
-    parts.push("extra time on");
+    parts.push("adding minutes on");
   }
 
   if (settings.hasPin && (site.requirePinForExtraTime || settings.requirePinForAllExtraTime)) {
-    parts.push("PIN for extra time");
+    parts.push("PIN for adding minutes");
   }
 
   return parts.join(" · ");
