@@ -36,17 +36,15 @@
         </div>
         <ul id="site-list" class="site-list"></ul>
 
-        <section class="settings-panel" aria-labelledby="pin-settings-title">
-          <div class="panel-heading">
-            <div>
-              <h2 id="pin-settings-title">PIN protection</h2>
-              <p id="pin-status">PIN not set</p>
-            </div>
-            <div class="pin-panel-actions">
-              <button id="create-pin" class="secondary-button small" type="button" hidden>Create PIN</button>
-              <button id="change-pin" class="secondary-button small" type="button" hidden>Change PIN</button>
-            </div>
+        <div class="section-heading">
+          <h2 id="pin-settings-title">PIN protection</h2>
+          <div class="pin-panel-actions">
+            <button id="create-pin" class="secondary-button small" type="button" hidden>Create PIN</button>
+            <button id="change-pin" class="secondary-button small" type="button" hidden>Change PIN</button>
           </div>
+        </div>
+        <section class="settings-panel" aria-labelledby="pin-settings-title">
+          <p id="pin-status">PIN not set</p>
           <div id="pin-editor" class="pin-editor" hidden>
             <label class="field pin-field">
               <span>4-digit PIN</span>
@@ -64,13 +62,11 @@
           </div>
         </section>
 
+        <div class="section-heading">
+          <h2 id="global-settings-title">Global Settings</h2>
+        </div>
         <section class="settings-panel global-settings-panel" aria-labelledby="global-settings-title">
-          <div class="panel-heading">
-            <div>
-              <h2 id="global-settings-title">Global Settings</h2>
-              <p id="global-settings-status">Website overrides are off.</p>
-            </div>
-          </div>
+          <p id="global-settings-status">Website overrides are off.</p>
           <p class="global-settings-warning">Turning these on overrides individual website settings.</p>
           <label id="pin-global-row" class="toggle-field">
             <input id="pin-global" type="checkbox">
@@ -78,7 +74,7 @@
           </label>
           <label id="extra-time-global-row" class="toggle-field">
             <input id="global-extra-time" type="checkbox">
-            <span>Allow adding minutes</span>
+            <span>Allow extra time</span>
           </label>
         </section>
       </section>
@@ -121,7 +117,7 @@
             </label>
             <label class="toggle-field">
               <input id="allow-extra-time" type="checkbox">
-              <span>Allow adding minutes</span>
+              <span>Allow extra time</span>
             </label>
             <p id="extra-time-global-note" class="field-note" hidden>This is currently enforced by your Global Settings.</p>
             <label id="require-pin-extra-row" class="toggle-field">

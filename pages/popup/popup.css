@@ -1042,7 +1042,7 @@ h2 {
 }
 
 .settings-panel p {
-  margin: 4px 0 0;
+  margin: 0;
   color: #64748b;
   font-size: 0.76rem;
   font-weight: 800;
@@ -1532,23 +1532,21 @@ h2 {
 
 .mark-12 {
   left: 50%;
-  top: 14px;
+  top: 15%;
 }
 
 .mark-3 {
-  right: 11px;
+  left: 85%;
   top: 50%;
-  transform: translate(50%, -50%);
 }
 
 .mark-6 {
-  bottom: 9px;
   left: 50%;
-  transform: translate(-50%, 50%);
+  top: 85%;
 }
 
 .mark-9 {
-  left: 14px;
+  left: 15%;
   top: 50%;
 }
 
