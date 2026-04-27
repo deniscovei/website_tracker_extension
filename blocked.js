@@ -215,9 +215,40 @@ function createPinView() {
 async function handleMinuteSelection(minutes) {
   pendingMinutes = Math.max(0, Number(minutes) || 0);
 
-  if (pendingMinutes <= 0 || !latestStatus) {
+  if (pendingMinutes <= 0 || !site || actionInFlight) {
     return;
   }
+
+  actionInFlight = true;
+  pinError = "";
+  renderCurrentView();
+
+  let refreshedStatus = null;
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "get-site-status",
+      domain: site
+    });
+
+    if (!response?.ok || !response.status?.found || !response.status.allowExtraTime) {
+      extraTime.hidden = true;
+    } else {
+      refreshedStatus = response.status;
+    }
+  } catch (error) {
+    console.error("Could not refresh add-minutes popup state.", error);
+  } finally {
+    actionInFlight = false;
+  }
+
+  if (!refreshedStatus) {
+    currentView = VIEW_STATE.SELECT;
+    renderCurrentView();
+    return;
+  }
+
+  latestStatus = refreshedStatus;
 
   if (latestStatus.requiresPinForExtraTime) {
     pinDraft = "";
