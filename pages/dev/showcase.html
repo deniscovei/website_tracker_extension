@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Focus Tracker Showcase</title>
+    <link rel="stylesheet" href="showcase.css">
+  </head>
+  <body>
+    <main class="showcase">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Focus Tracker</p>
+          <h1>Website blocking, screen time, and deep work sessions.</h1>
+        </div>
+        <div class="focus-card">
+          <span>Today focused</span>
+          <strong id="focus-total">52m</strong>
+          <div id="week-bars" class="week-bars"></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="panel">
+          <h2>Websites</h2>
+          <ul id="site-list"></ul>
+        </article>
+        <article class="panel">
+          <h2>Add website</h2>
+          <div class="editor-preview">
+            <span>instagram.com</span>
+            <strong>Always blocked</strong>
+            <small>Extra time allowed · PIN required globally</small>
+          </div>
+        </article>
+        <article class="panel overlay-preview">
+          <h2>This website is blocked</h2>
+          <p>Your time is up for this website. Add more time to continue where you left off.</p>
+          <div class="minutes">
+            <button type="button">5 min</button>
+            <button type="button">15 min</button>
+            <button type="button">30 min</button>
+          </div>
+        </article>
+      </section>
+    </main>
+    <script type="module" src="showcase.js"></script>
+  </body>
+</html>

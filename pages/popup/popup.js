@@ -1,3 +1,13 @@
+import { createDemoPopupData, getDemoPomodoroStats } from "../../shared/demo-data.js";
+import { createPopupState } from "./state/popup-state.js";
+import { setActiveTab } from "./components/app-shell.js";
+import { renderFocusStats } from "./components/focus-stats-view.js";
+import { bindAddWebsiteButton } from "./components/site-list-view.js";
+import { syncEditorModeClasses } from "./components/site-editor-view.js";
+import { formatFocusCountdown } from "./components/focus-session-view.js";
+import { canPersistSiteDraft } from "./controllers/sites-controller.js";
+import { createDefaultSite } from "./helpers/site-defaults.js";
+
 const DAYS = [
   { id: "mon", label: "M" },
   { id: "tue", label: "T" },
@@ -122,6 +132,7 @@ const POMODORO_DRAFT_KEY = "scheduleBlockerPomodoroWhitelistDraft";
 const PREFERRED_POMODORO_MINUTES_KEY = "preferredPomodoroMinutes";
 const DEFAULT_POMODORO_MINUTES = 30;
 const MAX_POMODORO_MINUTES = 120;
+const DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
 
 const PIE_COLORS = [
   "#2563eb",
@@ -219,6 +230,7 @@ let currentContext = {
   sites: [],
   totalSeconds: 0
 };
+const popupState = createPopupState();
 
 scheduleTab?.addEventListener("click", () => {
   showScheduleView();
@@ -412,16 +424,10 @@ document.addEventListener("mousedown", (event) => {
   clearUsageSelections();
 });
 
-newSite?.addEventListener("click", () => {
+bindAddWebsiteButton(newSite, () => {
   editingIndex = null;
-  openEditor({
-    domain: "",
-    blockMode: "always",
-    dailyAllowanceMinutes: 0,
-    allowExtraTime: false,
-    requirePinForExtraTime: false,
-    intervals: [{ ...ALL_DAY_INTERVAL }]
-  });
+  popupState.editingIndex = editingIndex;
+  openEditor(createDefaultSite());
 });
 
 pomodoroStatsToggle?.addEventListener("click", () => {
@@ -506,6 +512,21 @@ intervalList?.addEventListener("click", (event) => {
 void loadData();
 
 async function loadData() {
+  if (DEMO_MODE) {
+    const demo = createDemoPopupData();
+
+    schedule = normalizeSchedule(demo.schedule);
+    state = demo.state;
+    settings = normalizeSettings(demo.settings);
+    pomodoro = normalizePomodoro(demo.pomodoro);
+    usageData = demo.usage;
+    renderPinSettings();
+    renderPomodoro();
+    renderStatus();
+    renderSiteList();
+    return;
+  }
+
   const loadStartedAt = Date.now();
   const [response, pomodoroResponse, storedSettings] = await Promise.all([
     chrome.runtime.sendMessage({ type: "get-schedule-data" }),
@@ -535,6 +556,10 @@ async function loadData() {
 }
 
 async function persistSchedule() {
+  if (DEMO_MODE) {
+    throw new Error("Demo mode is read-only.");
+  }
+
   const response = await chrome.runtime.sendMessage({
     type: "save-schedule",
     schedule
@@ -555,6 +580,11 @@ async function persistSchedule() {
 }
 
 async function savePinValue() {
+  if (DEMO_MODE) {
+    setSettingsStatus("pin", "Demo mode is read-only.", { error: true });
+    return;
+  }
+
   const nextPin = sanitizePinValue(pinCode.value);
 
   if (!pinEditorOpen) {
@@ -579,6 +609,14 @@ async function savePinValue() {
 
 async function saveGlobalSettingsToggle() {
   if (!pinGlobal || !globalExtraTime || globalSettingsSaveInFlight) {
+    return;
+  }
+
+  if (DEMO_MODE) {
+    pinGlobal.checked = Boolean(settings.hasPin && settings.requirePinForAllExtraTime);
+    globalExtraTime.checked = Boolean(settings.allowExtraTimeForAll);
+    setSettingsStatus("global", "Demo mode is read-only.", { error: true });
+    syncGlobalSettingsView();
     return;
   }
 
@@ -1012,6 +1050,15 @@ function renderStatus() {
 }
 
 async function loadPomodoroPreferences() {
+  if (DEMO_MODE) {
+    if (pomodoroWhitelist && !pomodoroWhitelist.value) {
+      pomodoroWhitelist.value = "docs.google.com, github.com";
+    }
+
+    setPomodoroDuration(DEFAULT_POMODORO_MINUTES, { persist: false });
+    return;
+  }
+
   const stored = await chrome.storage.local.get([POMODORO_DRAFT_KEY, PREFERRED_POMODORO_MINUTES_KEY]);
   const draft = typeof stored[POMODORO_DRAFT_KEY] === "string" ? stored[POMODORO_DRAFT_KEY] : "";
   const minutes = normalizePomodoroMinutes(stored[PREFERRED_POMODORO_MINUTES_KEY]);
@@ -1077,6 +1124,12 @@ async function loadPomodoroStats() {
   syncPomodoroStatsVisibility();
 
   try {
+    if (DEMO_MODE) {
+      pomodoroStatsData = getDemoPomodoroStats(selectedPomodoroStatsDay);
+      renderPomodoroStats();
+      return;
+    }
+
     const response = await chrome.runtime.sendMessage({
       type: "get-pomodoro-stats",
       date: selectedPomodoroStatsDay
@@ -1097,143 +1150,36 @@ async function loadPomodoroStats() {
 }
 
 function renderPomodoroStats() {
-  const stats = pomodoroStatsData;
-
-  if (!stats) {
+  if (!pomodoroStatsData) {
     return;
   }
 
-  const selected = stats.selectedDay || {};
-  const sessions = Array.isArray(selected.sessions) ? selected.sessions : [];
-  const last7Days = Array.isArray(stats.last7Days) ? stats.last7Days : [];
-  const weekTotalSeconds = last7Days.reduce((sum, day) => sum + Math.max(0, Number(day.totalSeconds) || 0), 0);
-
-  if (pomodoroStatsDate) {
-    pomodoroStatsDate.value = stats.date || selectedPomodoroStatsDay;
-  }
-
-  if (pomodoroStatsSubtitle) {
-    pomodoroStatsSubtitle.textContent = formatDayLabel(stats.date);
-  }
-
-  if (pomodoroStatsTotal) {
-    pomodoroStatsTotal.textContent = formatDuration(selected.totalSeconds || 0);
-  }
-
-  if (pomodoroStatsSessions) {
-    pomodoroStatsSessions.textContent = String(selected.sessionCount || 0);
-  }
-
-  if (pomodoroStatsCompleted) {
-    pomodoroStatsCompleted.textContent = `${selected.completionRate || 0}%`;
-  }
-
-  if (pomodoroStatsStreak) {
-    pomodoroStatsStreak.textContent = `${stats.streakDays || 0}d`;
-  }
-
-  if (pomodoroWeekTotal) {
-    pomodoroWeekTotal.textContent = formatDuration(weekTotalSeconds);
-  }
-
-  renderPomodoroWeekBars(last7Days);
-  renderPomodoroHistory(sessions);
-}
-
-function renderPomodoroWeekBars(days) {
-  if (!pomodoroWeekBars) {
-    return;
-  }
-
-  pomodoroWeekBars.replaceChildren();
-
-  const maxSeconds = Math.max(1, ...days.map((day) => Math.max(0, Number(day.totalSeconds) || 0)));
-
-  days.forEach((day) => {
-    const button = document.createElement("button");
-    const bar = document.createElement("span");
-    const label = document.createElement("small");
-    const amount = document.createElement("strong");
-    const totalSeconds = Math.max(0, Number(day.totalSeconds) || 0);
-
-    button.type = "button";
-    button.className = "pomodoro-week-day";
-    button.setAttribute("aria-pressed", String(day.date === selectedPomodoroStatsDay));
-    button.addEventListener("click", () => {
-      selectedPomodoroStatsDay = day.date;
+  renderFocusStats({
+    stats: pomodoroStatsData,
+    selectedDay: selectedPomodoroStatsDay,
+    elements: {
+      dateInput: pomodoroStatsDate,
+      subtitle: pomodoroStatsSubtitle,
+      total: pomodoroStatsTotal,
+      sessions: pomodoroStatsSessions,
+      completed: pomodoroStatsCompleted,
+      streak: pomodoroStatsStreak,
+      weekTotal: pomodoroWeekTotal,
+      weekBars: pomodoroWeekBars,
+      historyCount: pomodoroHistoryCount,
+      historyList: pomodoroHistoryList,
+      historyEmpty: pomodoroHistoryEmpty
+    },
+    onSelectDay: (day) => {
+      selectedPomodoroStatsDay = day;
 
       if (pomodoroStatsDate) {
-        pomodoroStatsDate.value = day.date;
+        pomodoroStatsDate.value = day;
       }
 
       void loadPomodoroStats();
-    });
-
-    bar.className = "pomodoro-week-bar";
-    bar.style.setProperty("--height", `${Math.max(6, Math.round(totalSeconds / maxSeconds * 100))}%`);
-
-    label.textContent = formatShortWeekday(day.date);
-    amount.textContent = formatDuration(totalSeconds);
-
-    button.append(bar, label, amount);
-    pomodoroWeekBars.append(button);
+    }
   });
-}
-
-function renderPomodoroHistory(sessions) {
-  if (!pomodoroHistoryList || !pomodoroHistoryCount || !pomodoroHistoryEmpty) {
-    return;
-  }
-
-  pomodoroHistoryList.replaceChildren();
-  pomodoroHistoryCount.textContent = String(sessions.length);
-  pomodoroHistoryEmpty.hidden = sessions.length > 0;
-  pomodoroHistoryEmpty.textContent = "No focus sessions for this day yet.";
-
-  if (sessions.length === 0) {
-    return;
-  }
-
-  sessions.forEach((session) => {
-    const item = document.createElement("li");
-    const main = document.createElement("div");
-    const title = document.createElement("strong");
-    const meta = document.createElement("span");
-    const status = document.createElement("span");
-
-    item.className = "pomodoro-history-item";
-    main.className = "pomodoro-history-copy";
-    title.textContent = `${session.mode === "strict" ? "Strict" : "Standard"} focus`;
-    meta.textContent = `${formatTimeRange(session.startedAt, session.endedAt)} · ${formatDuration(session.elapsedSeconds)}`;
-
-    status.className = session.completed ? "session-badge is-completed" : "session-badge is-stopped";
-    status.textContent = session.completed ? "Completed" : "Stopped";
-
-    main.append(title, meta);
-    item.append(main, status);
-    pomodoroHistoryList.append(item);
-  });
-}
-
-function formatShortWeekday(day) {
-  const date = parseDayKey(day);
-
-  if (!date) {
-    return "";
-  }
-
-  return date.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3);
-}
-
-function formatTimeRange(start, end) {
-  const startDate = new Date(Number(start) || 0);
-  const endDate = new Date(Number(end) || 0);
-
-  if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) {
-    return "";
-  }
-
-  return `${startDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – ${endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 function syncPomodoroModeView() {
@@ -1284,7 +1230,7 @@ function setPomodoroDuration(minutes, { persist = true } = {}) {
 
   updatePomodoroDial();
 
-  if (persist) {
+  if (persist && !DEMO_MODE) {
     void chrome.storage.local.set({ [PREFERRED_POMODORO_MINUTES_KEY]: normalized });
   }
 }
@@ -1365,6 +1311,22 @@ async function startPomodoroSession() {
   pomodoro = optimisticPomodoro;
   renderPomodoro();
 
+  if (DEMO_MODE) {
+    state = {
+      ...state,
+      pomodoro
+    };
+    renderStatus();
+    renderSiteList();
+
+    if (pomodoroStatsVisible) {
+      void loadPomodoroStats();
+    }
+
+    pomodoroStart.disabled = false;
+    return;
+  }
+
   try {
     await chrome.storage.local.set({
       [POMODORO_DRAFT_KEY]: whitelistText,
@@ -1443,6 +1405,22 @@ async function stopPomodoroSession() {
   pomodoro = normalizePomodoro();
   renderPomodoro();
 
+  if (DEMO_MODE) {
+    state = {
+      ...state,
+      pomodoro
+    };
+    renderStatus();
+    renderSiteList();
+
+    if (pomodoroStatsVisible) {
+      void loadPomodoroStats();
+    }
+
+    pomodoroStop.disabled = false;
+    return;
+  }
+
   try {
     const response = await chrome.runtime.sendMessage({ type: "stop-pomodoro" });
 
@@ -1488,10 +1466,7 @@ function updatePomodoroCountdown() {
   }
 
   const remainingSeconds = Math.max(0, Math.ceil((pomodoro.until - Date.now()) / 1000));
-  const minutes = Math.floor(remainingSeconds / 60);
-  const seconds = remainingSeconds % 60;
-
-  pomodoroTimer.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  pomodoroTimer.textContent = formatFocusCountdown(remainingSeconds);
 
   if (remainingSeconds <= 0 && pomodoro.active) {
     pomodoro = normalizePomodoro();
@@ -1593,8 +1568,8 @@ function renderSiteList() {
 
 function openEditor(site) {
   clearFormError();
-  scheduleTab?.setAttribute("aria-pressed", "true");
-  usageTab?.setAttribute("aria-pressed", "false");
+  popupState.selectedTab = "websites";
+  setActiveTab({ scheduleTab, usageTab, focusTab }, popupState.selectedTab);
   siteDomain.value = site.domain || "";
   dailyAllowance.value = String(site.dailyAllowanceMinutes || 0);
   allowExtraTime.checked = Boolean(site.allowExtraTime);
@@ -1623,8 +1598,7 @@ function openEditor(site) {
   statusPanel.hidden = false;
   back.hidden = false;
   deleteSite.hidden = editingIndex === null;
-  siteForm?.classList.toggle("is-new-site", editingIndex === null);
-  siteForm?.classList.toggle("is-existing-site", editingIndex !== null);
+  syncEditorModeClasses(siteForm, editingIndex === null);
 
   if (saveSite) {
     saveSite.hidden = editingIndex !== null;
@@ -1687,7 +1661,7 @@ function queueEditorAutosave({ immediate = false } = {}) {
 
   // New websites must be explicitly created with the Add website button.
   // Existing websites still autosave like before.
-  if (editingIndex === null) {
+  if (!canPersistSiteDraft(editingIndex, false)) {
     return;
   }
 
@@ -1705,7 +1679,7 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
     return;
   }
 
-  if (editingIndex === null && !fromSubmit) {
+  if (!canPersistSiteDraft(editingIndex, fromSubmit)) {
     return;
   }
 
@@ -1793,9 +1767,8 @@ function showList() {
   clearTimeout(editorAutosaveTimer);
   siteForm?.classList.remove("is-new-site");
   siteForm?.classList.remove("is-existing-site");
-  scheduleTab?.setAttribute("aria-pressed", "true");
-  usageTab?.setAttribute("aria-pressed", "false");
-  focusTab?.setAttribute("aria-pressed", "false");
+  popupState.selectedTab = "websites";
+  setActiveTab({ scheduleTab, usageTab, focusTab }, popupState.selectedTab);
   editorView.hidden = true;
   listView.hidden = false;
   usageView.hidden = true;
@@ -1813,9 +1786,8 @@ async function showUsageView() {
   clearTimeout(editorAutosaveTimer);
   editingIndex = null;
   clearFormError();
-  scheduleTab?.setAttribute("aria-pressed", "false");
-  usageTab?.setAttribute("aria-pressed", "true");
-  focusTab?.setAttribute("aria-pressed", "false");
+  popupState.selectedTab = "usage";
+  setActiveTab({ scheduleTab, usageTab, focusTab }, popupState.selectedTab);
   statusPanel.hidden = true;
   listView.hidden = true;
   editorView.hidden = true;
@@ -1829,9 +1801,8 @@ function showFocusView() {
   clearTimeout(editorAutosaveTimer);
   editingIndex = null;
   clearFormError();
-  scheduleTab?.setAttribute("aria-pressed", "false");
-  usageTab?.setAttribute("aria-pressed", "false");
-  focusTab?.setAttribute("aria-pressed", "true");
+  popupState.selectedTab = "focus";
+  setActiveTab({ scheduleTab, usageTab, focusTab }, popupState.selectedTab);
   statusPanel.hidden = true;
   listView.hidden = true;
   editorView.hidden = true;
@@ -1847,6 +1818,15 @@ function showFocusView() {
 }
 
 async function loadUsageData() {
+  if (DEMO_MODE) {
+    const demo = createDemoPopupData();
+
+    usageData = demo.usage;
+    visibleWeekDay ||= dateToDayKey(new Date());
+    renderUsageForDay(getSelectedDayForVisibleWeek(visibleWeekDay), { weekDay: visibleWeekDay });
+    return;
+  }
+
   const response = await chrome.runtime.sendMessage({ type: "get-usage-data" });
 
   if (!response?.ok) {

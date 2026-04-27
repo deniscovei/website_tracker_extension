@@ -1,33 +1,77 @@
 # Focus Tracker
 
-A small Manifest V3 Chrome extension that tracks daily website screen time and blocks websites during editable time slots.
+Focus Tracker is a Manifest V3 Chrome extension for blocking distracting websites, tracking screen time, and running focused work sessions without losing page state.
 
-## Load It In Chrome
+## Features
+
+- Schedule websites as always blocked or blocked during selected time slots.
+- Track website usage by day, hour, category, and website share.
+- Add daily allowances and optional extra-time buttons for blocked websites.
+- Protect extra-time actions with an optional 4-digit PIN.
+- Run Focus sessions in Standard mode or Strict whitelist mode.
+- Preserve page state with an in-page blocked overlay when possible.
+- Fall back to a dedicated blocked page when a page cannot host the overlay.
+- Record Focus statistics: focused time, sessions, completion rate, streak, and a 7-day trend.
+
+## Screenshots
+
+Screenshot placeholders are listed below. Use `pages/popup/popup.html?demo=1` and `pages/dev/showcase.html` for polished fake data captures.
+
+### Website blocking and overrides
+![Website blocking and overrides](docs/screenshots/websites-overview.png)
+
+### Focus session and statistics
+![Focus session and statistics](docs/screenshots/focus-statistics.png)
+
+### State-preserving block overlay
+![State-preserving block overlay](docs/screenshots/block-overlay.png)
+
+### Add website flow
+![Add website flow](docs/screenshots/add-website.png)
+
+The screenshot files are planned but not committed yet. See [docs/chrome-web-store/screenshot-plan.md](docs/chrome-web-store/screenshot-plan.md).
+
+## Install Locally
 
 1. Open `chrome://extensions`.
 2. Turn on **Developer mode**.
 3. Click **Load unpacked**.
-4. Choose this folder: `/home/denis/extensie`.
+4. Choose this folder.
 
-The schedule is saved in Chrome storage from the popup. The extension refreshes active blocking rules every 30 seconds while it is running.
+## Usage
 
-## Edit The Schedule
+Open the extension popup and use the **Websites** tab to add a website. New websites default to **Always blocked** and are only created after clicking **Add website**. Existing websites autosave as you edit them.
 
-1. Click the extension icon.
-2. Click **New site** or choose an existing website.
-3. Choose **Always blocked** or **Time slots**.
-4. Use **Add slot** for each blocked interval when time slots are enabled.
-5. Click a slot row to open the clock editor.
-6. Drag or click the clock dials to adjust start and end times, or type the `HH:MM` value directly.
-7. Set **Daily allowance** if the site should be usable for a few minutes while it is blocked.
-8. Turn on extra time if the blocked page should offer buttons to add more minutes.
-9. Optionally enable **Use for all websites** in the popup settings panel to allow extra-time buttons across every website.
-10. Click **Save**.
+Use the **Usage** tab for screen-time analytics. Use the **Focus** tab to start a timed Focus session and open **Show statistics** for Focus history.
 
-Intervals use browser local time. Overnight intervals work, so a slot from `22:00` to `07:00` blocks through midnight.
+## Demo Mode
 
-Daily allowance minutes are only spent while the site is active during a blocked slot. The allowance resets each local day. If extra time is enabled, the blocked page can add 5, 15, or 30 more minutes for the current day and also offers a **Cut Off Website** button to remove added extra time immediately.
+For screenshots, open:
 
-## Screen Time
+```text
+chrome-extension://<extension-id>/pages/popup/popup.html?demo=1
+chrome-extension://<extension-id>/pages/dev/showcase.html
+```
 
-Open the popup and switch to **Usage** to see website usage. The extension records active HTTP and HTTPS websites, shows total time, all-time analytics, a weekly Apple-style bar chart with a daily average line, stacked hourly category bars, an interactive website share pie chart, and a per-website breakdown on one page. Use the chart arrows to move through weeks and selected hours. Category chips reveal website-level details for that category. Usage is kept for today plus the last 30 completed days.
+Demo mode uses realistic fake websites, usage, and Focus statistics. It is read-only and does not persist data to `chrome.storage`.
+
+## Privacy
+
+Focus Tracker stores schedules, settings, and usage history locally in Chrome storage. It does not send browsing data to an external server.
+
+## Development Checks
+
+Run syntax checks after changes:
+
+```bash
+node --check background/background.js
+node --check pages/popup/popup.js
+node --check content/state-preserving-block.js
+node --check pages/blocked/blocked.js
+```
+
+For the current module split, also run `node --check` on files under `pages/popup/components`, `pages/popup/controllers`, `pages/popup/helpers`, `pages/popup/state`, and `shared`.
+
+## Chrome Web Store
+
+Publishing assets and copy are tracked in [docs/chrome-web-store/TODO.md](docs/chrome-web-store/TODO.md). The screenshot plan is in [docs/chrome-web-store/screenshot-plan.md](docs/chrome-web-store/screenshot-plan.md).
