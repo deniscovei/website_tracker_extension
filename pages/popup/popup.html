@@ -63,9 +63,23 @@
             </label>
             <button id="save-pin" class="primary-button small pin-save-button" type="button">Save</button>
           </div>
+        </section>
+
+        <section class="settings-panel global-settings-panel" aria-labelledby="global-settings-title">
+          <div class="panel-heading">
+            <div>
+              <h2 id="global-settings-title">Global Settings</h2>
+              <p id="global-settings-status">Website overrides are off.</p>
+            </div>
+          </div>
+          <p class="global-settings-warning">Turning these on overrides individual website settings.</p>
           <label id="pin-global-row" class="toggle-field">
             <input id="pin-global" type="checkbox">
             <span>Require PIN for all websites</span>
+          </label>
+          <label id="extra-time-global-row" class="toggle-field">
+            <input id="global-extra-time" type="checkbox">
+            <span>Allow extra time for all websites</span>
           </label>
         </section>
       </section>
@@ -110,10 +124,12 @@
               <input id="allow-extra-time" type="checkbox">
               <span>Show extra-time buttons after the allowance runs out</span>
             </label>
+            <p id="extra-time-global-note" class="field-note" hidden>This is currently enforced by your Global Settings.</p>
             <label id="require-pin-extra-row" class="toggle-field">
               <input id="require-pin-extra" type="checkbox">
               <span>Require PIN before adding time</span>
             </label>
+            <p id="pin-global-note" class="field-note" hidden>This is currently enforced by your Global Settings.</p>
           </section>
 
           <div id="slot-heading" class="section-heading compact">

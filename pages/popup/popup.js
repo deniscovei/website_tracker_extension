@@ -43,6 +43,11 @@ const editorBack = document.getElementById("editor-back");
 const formError = document.getElementById("form-error");
 const pinGlobal = document.getElementById("pin-global");
 const pinGlobalRow = document.getElementById("pin-global-row");
+const globalExtraTime = document.getElementById("global-extra-time");
+const globalExtraTimeRow = document.getElementById("extra-time-global-row");
+const globalSettingsStatus = document.getElementById("global-settings-status");
+const extraTimeGlobalNote = document.getElementById("extra-time-global-note");
+const pinGlobalNote = document.getElementById("pin-global-note");
 const createPin = document.getElementById("create-pin");
 const changePin = document.getElementById("change-pin");
 const pinEditor = document.getElementById("pin-editor");
@@ -155,6 +160,7 @@ let state = null;
 let settings = {
   hasPin: false,
   requirePinForAllExtraTime: false,
+  allowExtraTimeForAll: false,
   pinValue: ""
 };
 let pomodoro = {
@@ -232,6 +238,10 @@ nextHour?.addEventListener("click", () => {
 
 pinGlobal?.addEventListener("change", () => {
   void savePinRequirementToggle();
+});
+
+globalExtraTime?.addEventListener("change", () => {
+  void saveGlobalExtraTimeToggle();
 });
 
 pinCode?.addEventListener("input", () => {
@@ -550,12 +560,13 @@ async function savePinValue() {
 async function savePinRequirementToggle() {
   if (!settings.hasPin) {
     pinGlobal.checked = false;
-    syncPinSetupView();
+    syncGlobalSettingsView();
     return;
   }
 
   const previousValue = Boolean(settings.requirePinForAllExtraTime);
   const saved = await persistPinSettings({
+    statusTarget: "global",
     successMessage: pinGlobal.checked
       ? "PIN required for all websites."
       : "PIN requirement updated."
@@ -563,12 +574,28 @@ async function savePinRequirementToggle() {
 
   if (!saved) {
     pinGlobal.checked = previousValue;
-    syncPinSetupView();
+    syncGlobalSettingsView();
+  }
+}
+
+async function saveGlobalExtraTimeToggle() {
+  const previousValue = Boolean(settings.allowExtraTimeForAll);
+  const saved = await persistPinSettings({
+    statusTarget: "global",
+    successMessage: globalExtraTime.checked
+      ? "Extra time is allowed for all websites."
+      : "Extra-time override updated."
+  });
+
+  if (!saved) {
+    globalExtraTime.checked = previousValue;
+    syncGlobalSettingsView();
   }
 }
 
 async function persistPinSettings({
   pin,
+  statusTarget = "pin",
   successMessage = "PIN settings saved."
 } = {}) {
   if (pinSaveInFlight) {
@@ -576,8 +603,7 @@ async function persistPinSettings({
   }
 
   pinSaveInFlight = true;
-  pinStatus.classList.remove("error");
-  pinStatus.textContent = "Saving...";
+  setSettingsStatus(statusTarget, "Saving...");
 
   if (createPin) {
     createPin.disabled = true;
@@ -588,6 +614,9 @@ async function persistPinSettings({
   }
 
   pinGlobal.disabled = true;
+  if (globalExtraTime) {
+    globalExtraTime.disabled = true;
+  }
   pinCode.disabled = true;
   togglePinVisibility.disabled = true;
   if (savePin) {
@@ -599,7 +628,8 @@ async function persistPinSettings({
       type: "save-settings",
       settings: {
         ...(pin ? { pin } : {}),
-        requirePinForAllExtraTime: Boolean(pinGlobal.checked)
+        requirePinForAllExtraTime: Boolean(pinGlobal.checked),
+        allowExtraTimeForAll: Boolean(globalExtraTime?.checked)
       }
     });
 
@@ -616,7 +646,9 @@ async function persistPinSettings({
       setPinVisibility(pinCode, togglePinVisibility, false);
     }
 
-    renderPinSettings(successMessage);
+    renderPinSettings(statusTarget === "pin" ? successMessage : "");
+    renderGlobalSettings(statusTarget === "global" ? successMessage : "");
+    syncEditorGlobalOverrideView();
     renderSiteList();
 
     try {
@@ -630,8 +662,7 @@ async function persistPinSettings({
     }
     return true;
   } catch (error) {
-    pinStatus.textContent = cleanError(error);
-    pinStatus.classList.add("error");
+    setSettingsStatus(statusTarget, cleanError(error), { error: true });
     return false;
   } finally {
     pinSaveInFlight = false;
@@ -642,12 +673,13 @@ async function persistPinSettings({
       changePin.disabled = false;
     }
     syncPinSetupView();
+    syncGlobalSettingsView();
   }
 }
 
 function renderPinSettings(message = "") {
-  pinGlobal.checked = Boolean(settings.requirePinForAllExtraTime);
   pinCode.setCustomValidity("");
+  renderGlobalSettings();
 
   if (!pinEditorOpen) {
     pinCode.value = "";
@@ -664,6 +696,25 @@ function renderPinSettings(message = "") {
   }
 
   updatePinDraftStatus();
+}
+
+function renderGlobalSettings(message = "") {
+  if (pinGlobal) {
+    pinGlobal.checked = Boolean(settings.requirePinForAllExtraTime);
+  }
+
+  if (globalExtraTime) {
+    globalExtraTime.checked = Boolean(settings.allowExtraTimeForAll);
+  }
+
+  syncGlobalSettingsView();
+
+  if (message) {
+    setSettingsStatus("global", message);
+    return;
+  }
+
+  updateGlobalSettingsStatus();
 }
 
 function syncPinSetupView() {
@@ -693,19 +744,93 @@ function syncPinSetupView() {
   }
 
   pinCode.disabled = !pinEditorOpen || pinSaveInFlight;
-  pinGlobal.disabled = !hasPin || pinSaveInFlight;
   togglePinVisibility.disabled = !pinEditorOpen || pinCode.value.length === 0 || pinSaveInFlight;
 
+  syncGlobalSettingsView();
+  syncEditorGlobalOverrideView();
+}
+
+function syncGlobalSettingsView() {
+  const hasPin = Boolean(settings.hasPin);
+
+  if (!hasPin && pinGlobal) {
+    pinGlobal.checked = false;
+  }
+
+  if (pinGlobal) {
+    pinGlobal.disabled = !hasPin || pinSaveInFlight;
+  }
+
+  if (globalExtraTime) {
+    globalExtraTime.disabled = pinSaveInFlight;
+  }
+
   pinGlobalRow?.classList.toggle("is-disabled", !hasPin || pinSaveInFlight);
-  requirePinExtraRow?.classList.toggle("is-disabled", !hasPin);
+  globalExtraTimeRow?.classList.toggle("is-disabled", pinSaveInFlight);
+}
+
+function syncEditorGlobalOverrideView() {
+  const extraTimeEnforced = Boolean(settings.allowExtraTimeForAll);
+  const pinEnforced = Boolean(settings.hasPin && settings.requirePinForAllExtraTime);
+  const editingSite = !editorView.hidden && editingIndex !== null ? schedule.sites[editingIndex] : null;
+
+  if (allowExtraTime) {
+    const wasExtraTimeDisabled = allowExtraTime.disabled;
+    allowExtraTime.checked = extraTimeEnforced
+      ? true
+      : wasExtraTimeDisabled ? Boolean(editingSite?.allowExtraTime) : allowExtraTime.checked;
+    allowExtraTime.disabled = extraTimeEnforced;
+    allowExtraTime.closest(".toggle-field")?.classList.toggle("is-disabled", extraTimeEnforced);
+  }
+
+  if (extraTimeGlobalNote) {
+    extraTimeGlobalNote.hidden = !extraTimeEnforced;
+  }
+
+  requirePinExtraRow?.classList.toggle("is-disabled", pinEnforced || !settings.hasPin);
 
   if (requirePinExtra) {
-    requirePinExtra.disabled = !hasPin;
+    const wasPinDisabled = requirePinExtra.disabled;
+    requirePinExtra.checked = pinEnforced
+      ? true
+      : wasPinDisabled && settings.hasPin ? Boolean(editingSite?.requirePinForExtraTime) : settings.hasPin && requirePinExtra.checked;
+    requirePinExtra.disabled = pinEnforced || !settings.hasPin;
 
-    if (!hasPin) {
+    if (!settings.hasPin) {
       requirePinExtra.checked = false;
     }
   }
+
+  if (pinGlobalNote) {
+    pinGlobalNote.hidden = !pinEnforced;
+  }
+}
+
+function setSettingsStatus(target, message, { error = false } = {}) {
+  const element = target === "global" ? globalSettingsStatus : pinStatus;
+
+  if (!element) {
+    return;
+  }
+
+  element.textContent = message;
+  element.classList.toggle("error", error);
+}
+
+function updateGlobalSettingsStatus() {
+  if (!globalSettingsStatus) {
+    return;
+  }
+
+  const enabled = [
+    settings.requirePinForAllExtraTime ? "PIN" : "",
+    settings.allowExtraTimeForAll ? "extra time" : ""
+  ].filter(Boolean);
+
+  globalSettingsStatus.classList.remove("error");
+  globalSettingsStatus.textContent = enabled.length > 0
+    ? `Global ${enabled.join(" and ")} override${enabled.length === 1 ? " is" : "s are"} on.`
+    : "Website overrides are off.";
 }
 
 function updatePinDraftStatus() {
@@ -1127,14 +1252,14 @@ function renderSiteList() {
 
       item.append(button);
 
-      if ((usage?.extraSeconds || 0) > 0) {
+      if ((usage?.extraRemainingSeconds || 0) > 0) {
         const actions = document.createElement("div");
         const note = document.createElement("span");
         const cutOffButton = document.createElement("button");
 
         actions.className = "site-row-actions";
         note.className = "site-extra-note";
-        note.textContent = `${formatDuration(usage.extraSeconds)} added today`;
+        note.textContent = `${formatDuration(usage.extraRemainingSeconds)} added time remaining`;
         cutOffButton.type = "button";
         cutOffButton.className = "revoke-button";
         cutOffButton.textContent = "Revoke added time";
@@ -1178,6 +1303,7 @@ function openEditor(site) {
   allowExtraTime.checked = Boolean(site.allowExtraTime);
   requirePinExtra.checked = Boolean(site.requirePinForExtraTime);
   syncPinSetupView();
+  syncEditorGlobalOverrideView();
   intervalList.replaceChildren();
   clearTimeout(editorAutosaveTimer);
 
@@ -2836,12 +2962,18 @@ function readSiteForm() {
     throw new Error("Add at least one time slot.");
   }
 
+  const existingSite = editingIndex === null ? null : schedule.sites[editingIndex];
+  const storedAllowExtraTime = existingSite ? Boolean(existingSite.allowExtraTime) : false;
+  const storedRequirePinForExtraTime = existingSite ? Boolean(existingSite.requirePinForExtraTime) : false;
+
   return {
     domain,
     blockMode,
     dailyAllowanceMinutes,
-    allowExtraTime: allowExtraTime.checked,
-    requirePinForExtraTime: settings.hasPin ? requirePinExtra.checked : false,
+    allowExtraTime: settings.allowExtraTimeForAll ? storedAllowExtraTime : allowExtraTime.checked,
+    requirePinForExtraTime: settings.requirePinForAllExtraTime
+      ? storedRequirePinForExtraTime
+      : settings.hasPin ? requirePinExtra.checked : false,
     intervals: intervals.length > 0 ? intervals : [{ ...DEFAULT_INTERVAL }]
   };
 }
@@ -2984,6 +3116,7 @@ function normalizeSettings(value) {
   return {
     hasPin: Boolean(value?.hasPin),
     requirePinForAllExtraTime: Boolean(value?.requirePinForAllExtraTime),
+    allowExtraTimeForAll: Boolean(value?.allowExtraTimeForAll),
     pinValue: sanitizePinValue(value?.pinValue)
   };
 }
@@ -3162,7 +3295,7 @@ function siteSummary(site, usage = null) {
     parts.push(`${Math.ceil(usage.remainingSeconds / 60)} min left`);
   }
 
-  if (site.allowExtraTime) {
+  if (settings.allowExtraTimeForAll || site.allowExtraTime) {
     parts.push("extra time on");
   }
 

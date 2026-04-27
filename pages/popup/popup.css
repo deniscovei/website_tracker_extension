@@ -1052,6 +1052,18 @@ h2 {
   color: #a72d4f;
 }
 
+#global-settings-status.error {
+  color: #a72d4f;
+}
+
+.global-settings-warning {
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e !important;
+  line-height: 1.35;
+  padding: 9px 10px;
+}
+
 .pin-field {
   display: grid;
   gap: 6px;
@@ -1339,6 +1351,14 @@ h2 {
   font-size: 0.76rem;
   font-weight: 700;
   line-height: 1.35;
+}
+
+.allowance-panel .field-note {
+  grid-column: 1 / -1;
+  margin: -4px 0 2px 26px;
+  color: #1d4ed8;
+  font-size: 0.74rem;
+  font-weight: 800;
 }
 
 .allowance-field input {
@@ -1869,7 +1889,8 @@ button:focus-visible {
   }
 
   #summary.error,
-  #pin-status.error {
+  #pin-status.error,
+  #global-settings-status.error {
     color: #f18eaa;
   }
 
@@ -1970,6 +1991,11 @@ button:focus-visible {
 
   .pin-input-wrap input:disabled {
     background: #111827;
+  }
+
+  .global-settings-warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24 !important;
   }
 
   .clock-hand,

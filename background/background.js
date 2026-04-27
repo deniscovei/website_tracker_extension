@@ -218,7 +218,7 @@ async function refreshRules() {
       ? getPomodoroStandardSites(schedule)
       : pomodoro.active && pomodoro.mode === "strict"
         ? []
-        : getActiveSites(schedule, now, usage);
+        : getActiveSites(schedule, now, usage, settings);
     const rules = pomodoro.active && pomodoro.mode === "strict"
       ? [createStrictPomodoroRule(pomodoro)]
       : activeSites.map((site, index) => createRedirectRule(index + 1, site));
@@ -316,11 +316,18 @@ async function saveSettings(value = {}) {
     pinValue = pin;
   }
 
-  const requirePinForAllExtraTime = Boolean(value.requirePinForAllExtraTime) && Boolean(pinHash);
+  const hasOwn = (key) => Object.prototype.hasOwnProperty.call(value, key);
+  const requirePinForAllExtraTime = (hasOwn("requirePinForAllExtraTime")
+    ? Boolean(value.requirePinForAllExtraTime)
+    : Boolean(current.requirePinForAllExtraTime)) && Boolean(pinHash);
+  const allowExtraTimeForAll = hasOwn("allowExtraTimeForAll")
+    ? Boolean(value.allowExtraTimeForAll)
+    : Boolean(current.allowExtraTimeForAll);
   const next = normalizeSettingsForStorage({
     pinHash,
     pinValue,
-    requirePinForAllExtraTime
+    requirePinForAllExtraTime,
+    allowExtraTimeForAll
   });
 
   await chrome.storage.local.set({ [SETTINGS_KEY]: next });
@@ -408,7 +415,8 @@ function normalizeSettingsForStorage(value = {}) {
   return {
     pinHash,
     pinValue: pinHash ? pinValue : "",
-    requirePinForAllExtraTime: Boolean(value.requirePinForAllExtraTime)
+    requirePinForAllExtraTime: Boolean(value.requirePinForAllExtraTime),
+    allowExtraTimeForAll: Boolean(value.allowExtraTimeForAll)
   };
 }
 
@@ -416,6 +424,7 @@ function publicSettings(settings) {
   return {
     hasPin: Boolean(settings.pinHash),
     requirePinForAllExtraTime: Boolean(settings.pinHash && settings.requirePinForAllExtraTime),
+    allowExtraTimeForAll: Boolean(settings.allowExtraTimeForAll),
     pinValue: settings.pinHash ? settings.pinValue : ""
   };
 }
@@ -575,10 +584,10 @@ function minutesToClock(totalMinutes) {
   return `${String(hours).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
 }
 
-function getActiveSites(schedule, now, usage) {
+function getActiveSites(schedule, now, usage, settings = {}) {
   return getNormalizedScheduleSites(schedule)
     .filter((site) => shouldBlockSite(site, now, usage))
-    .map((site) => toActiveSite(site));
+    .map((site) => toActiveSite(site, settings));
 }
 
 function getPomodoroStandardSites(schedule) {
@@ -600,11 +609,11 @@ function getNormalizedScheduleSites(schedule) {
     .filter((site) => site.domains.length > 0);
 }
 
-function toActiveSite(site) {
+function toActiveSite(site, settings = {}) {
   return {
     name: site.name,
     domain: site.domain,
-    allowExtraTime: site.allowExtraTime,
+    allowExtraTime: isExtraTimeAllowed(site, settings),
     domains: site.domains
   };
 }
@@ -1038,7 +1047,7 @@ async function addExtraTime(domain, minutes, pin = "") {
     throw new Error("This website is not in the schedule.");
   }
 
-  if (!site.allowExtraTime) {
+  if (!isExtraTimeAllowed(site, settings)) {
     throw new Error("Extra time is disabled for this website.");
   }
 
@@ -1346,7 +1355,7 @@ function buildSiteUsageState(site, now, usage, settings = {}, pomodoro = normali
   return {
     found: true,
     domain: site.domain,
-    allowExtraTime: pomodoroBlocking ? false : site.allowExtraTime,
+    allowExtraTime: pomodoroBlocking ? false : isExtraTimeAllowed(site, settings),
     dailyAllowanceMinutes: site.dailyAllowanceMinutes,
     extraSeconds: entry.extraSeconds,
     extraUntil: entry.extraUntil,
@@ -1367,6 +1376,10 @@ function isPomodoroBlockingSite(site, pomodoro = normalizePomodoroState()) {
 
 function isExtraTimePinRequired(site, settings = {}) {
   return Boolean(settings.pinHash && (settings.requirePinForAllExtraTime || site.requirePinForExtraTime));
+}
+
+function isExtraTimeAllowed(site, settings = {}) {
+  return Boolean(settings.allowExtraTimeForAll || site.allowExtraTime);
 }
 
 function getTimeParts(timezone = "local") {
