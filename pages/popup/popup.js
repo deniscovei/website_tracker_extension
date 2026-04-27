@@ -3326,8 +3326,8 @@ function siteSummary(site, usage = null) {
     parts.push(`${site.dailyAllowanceMinutes} min/day`);
   }
 
-  if ((site.dailyAllowanceMinutes > 0 || usage?.extraSeconds > 0) && usage) {
-    parts.push(`${Math.ceil(usage.remainingSeconds / 60)} min left`);
+  if ((usage?.extraRemainingSeconds || 0) > 0) {
+    parts.push(`${Math.ceil(usage.extraRemainingSeconds / 60)} min left`);
   }
 
   if (settings.allowExtraTimeForAll || site.allowExtraTime) {
