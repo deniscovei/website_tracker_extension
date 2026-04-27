@@ -9,7 +9,10 @@ const TRACKING_KEY = "scheduleBlockerTracking";
 const SCREEN_TRACKING_KEY = "scheduleBlockerScreenTracking";
 const SETTINGS_KEY = "websiteTrackerSettings";
 const POMODORO_KEY = "scheduleBlockerPomodoro";
+const POMODORO_HISTORY_KEY = "scheduleBlockerPomodoroHistory";
 const POMODORO_ALARM = "schedule-blocker-pomodoro";
+const MAX_POMODORO_HISTORY_DAYS = 90;
+const MAX_POMODORO_HISTORY_ITEMS = 500;
 const MAX_USAGE_HISTORY_DAYS = 30;
 const MAX_TRACKING_GAP_SECONDS = 2 * 60;
 const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -46,7 +49,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === REFRESH_ALARM) {
     void tick();
   } else if (alarm.name === POMODORO_ALARM) {
-    void stopPomodoro();
+    void stopPomodoro({ completed: true });
   }
 });
 
@@ -170,6 +173,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "get-pomodoro-stats") {
+    getPomodoroStats(message.date)
+      .then((stats) => sendResponse({ ok: true, stats }))
+      .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
+
+    return true;
+  }
+
   if (message?.type === "start-pomodoro") {
     startPomodoro(message)
       .then((data) => sendResponse({ ok: true, ...data }))
@@ -238,12 +249,20 @@ async function refreshRules() {
     await updateBadge(pomodoro.active ? "F" : activeSites.length);
     return state;
   } catch (error) {
+    let fallbackPomodoro = normalizePomodoroState();
+
+    try {
+      fallbackPomodoro = await loadPomodoroState();
+    } catch (_pomodoroError) {
+    }
+
     await replaceDynamicRules([]);
     await saveState({
       activeSites: [],
       error: serializeError(error),
       lastUpdated: Date.now(),
-      pomodoro: normalizePomodoroState(),
+      pomodoro: fallbackPomodoro,
+      siteUsage: [],
       timezone: "local"
     });
     await updateBadge(null, true);
@@ -339,6 +358,7 @@ async function loadPomodoroState() {
   const pomodoro = normalizePomodoroState(stored[POMODORO_KEY]);
 
   if (stored[POMODORO_KEY]?.active && !pomodoro.active) {
+    await appendPomodoroHistory(normalizePomodoroHistorySource(stored[POMODORO_KEY]), { completed: true });
     await savePomodoroState(pomodoro);
     await chrome.alarms.clear(POMODORO_ALARM);
   }
@@ -364,37 +384,258 @@ async function restorePomodoroAlarm() {
 
 async function startPomodoro({ duration = 30, mode = "standard", whitelist = [] } = {}) {
   const durationInMinutes = Math.max(1, Math.min(120, Math.round(Number(duration) || 30)));
-  const until = Date.now() + durationInMinutes * 60 * 1000;
-  const pomodoro = normalizePomodoroState({
+  const startedAt = Date.now();
+  const until = startedAt + durationInMinutes * 60 * 1000;
+  const pomodoro = await savePomodoroState({
     active: true,
+    startedAt,
     until,
+    durationMinutes: durationInMinutes,
     mode,
     whitelist
   });
 
-  await chrome.storage.local.set({ [POMODORO_KEY]: pomodoro });
+  await chrome.alarms.clear(POMODORO_ALARM);
   await chrome.alarms.create(POMODORO_ALARM, { when: pomodoro.until });
-  const state = await refreshRules();
-  await enforceActiveTabBlock(state);
+
+  let state = createPomodoroFallbackState(pomodoro);
+
+  try {
+    state = await refreshRules();
+    await enforceActiveTabBlock(state);
+  } catch (error) {
+    state = {
+      ...state,
+      error: serializeError(error),
+      lastUpdated: Date.now()
+    };
+    await saveState(state);
+  }
 
   return { pomodoro, state };
 }
 
-async function stopPomodoro() {
+async function stopPomodoro({ completed = false } = {}) {
+  const stored = await chrome.storage.local.get(POMODORO_KEY);
+  const previousPomodoro = normalizePomodoroHistorySource(stored[POMODORO_KEY]);
+
   await chrome.alarms.clear(POMODORO_ALARM);
+
+  if (previousPomodoro.active) {
+    await appendPomodoroHistory(previousPomodoro, { completed });
+  }
+
   const pomodoro = await savePomodoroState();
-  const state = await refreshRules();
+  let state = createPomodoroFallbackState(pomodoro);
+
+  try {
+    state = await refreshRules();
+  } catch (error) {
+    state = {
+      ...state,
+      error: serializeError(error),
+      lastUpdated: Date.now()
+    };
+    await saveState(state);
+  }
 
   return { pomodoro, state };
+}
+
+function normalizePomodoroHistorySource(value = {}) {
+  const until = normalizeTimestamp(value?.until);
+  const durationMinutes = Math.max(1, Math.min(120, Math.round(Number(value?.durationMinutes) || 0)));
+  const startedAt = normalizeTimestamp(value?.startedAt) || Math.max(0, until - durationMinutes * 60 * 1000);
+  const active = Boolean(value?.active) && until > 0 && startedAt > 0;
+
+  return {
+    active,
+    startedAt,
+    until,
+    durationMinutes,
+    mode: value?.mode === "strict" ? "strict" : "standard",
+    whitelist: normalizeWhitelist(value?.whitelist)
+  };
+}
+
+async function appendPomodoroHistory(source, { completed = false } = {}) {
+  if (!source?.active || !source.startedAt || !source.until) {
+    return;
+  }
+
+  const now = Date.now();
+  const endedAt = completed ? source.until : Math.min(now, source.until);
+  const elapsedSeconds = Math.max(0, Math.round((endedAt - source.startedAt) / 1000));
+
+  if (elapsedSeconds < 1) {
+    return;
+  }
+
+  const plannedSeconds = Math.max(60, Math.round(source.durationMinutes * 60));
+  const wasCompleted = Boolean(completed || elapsedSeconds >= plannedSeconds - 2);
+  const entry = normalizePomodoroHistoryEntry({
+    id: `${source.startedAt}-${source.until}-${source.mode}`,
+    date: dateKeyFromTimestamp(source.startedAt),
+    startedAt: source.startedAt,
+    endedAt,
+    plannedSeconds,
+    elapsedSeconds: Math.min(elapsedSeconds, plannedSeconds),
+    completed: wasCompleted,
+    mode: source.mode,
+    whitelistCount: source.whitelist.length
+  });
+
+  const stored = await chrome.storage.local.get(POMODORO_HISTORY_KEY);
+  const history = normalizePomodoroHistory(stored[POMODORO_HISTORY_KEY]);
+  const withoutDuplicate = history.filter((item) => item.id !== entry.id);
+
+  await chrome.storage.local.set({
+    [POMODORO_HISTORY_KEY]: prunePomodoroHistory([entry, ...withoutDuplicate])
+  });
+}
+
+async function getPomodoroStats(date = "") {
+  const selectedDate = /^\d{4}-\d{2}-\d{2}$/.test(String(date || "")) ? String(date) : getDateKey();
+  const stored = await chrome.storage.local.get(POMODORO_HISTORY_KEY);
+  const history = normalizePomodoroHistory(stored[POMODORO_HISTORY_KEY]);
+  const selectedSessions = history
+    .filter((entry) => entry.date === selectedDate)
+    .sort((a, b) => b.startedAt - a.startedAt);
+
+  const last7Days = Array.from({ length: 7 }, (_item, index) => {
+    const dateObject = new Date();
+    dateObject.setDate(dateObject.getDate() - (6 - index));
+    const day = dateKeyFromDate(dateObject);
+    const sessions = history.filter((entry) => entry.date === day);
+    const totalSeconds = sessions.reduce((sum, entry) => sum + entry.elapsedSeconds, 0);
+
+    return {
+      date: day,
+      totalSeconds,
+      sessionCount: sessions.length,
+      completedCount: sessions.filter((entry) => entry.completed).length
+    };
+  });
+
+  const totalSeconds = selectedSessions.reduce((sum, entry) => sum + entry.elapsedSeconds, 0);
+  const completedCount = selectedSessions.filter((entry) => entry.completed).length;
+  const stoppedCount = selectedSessions.length - completedCount;
+
+  return {
+    date: selectedDate,
+    selectedDay: {
+      totalSeconds,
+      sessionCount: selectedSessions.length,
+      completedCount,
+      stoppedCount,
+      completionRate: selectedSessions.length > 0 ? Math.round((completedCount / selectedSessions.length) * 100) : 0,
+      sessions: selectedSessions
+    },
+    today: {
+      date: getDateKey(),
+      totalSeconds: history
+        .filter((entry) => entry.date === getDateKey())
+        .reduce((sum, entry) => sum + entry.elapsedSeconds, 0)
+    },
+    last7Days,
+    streakDays: getPomodoroStreakDays(history),
+    totalSessions: history.length
+  };
+}
+
+function normalizePomodoroHistory(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map(normalizePomodoroHistoryEntry)
+    .filter((entry) => entry.id && entry.startedAt > 0 && entry.endedAt >= entry.startedAt && entry.elapsedSeconds > 0)
+    .sort((a, b) => b.startedAt - a.startedAt);
+}
+
+function normalizePomodoroHistoryEntry(value = {}) {
+  const startedAt = normalizeTimestamp(value?.startedAt);
+  const endedAt = normalizeTimestamp(value?.endedAt);
+  const elapsedSeconds = Math.max(0, Math.round(Number(value?.elapsedSeconds) || 0));
+  const plannedSeconds = Math.max(0, Math.round(Number(value?.plannedSeconds) || 0));
+
+  return {
+    id: typeof value?.id === "string" ? value.id : `${startedAt}-${endedAt}`,
+    date: /^\d{4}-\d{2}-\d{2}$/.test(String(value?.date || "")) ? String(value.date) : dateKeyFromTimestamp(startedAt || Date.now()),
+    startedAt,
+    endedAt,
+    plannedSeconds,
+    elapsedSeconds,
+    completed: Boolean(value?.completed),
+    mode: value?.mode === "strict" ? "strict" : "standard",
+    whitelistCount: Math.max(0, Math.round(Number(value?.whitelistCount) || 0))
+  };
+}
+
+function prunePomodoroHistory(history) {
+  const cutoff = Date.now() - MAX_POMODORO_HISTORY_DAYS * 24 * 60 * 60 * 1000;
+
+  return normalizePomodoroHistory(history)
+    .filter((entry) => entry.startedAt >= cutoff)
+    .slice(0, MAX_POMODORO_HISTORY_ITEMS);
+}
+
+function getPomodoroStreakDays(history) {
+  const activeDays = new Set(
+    normalizePomodoroHistory(history)
+      .filter((entry) => entry.elapsedSeconds > 0)
+      .map((entry) => entry.date)
+  );
+
+  let streak = 0;
+  const date = new Date();
+
+  while (activeDays.has(dateKeyFromDate(date))) {
+    streak += 1;
+    date.setDate(date.getDate() - 1);
+  }
+
+  return streak;
+}
+
+function dateKeyFromTimestamp(timestamp) {
+  return dateKeyFromDate(new Date(timestamp));
+}
+
+function dateKeyFromDate(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
+function createPomodoroFallbackState(pomodoro) {
+  return {
+    activeSites: [],
+    error: "",
+    lastUpdated: Date.now(),
+    pomodoro: normalizePomodoroState(pomodoro),
+    siteUsage: [],
+    timezone: "local"
+  };
 }
 
 function normalizePomodoroState(value = {}) {
   const until = normalizeTimestamp(value?.until);
   const active = Boolean(value?.active) && until > Date.now();
+  const durationMinutes = Math.max(0, Math.min(120, Math.round(Number(value?.durationMinutes) || 0)));
+  const startedAt = normalizeTimestamp(value?.startedAt);
+  const fallbackStartedAt = active && durationMinutes > 0
+    ? Math.max(0, until - durationMinutes * 60 * 1000)
+    : 0;
 
   return {
     active,
     until: active ? until : 0,
+    startedAt: active ? startedAt || fallbackStartedAt || Date.now() : 0,
+    durationMinutes: active ? durationMinutes || Math.max(1, Math.round((until - (startedAt || Date.now())) / 60000)) : 0,
     mode: value?.mode === "strict" ? "strict" : "standard",
     whitelist: normalizeWhitelist(value?.whitelist)
   };
@@ -963,6 +1204,8 @@ async function enforceActiveTabBlock(state) {
   if (state.pomodoro?.active && state.pomodoro.mode === "strict") {
     if (!isStrictPomodoroAllowed(host, state.pomodoro)) {
       await chrome.tabs.update(tab.id, { url: getPomodoroBlockedPageUrl() });
+    } else {
+      await hideStatePreservingBlock(tab.id);
     }
 
     return;
@@ -973,10 +1216,55 @@ async function enforceActiveTabBlock(state) {
   });
 
   if (!blockedSite) {
+    await hideStatePreservingBlock(tab.id);
     return;
   }
 
-  await chrome.tabs.update(tab.id, { url: getBlockedPageUrl(blockedSite.domain || blockedSite.domains[0]) });
+  const blockedDomain = blockedSite.domain || blockedSite.domains?.[0] || host;
+  const showedOverlay = await showStatePreservingBlock(tab.id, blockedDomain);
+
+  if (!showedOverlay) {
+    await chrome.tabs.update(tab.id, { url: getBlockedPageUrl(blockedDomain, tab.url) });
+  }
+}
+
+async function showStatePreservingBlock(tabId, domain) {
+  try {
+    const status = await getSiteStatus(domain);
+
+    await ensureStatePreservingContentScript(tabId);
+    const response = await chrome.tabs.sendMessage(tabId, {
+      type: "focus-tracker-show-state-blocker",
+      status
+    });
+
+    return Boolean(response?.ok);
+  } catch (_error) {
+    return false;
+  }
+}
+
+async function hideStatePreservingBlock(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "focus-tracker-hide-state-blocker" });
+  } catch (_error) {
+  }
+}
+
+async function ensureStatePreservingContentScript(tabId) {
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, { type: "focus-tracker-ping-state-blocker" });
+
+    if (response?.ok) {
+      return;
+    }
+  } catch (_error) {
+  }
+
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["content/state-preserving-block.js"]
+  });
 }
 
 async function getActiveHttpTab() {
@@ -1467,8 +1755,15 @@ function isStrictPomodoroAllowed(host, pomodoro) {
   return normalizeWhitelist(pomodoro?.whitelist).some((domain) => domainMatches(normalizedHost, domain));
 }
 
-function getBlockedPageUrl(domain) {
-  return chrome.runtime.getURL(`${BLOCKED_PAGE.slice(1)}?site=${encodeURIComponent(domain)}`);
+function getBlockedPageUrl(domain, targetUrl = "") {
+  const params = new URLSearchParams({ site: domain || "" });
+  const target = normalizeHttpUrl(targetUrl);
+
+  if (target) {
+    params.set("target", target);
+  }
+
+  return chrome.runtime.getURL(`${BLOCKED_PAGE.slice(1)}?${params.toString()}`);
 }
 
 function getPomodoroBlockedPageUrl() {

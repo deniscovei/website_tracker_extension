@@ -9,11 +9,19 @@
   <body>
     <main class="blocked-shell">
       <section class="blocked-panel" aria-labelledby="blocked-title">
-        <p class="eyebrow">Focus Tracker</p>
-        <h1 id="blocked-title">This website is blocked right now.</h1>
+        <header class="brand-header" aria-label="Focus Tracker">
+          <img class="brand-icon" src="../../assets/icons/icon48.png" alt="" aria-hidden="true">
+          <p class="brand-name">Focus Tracker</p>
+        </header>
+        <h1 id="blocked-title">This website is blocked</h1>
         <p id="blocked-message" class="message">
-          The current time is inside one of its blocked slots.
+          Your time is up for this website.
         </p>
+        <section id="pomodoro-block" class="pomodoro-block" hidden aria-live="polite">
+          <p class="pomodoro-label">Time remaining</p>
+          <strong id="blocked-pomodoro-timer" class="blocked-pomodoro-timer">--:--</strong>
+          <p id="blocked-pomodoro-mode" class="blocked-pomodoro-mode"></p>
+        </section>
         <section id="extra-time" class="extra-time" hidden>
           <div id="popup-view-root"></div>
         </section>

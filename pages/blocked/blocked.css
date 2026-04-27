@@ -30,12 +30,37 @@ button {
 }
 
 .blocked-panel {
-  width: min(560px, 100%);
+  width: min(520px, 100%);
   border: 1px solid rgba(22, 32, 28, 0.14);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 24px 80px rgba(22, 32, 28, 0.13);
-  padding: clamp(24px, 5vw, 44px);
+  padding: clamp(22px, 4.5vw, 36px);
+  text-align: center;
+}
+
+.brand-header {
+  display: inline-grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto 18px;
+  text-align: left;
+}
+
+.brand-icon {
+  width: 32px;
+  height: 32px;
+  display: block;
+}
+
+.brand-name {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 1.1rem;
+  font-weight: 950;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
 }
 
 .eyebrow {
@@ -48,17 +73,55 @@ button {
 }
 
 h1 {
-  margin: 0;
-  font-size: clamp(2rem, 8vw, 3.65rem);
-  line-height: 0.98;
-  letter-spacing: 0;
+  max-width: 11ch;
+  margin: 0 auto;
+  font-size: clamp(1.9rem, 6vw, 2.8rem);
+  line-height: 1.06;
+  letter-spacing: -0.04em;
 }
 
 .message {
-  margin: 20px 0 0;
+  max-width: 28rem;
+  margin: 16px auto 0;
   color: #475569;
-  font-size: 1rem;
-  line-height: 1.6;
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+.pomodoro-block {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  margin: 24px auto 0;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-radius: 14px;
+  background: rgba(37, 99, 235, 0.08);
+  padding: 18px;
+}
+
+.pomodoro-block[hidden] {
+  display: none;
+}
+
+.pomodoro-label,
+.blocked-pomodoro-mode {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.pomodoro-label {
+  text-transform: uppercase;
+}
+
+.blocked-pomodoro-timer {
+  color: #1d4ed8;
+  font-size: clamp(2.4rem, 10vw, 4rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 950;
+  line-height: 1;
 }
 
 .extra-time {
@@ -93,7 +156,9 @@ h1 {
   background: #ffffff;
   color: #1d4ed8;
   cursor: pointer;
+  font-size: 1rem;
   font-weight: 800;
+  line-height: 1;
   padding: 0 14px;
 }
 
@@ -270,12 +335,26 @@ h1 {
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
   }
 
+  .pomodoro-block {
+    border-color: rgba(96, 165, 250, 0.2);
+    background: rgba(96, 165, 250, 0.12);
+  }
+
   .eyebrow {
     color: #f18eaa;
   }
 
   .message {
     color: #cbd5e1;
+  }
+
+  .pomodoro-label,
+  .blocked-pomodoro-mode {
+    color: #cbd5e1;
+  }
+
+  .blocked-pomodoro-timer {
+    color: #60a5fa;
   }
 
   .view-message {

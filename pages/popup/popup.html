@@ -12,19 +12,18 @@
         <button id="back" class="icon-button" type="button" aria-label="Back" hidden>&larr;</button>
         <img class="brand-icon" src="../../assets/icons/icon48.png" alt="" aria-hidden="true">
         <div>
-          <p class="eyebrow">Schedule</p>
           <h1>Focus Tracker</h1>
         </div>
       </header>
 
       <nav class="view-tabs" aria-label="Popup views">
-        <button id="schedule-tab" class="view-tab" type="button" aria-pressed="true">Schedule</button>
+        <button id="schedule-tab" class="view-tab" type="button" aria-pressed="true">Websites</button>
         <button id="usage-tab" class="view-tab" type="button" aria-pressed="false">Usage</button>
         <button id="focus-tab" class="view-tab" type="button" aria-pressed="false">Focus</button>
       </nav>
 
       <section class="status" aria-live="polite">
-        <p id="summary">Loading schedule status...</p>
+        <p id="summary">Loading website status....</p>
         <ul id="active-sites"></ul>
         <p id="updated"></p>
       </section>
@@ -32,7 +31,7 @@
       <section id="list-view" class="view">
         <div class="section-heading">
           <h2>Websites</h2>
-          <button id="new-site" class="primary-button" type="button">New site</button>
+          <button id="new-site" class="primary-button" type="button">Add website</button>
         </div>
         <ul id="site-list" class="site-list"></ul>
 
@@ -121,12 +120,12 @@
               <input id="allow-extra-time" type="checkbox">
               <span>Allow extra time</span>
             </label>
-            <p id="extra-time-global-note" class="field-note" hidden>This is currently enforced by your Global Settings.</p>
+            <p id="extra-time-global-note" class="field-note" hidden>Global Allow extra time is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
             <label id="require-pin-extra-row" class="toggle-field">
               <input id="require-pin-extra" type="checkbox">
               <span>Require PIN before adding time</span>
             </label>
-            <p id="pin-global-note" class="field-note" hidden>This is currently enforced by your Global Settings.</p>
+            <p id="pin-global-note" class="field-note" hidden>Global PIN requirement is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
           </section>
 
           <div id="slot-heading" class="section-heading compact">
@@ -140,6 +139,7 @@
           <div class="form-actions">
             <button id="editor-back" class="secondary-button" type="button">Back</button>
             <button id="delete-site" class="danger-button" type="button">Delete</button>
+            <button id="save-site" class="primary-button" type="submit">Save changes</button>
           </div>
         </form>
       </section>
@@ -270,7 +270,7 @@
                 <input type="radio" name="pomodoro-mode" value="standard" checked>
                 <span>
                   <strong>Standard</strong>
-                  <small>Block scheduled websites.</small>
+                  <small>Block websites in selected slots.</small>
                 </span>
               </label>
               <label class="pomodoro-mode">
@@ -295,6 +295,56 @@
             <p id="pomodoro-active-mode">Standard focus active</p>
             <button id="pomodoro-stop" class="secondary-button" type="button">Stop Focus Session</button>
           </div>
+        </section>
+
+        <button id="pomodoro-stats-toggle" class="secondary-button small pomodoro-stats-toggle" type="button" aria-expanded="false">
+          Show statistics
+        </button>
+
+        <section id="pomodoro-stats-panel" class="pomodoro-stats-panel" aria-labelledby="pomodoro-stats-title" hidden>
+          <div class="panel-heading">
+            <div>
+              <h2 id="pomodoro-stats-title">Focus statistics</h2>
+              <span id="pomodoro-stats-subtitle">Today</span>
+            </div>
+            <input id="pomodoro-stats-date" class="date-input" type="date">
+          </div>
+
+          <div class="pomodoro-stat-grid" aria-label="Focus statistics summary">
+            <div class="pomodoro-stat-card">
+              <span>Focused</span>
+              <strong id="pomodoro-stats-total">0m</strong>
+            </div>
+            <div class="pomodoro-stat-card">
+              <span>Sessions</span>
+              <strong id="pomodoro-stats-sessions">0</strong>
+            </div>
+            <div class="pomodoro-stat-card">
+              <span>Completed</span>
+              <strong id="pomodoro-stats-completed">0%</strong>
+            </div>
+            <div class="pomodoro-stat-card">
+              <span>Streak</span>
+              <strong id="pomodoro-stats-streak">0d</strong>
+            </div>
+          </div>
+
+          <section class="pomodoro-week-panel" aria-labelledby="pomodoro-week-title">
+            <div class="panel-heading compact">
+              <h3 id="pomodoro-week-title">Last 7 days</h3>
+              <span id="pomodoro-week-total">0m</span>
+            </div>
+            <div id="pomodoro-week-bars" class="pomodoro-week-bars" aria-label="Last 7 days focus chart"></div>
+          </section>
+
+          <section class="pomodoro-history-panel" aria-labelledby="pomodoro-history-title">
+            <div class="panel-heading compact">
+              <h3 id="pomodoro-history-title">Sessions</h3>
+              <span id="pomodoro-history-count">0</span>
+            </div>
+            <ul id="pomodoro-history-list" class="pomodoro-history-list"></ul>
+            <p id="pomodoro-history-empty" class="empty-state" hidden>No focus sessions for this day yet.</p>
+          </section>
         </section>
       </section>
     </main>

@@ -2,12 +2,13 @@
   "manifest_version": 3,
   "name": "Focus Tracker",
   "description": "Tracks website usage and blocks distracting sites by schedule.",
-  "version": "0.10.30",
+  "version": "0.10.31",
   "minimum_chrome_version": "101",
   "permissions": [
     "alarms",
     "declarativeNetRequest",
     "storage",
+    "scripting",
     "tabs"
   ],
   "host_permissions": [
@@ -36,7 +37,11 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "pages/blocked/blocked.html"
+        "pages/blocked/blocked.html",
+        "assets/icons/icon16.png",
+        "assets/icons/icon32.png",
+        "assets/icons/icon48.png",
+        "assets/icons/icon128.png"
       ],
       "matches": [
         "<all_urls>"

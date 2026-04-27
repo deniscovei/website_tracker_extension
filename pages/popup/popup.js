@@ -38,6 +38,7 @@ const slotHeading = document.getElementById("slot-heading");
 const intervalList = document.getElementById("interval-list");
 const addInterval = document.getElementById("add-interval");
 const deleteSite = document.getElementById("delete-site");
+const saveSite = document.getElementById("save-site");
 const editorBack = document.getElementById("editor-back");
 const formError = document.getElementById("form-error");
 const pinGlobal = document.getElementById("pin-global");
@@ -94,6 +95,19 @@ const pomodoroStart = document.getElementById("pomodoro-start");
 const pomodoroStop = document.getElementById("pomodoro-stop");
 const pomodoroTimer = document.getElementById("pomodoro-timer");
 const pomodoroActiveMode = document.getElementById("pomodoro-active-mode");
+const pomodoroStatsToggle = document.getElementById("pomodoro-stats-toggle");
+const pomodoroStatsPanel = document.getElementById("pomodoro-stats-panel");
+const pomodoroStatsDate = document.getElementById("pomodoro-stats-date");
+const pomodoroStatsSubtitle = document.getElementById("pomodoro-stats-subtitle");
+const pomodoroStatsTotal = document.getElementById("pomodoro-stats-total");
+const pomodoroStatsSessions = document.getElementById("pomodoro-stats-sessions");
+const pomodoroStatsCompleted = document.getElementById("pomodoro-stats-completed");
+const pomodoroStatsStreak = document.getElementById("pomodoro-stats-streak");
+const pomodoroWeekTotal = document.getElementById("pomodoro-week-total");
+const pomodoroWeekBars = document.getElementById("pomodoro-week-bars");
+const pomodoroHistoryCount = document.getElementById("pomodoro-history-count");
+const pomodoroHistoryList = document.getElementById("pomodoro-history-list");
+const pomodoroHistoryEmpty = document.getElementById("pomodoro-history-empty");
 
 const ALL_DAY_INTERVAL = {
   start: "00:00",
@@ -186,10 +200,15 @@ let selectedWeekDay = "";
 let popupPinVisible = false;
 let pinEditorOpen = false;
 let pinSaveInFlight = false;
+let globalSettingsSaveInFlight = false;
 let editorAutosaveTimer = 0;
 let editorAutosaveInFlight = false;
 let editorAutosaveQueued = false;
 let pomodoroTickTimer = 0;
+let pomodoroMutationStartedAt = 0;
+let pomodoroStatsVisible = false;
+let selectedPomodoroStatsDay = dateToDayKey(new Date());
+let pomodoroStatsData = null;
 let selectedUsageDay = dateToDayKey(new Date());
 let visibleWeekDay = selectedUsageDay;
 let currentDaySites = [];
@@ -237,11 +256,11 @@ nextHour?.addEventListener("click", () => {
 });
 
 pinGlobal?.addEventListener("change", () => {
-  void savePinRequirementToggle();
+  void saveGlobalSettingsToggle();
 });
 
 globalExtraTime?.addEventListener("change", () => {
-  void saveGlobalExtraTimeToggle();
+  void saveGlobalSettingsToggle();
 });
 
 pinCode?.addEventListener("input", () => {
@@ -405,6 +424,20 @@ newSite?.addEventListener("click", () => {
   });
 });
 
+pomodoroStatsToggle?.addEventListener("click", () => {
+  pomodoroStatsVisible = !pomodoroStatsVisible;
+  syncPomodoroStatsVisibility();
+
+  if (pomodoroStatsVisible) {
+    void loadPomodoroStats();
+  }
+});
+
+pomodoroStatsDate?.addEventListener("change", () => {
+  selectedPomodoroStatsDay = pomodoroStatsDate.value || dateToDayKey(new Date());
+  void loadPomodoroStats();
+});
+
 back?.addEventListener("click", showList);
 editorBack?.addEventListener("click", showList);
 
@@ -437,7 +470,7 @@ deleteSite?.addEventListener("click", async () => {
 
 siteForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  void autosaveEditor();
+  void autosaveEditor({ fromSubmit: true });
 });
 
 intervalList?.addEventListener("click", (event) => {
@@ -473,6 +506,7 @@ intervalList?.addEventListener("click", (event) => {
 void loadData();
 
 async function loadData() {
+  const loadStartedAt = Date.now();
   const [response, pomodoroResponse, storedSettings] = await Promise.all([
     chrome.runtime.sendMessage({ type: "get-schedule-data" }),
     chrome.runtime.sendMessage({ type: "get-pomodoro-state" }).catch(() => null),
@@ -489,7 +523,11 @@ async function loadData() {
   state = response.state;
   settings = normalizeSettings(response.settings);
   applyStoredGlobalSettings(storedSettings);
-  pomodoro = normalizePomodoro(pomodoroResponse?.ok ? pomodoroResponse.pomodoro : response.pomodoro || state?.pomodoro);
+  const loadedPomodoro = normalizePomodoro(pomodoroResponse?.ok ? pomodoroResponse.pomodoro : response.pomodoro || state?.pomodoro);
+
+  if (loadStartedAt >= pomodoroMutationStartedAt) {
+    pomodoro = loadedPomodoro;
+  }
   renderPinSettings();
   renderPomodoro();
   renderStatus();
@@ -539,80 +577,74 @@ async function savePinValue() {
   });
 }
 
-async function savePinRequirementToggle() {
-  if (!settings.hasPin) {
-    pinGlobal.checked = false;
-    syncGlobalSettingsView();
+async function saveGlobalSettingsToggle() {
+  if (!pinGlobal || !globalExtraTime || globalSettingsSaveInFlight) {
     return;
   }
 
-  const previousValue = Boolean(settings.requirePinForAllExtraTime);
-  const saved = await persistPinSettings({
-    statusTarget: "global",
-    successMessage: pinGlobal.checked
-      ? "PIN required for all websites."
-      : "PIN requirement updated."
-  });
+  const previousSettings = { ...settings };
+  const nextRequirePin = Boolean(settings.hasPin && pinGlobal.checked);
+  const nextAllowExtraTime = Boolean(globalExtraTime.checked);
 
-  if (!saved) {
-    pinGlobal.checked = previousValue;
-    syncGlobalSettingsView();
-  }
-}
+  globalSettingsSaveInFlight = true;
+  settings = {
+    ...settings,
+    requirePinForAllExtraTime: nextRequirePin,
+    allowExtraTimeForAll: nextAllowExtraTime
+  };
 
-async function saveGlobalExtraTimeToggle() {
-  if (!globalExtraTime) {
-    return;
-  }
+  pinGlobal.checked = nextRequirePin;
+  globalExtraTime.checked = nextAllowExtraTime;
 
-  const previousValue = Boolean(settings.allowExtraTimeForAll);
-  const nextValue = Boolean(globalExtraTime.checked);
-
-  settings.allowExtraTimeForAll = nextValue;
-  globalExtraTime.checked = nextValue;
   setSettingsStatus("global", "Saving...");
   syncGlobalSettingsView();
   syncEditorGlobalOverrideView();
   renderSiteList();
 
   try {
-    const stored = await chrome.storage.local.get(SETTINGS_KEY);
-    const current = stored[SETTINGS_KEY] && typeof stored[SETTINGS_KEY] === "object"
-      ? stored[SETTINGS_KEY]
-      : {};
-
-    await chrome.storage.local.set({
-      [SETTINGS_KEY]: {
-        ...current,
-        allowExtraTimeForAll: nextValue
+    const response = await chrome.runtime.sendMessage({
+      type: "save-settings",
+      settings: {
+        requirePinForAllExtraTime: nextRequirePin,
+        allowExtraTimeForAll: nextAllowExtraTime
       }
     });
 
-    try {
-      const response = await chrome.runtime.sendMessage({ type: "refresh-rules" });
-
-      if (response?.ok) {
-        state = response.state || state;
-      }
-    } catch (_error) {
-      // The setting is already saved; the next background tick will refresh rules.
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not save global settings.");
     }
 
-    renderGlobalSettings(nextValue
-      ? "Extra time is allowed for all websites."
-      : "Extra-time override updated.");
+    settings = normalizeSettings(response.settings || settings);
+    renderGlobalSettings("Global settings saved.");
     syncEditorGlobalOverrideView();
+
+    try {
+      const refreshResponse = await chrome.runtime.sendMessage({ type: "refresh-rules" });
+
+      if (refreshResponse?.ok) {
+        state = refreshResponse.state || state;
+      }
+    } catch (_error) {
+      // Settings were saved. The next background tick can refresh rules.
+    }
+
     renderStatus();
     renderSiteList();
   } catch (error) {
-    settings.allowExtraTimeForAll = previousValue;
-    globalExtraTime.checked = previousValue;
+    settings = previousSettings;
+    pinGlobal.checked = Boolean(previousSettings.requirePinForAllExtraTime);
+    globalExtraTime.checked = Boolean(previousSettings.allowExtraTimeForAll);
     setSettingsStatus("global", cleanError(error), { error: true });
-    syncGlobalSettingsView();
     syncEditorGlobalOverrideView();
     renderSiteList();
+  } finally {
+    globalSettingsSaveInFlight = false;
+    syncGlobalSettingsView();
   }
 }
+
+
+
 
 async function persistPinSettings({
   pin,
@@ -773,49 +805,46 @@ function syncPinSetupView() {
 
 function syncGlobalSettingsView() {
   const hasPin = Boolean(settings.hasPin);
+  const controlsBusy = pinSaveInFlight || globalSettingsSaveInFlight;
 
   if (!hasPin && pinGlobal) {
     pinGlobal.checked = false;
   }
 
   if (pinGlobal) {
-    pinGlobal.disabled = !hasPin || pinSaveInFlight;
+    pinGlobal.disabled = !hasPin || controlsBusy;
   }
 
   if (globalExtraTime) {
-    globalExtraTime.disabled = pinSaveInFlight;
+    globalExtraTime.disabled = controlsBusy;
   }
 
-  pinGlobalRow?.classList.toggle("is-disabled", !hasPin || pinSaveInFlight);
-  globalExtraTimeRow?.classList.toggle("is-disabled", pinSaveInFlight);
+  pinGlobalRow?.classList.toggle("is-disabled", !hasPin || controlsBusy);
+  globalExtraTimeRow?.classList.toggle("is-disabled", controlsBusy);
 }
 
 function syncEditorGlobalOverrideView(siteOverride = null) {
   const extraTimeEnforced = Boolean(settings.allowExtraTimeForAll);
   const pinEnforced = Boolean(settings.hasPin && settings.requirePinForAllExtraTime);
-  const editingSite = siteOverride || (editingIndex !== null ? schedule.sites[editingIndex] : null);
+  const pinControlDisabled = !settings.hasPin;
 
+  // Global settings still control the effective behavior, but they must not
+  // lock the per-website checkboxes. Users can save a website's individual
+  // preference now, and it becomes effective when the global override is off.
   if (allowExtraTime) {
-    const wasExtraTimeDisabled = allowExtraTime.disabled;
-    allowExtraTime.checked = extraTimeEnforced
-      ? true
-      : wasExtraTimeDisabled ? Boolean(editingSite?.allowExtraTime) : allowExtraTime.checked;
-    allowExtraTime.disabled = extraTimeEnforced;
-    allowExtraTime.closest(".toggle-field")?.classList.toggle("is-disabled", extraTimeEnforced);
+    allowExtraTime.disabled = false;
+    allowExtraTime.closest(".toggle-field")?.classList.remove("is-disabled");
   }
 
   if (extraTimeGlobalNote) {
     extraTimeGlobalNote.hidden = !extraTimeEnforced;
+    extraTimeGlobalNote.textContent = "Global Allow extra time is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
   }
 
-  requirePinExtraRow?.classList.toggle("is-disabled", pinEnforced || !settings.hasPin);
+  requirePinExtraRow?.classList.toggle("is-disabled", pinControlDisabled);
 
   if (requirePinExtra) {
-    const wasPinDisabled = requirePinExtra.disabled;
-    requirePinExtra.checked = pinEnforced
-      ? true
-      : wasPinDisabled && settings.hasPin ? Boolean(editingSite?.requirePinForExtraTime) : settings.hasPin && requirePinExtra.checked;
-    requirePinExtra.disabled = pinEnforced || !settings.hasPin;
+    requirePinExtra.disabled = pinControlDisabled;
 
     if (!settings.hasPin) {
       requirePinExtra.checked = false;
@@ -824,6 +853,7 @@ function syncEditorGlobalOverrideView(siteOverride = null) {
 
   if (pinGlobalNote) {
     pinGlobalNote.hidden = !pinEnforced;
+    pinGlobalNote.textContent = "Global PIN requirement is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
   }
 }
 
@@ -1025,6 +1055,187 @@ function renderPomodoro() {
   }
 }
 
+function syncPomodoroStatsVisibility() {
+  if (!pomodoroStatsToggle || !pomodoroStatsPanel) {
+    return;
+  }
+
+  pomodoroStatsPanel.hidden = !pomodoroStatsVisible;
+  pomodoroStatsToggle.textContent = pomodoroStatsVisible ? "Hide statistics" : "Show statistics";
+  pomodoroStatsToggle.setAttribute("aria-expanded", String(pomodoroStatsVisible));
+
+  if (pomodoroStatsDate && !pomodoroStatsDate.value) {
+    pomodoroStatsDate.value = selectedPomodoroStatsDay;
+  }
+}
+
+async function loadPomodoroStats() {
+  if (!pomodoroStatsPanel) {
+    return;
+  }
+
+  syncPomodoroStatsVisibility();
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "get-pomodoro-stats",
+      date: selectedPomodoroStatsDay
+    });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not load focus statistics.");
+    }
+
+    pomodoroStatsData = response.stats;
+    renderPomodoroStats();
+  } catch (error) {
+    if (pomodoroHistoryEmpty) {
+      pomodoroHistoryEmpty.hidden = false;
+      pomodoroHistoryEmpty.textContent = cleanError(error);
+    }
+  }
+}
+
+function renderPomodoroStats() {
+  const stats = pomodoroStatsData;
+
+  if (!stats) {
+    return;
+  }
+
+  const selected = stats.selectedDay || {};
+  const sessions = Array.isArray(selected.sessions) ? selected.sessions : [];
+  const last7Days = Array.isArray(stats.last7Days) ? stats.last7Days : [];
+  const weekTotalSeconds = last7Days.reduce((sum, day) => sum + Math.max(0, Number(day.totalSeconds) || 0), 0);
+
+  if (pomodoroStatsDate) {
+    pomodoroStatsDate.value = stats.date || selectedPomodoroStatsDay;
+  }
+
+  if (pomodoroStatsSubtitle) {
+    pomodoroStatsSubtitle.textContent = formatDayLabel(stats.date);
+  }
+
+  if (pomodoroStatsTotal) {
+    pomodoroStatsTotal.textContent = formatDuration(selected.totalSeconds || 0);
+  }
+
+  if (pomodoroStatsSessions) {
+    pomodoroStatsSessions.textContent = String(selected.sessionCount || 0);
+  }
+
+  if (pomodoroStatsCompleted) {
+    pomodoroStatsCompleted.textContent = `${selected.completionRate || 0}%`;
+  }
+
+  if (pomodoroStatsStreak) {
+    pomodoroStatsStreak.textContent = `${stats.streakDays || 0}d`;
+  }
+
+  if (pomodoroWeekTotal) {
+    pomodoroWeekTotal.textContent = formatDuration(weekTotalSeconds);
+  }
+
+  renderPomodoroWeekBars(last7Days);
+  renderPomodoroHistory(sessions);
+}
+
+function renderPomodoroWeekBars(days) {
+  if (!pomodoroWeekBars) {
+    return;
+  }
+
+  pomodoroWeekBars.replaceChildren();
+
+  const maxSeconds = Math.max(1, ...days.map((day) => Math.max(0, Number(day.totalSeconds) || 0)));
+
+  days.forEach((day) => {
+    const button = document.createElement("button");
+    const bar = document.createElement("span");
+    const label = document.createElement("small");
+    const amount = document.createElement("strong");
+    const totalSeconds = Math.max(0, Number(day.totalSeconds) || 0);
+
+    button.type = "button";
+    button.className = "pomodoro-week-day";
+    button.setAttribute("aria-pressed", String(day.date === selectedPomodoroStatsDay));
+    button.addEventListener("click", () => {
+      selectedPomodoroStatsDay = day.date;
+
+      if (pomodoroStatsDate) {
+        pomodoroStatsDate.value = day.date;
+      }
+
+      void loadPomodoroStats();
+    });
+
+    bar.className = "pomodoro-week-bar";
+    bar.style.setProperty("--height", `${Math.max(6, Math.round(totalSeconds / maxSeconds * 100))}%`);
+
+    label.textContent = formatShortWeekday(day.date);
+    amount.textContent = formatDuration(totalSeconds);
+
+    button.append(bar, label, amount);
+    pomodoroWeekBars.append(button);
+  });
+}
+
+function renderPomodoroHistory(sessions) {
+  if (!pomodoroHistoryList || !pomodoroHistoryCount || !pomodoroHistoryEmpty) {
+    return;
+  }
+
+  pomodoroHistoryList.replaceChildren();
+  pomodoroHistoryCount.textContent = String(sessions.length);
+  pomodoroHistoryEmpty.hidden = sessions.length > 0;
+  pomodoroHistoryEmpty.textContent = "No focus sessions for this day yet.";
+
+  if (sessions.length === 0) {
+    return;
+  }
+
+  sessions.forEach((session) => {
+    const item = document.createElement("li");
+    const main = document.createElement("div");
+    const title = document.createElement("strong");
+    const meta = document.createElement("span");
+    const status = document.createElement("span");
+
+    item.className = "pomodoro-history-item";
+    main.className = "pomodoro-history-copy";
+    title.textContent = `${session.mode === "strict" ? "Strict" : "Standard"} focus`;
+    meta.textContent = `${formatTimeRange(session.startedAt, session.endedAt)} · ${formatDuration(session.elapsedSeconds)}`;
+
+    status.className = session.completed ? "session-badge is-completed" : "session-badge is-stopped";
+    status.textContent = session.completed ? "Completed" : "Stopped";
+
+    main.append(title, meta);
+    item.append(main, status);
+    pomodoroHistoryList.append(item);
+  });
+}
+
+function formatShortWeekday(day) {
+  const date = parseDayKey(day);
+
+  if (!date) {
+    return "";
+  }
+
+  return date.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3);
+}
+
+function formatTimeRange(start, end) {
+  const startDate = new Date(Number(start) || 0);
+  const endDate = new Date(Number(end) || 0);
+
+  if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) {
+    return "";
+  }
+
+  return `${startDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – ${endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+}
+
 function syncPomodoroModeView() {
   const mode = getSelectedPomodoroMode();
   const isStrict = mode === "strict";
@@ -1140,12 +1351,15 @@ async function startPomodoroSession() {
   const whitelistText = pomodoroWhitelist?.value || "";
   const whitelist = parsePomodoroWhitelist(whitelistText);
   const duration = getPreferredPomodoroMinutes();
+  const mutationStartedAt = Date.now();
   const optimisticPomodoro = normalizePomodoro({
     active: true,
-    until: Date.now() + duration * 60 * 1000,
+    until: mutationStartedAt + duration * 60 * 1000,
     mode,
     whitelist
   });
+
+  pomodoroMutationStartedAt = mutationStartedAt;
 
   pomodoroStart.disabled = true;
   pomodoro = optimisticPomodoro;
@@ -1168,10 +1382,23 @@ async function startPomodoroSession() {
     }
 
     state = response.state || state;
-    pomodoro = normalizePomodoro(response.pomodoro || state?.pomodoro);
+    const confirmedPomodoro = normalizePomodoro(response.pomodoro || state?.pomodoro);
+    pomodoro = confirmedPomodoro.active ? confirmedPomodoro : optimisticPomodoro;
+
+    if (state) {
+      state = {
+        ...state,
+        pomodoro
+      };
+    }
+
     renderPomodoro();
     renderStatus();
     renderSiteList();
+
+    if (pomodoroStatsVisible) {
+      void loadPomodoroStats();
+    }
   } catch (error) {
     const recoveredPomodoro = await fetchPomodoroState();
 
@@ -1211,6 +1438,7 @@ async function stopPomodoroSession() {
 
   const previousPomodoro = pomodoro;
 
+  pomodoroMutationStartedAt = Date.now();
   pomodoroStop.disabled = true;
   pomodoro = normalizePomodoro();
   renderPomodoro();
@@ -1227,6 +1455,10 @@ async function stopPomodoroSession() {
     renderPomodoro();
     renderStatus();
     renderSiteList();
+
+    if (pomodoroStatsVisible) {
+      void loadPomodoroStats();
+    }
   } catch (error) {
     pomodoro = previousPomodoro;
     renderPomodoro();
@@ -1265,6 +1497,10 @@ function updatePomodoroCountdown() {
     pomodoro = normalizePomodoro();
     renderPomodoro();
     void loadData();
+
+    if (pomodoroStatsVisible) {
+      void loadPomodoroStats();
+    }
   }
 }
 
@@ -1387,6 +1623,13 @@ function openEditor(site) {
   statusPanel.hidden = false;
   back.hidden = false;
   deleteSite.hidden = editingIndex === null;
+  siteForm?.classList.toggle("is-new-site", editingIndex === null);
+
+  if (saveSite) {
+    saveSite.textContent = editingIndex === null ? "Add website" : "Save changes";
+    saveSite.disabled = false;
+  }
+
   siteDomain.focus();
 }
 
@@ -1440,14 +1683,22 @@ function queueEditorAutosave({ immediate = false } = {}) {
     return;
   }
 
+  if (editingIndex === null) {
+    return;
+  }
+
   clearTimeout(editorAutosaveTimer);
   editorAutosaveTimer = window.setTimeout(() => {
     void autosaveEditor();
   }, immediate ? 0 : 350);
 }
 
-async function autosaveEditor() {
+async function autosaveEditor({ fromSubmit = false } = {}) {
   if (editorView.hidden) {
+    return;
+  }
+
+  if (editingIndex === null && !fromSubmit) {
     return;
   }
 
@@ -1475,13 +1726,19 @@ async function autosaveEditor() {
   }
 
   editorAutosaveInFlight = true;
+
+  if (saveSite) {
+    saveSite.disabled = true;
+    saveSite.textContent = editingIndex === null ? "Adding..." : "Saving...";
+  }
+
   const previousIndex = editingIndex;
   const previousSite = previousIndex === null ? null : cloneSite(schedule.sites[previousIndex]);
 
-  if (previousIndex === null) {
+  if (previousIndex === null && fromSubmit) {
     schedule.sites.push(site);
     editingIndex = schedule.sites.length - 1;
-  } else {
+  } else if (previousIndex !== null) {
     schedule.sites[previousIndex] = site;
   }
 
@@ -1489,6 +1746,15 @@ async function autosaveEditor() {
     await persistSchedule();
     deleteSite.hidden = editingIndex === null;
     clearFormError();
+
+    if (saveSite) {
+      saveSite.textContent = editingIndex === null ? "Add website" : "Save changes";
+    }
+
+    if (fromSubmit && previousIndex === null) {
+      showList();
+      return;
+    }
   } catch (error) {
     if (previousIndex === null) {
       schedule.sites.pop();
@@ -1502,6 +1768,11 @@ async function autosaveEditor() {
   } finally {
     editorAutosaveInFlight = false;
 
+    if (saveSite) {
+      saveSite.disabled = false;
+      saveSite.textContent = editingIndex === null ? "Add website" : "Save changes";
+    }
+
     if (editorAutosaveQueued) {
       editorAutosaveQueued = false;
       void autosaveEditor();
@@ -1511,6 +1782,7 @@ async function autosaveEditor() {
 
 function showList() {
   clearTimeout(editorAutosaveTimer);
+  siteForm?.classList.remove("is-new-site");
   scheduleTab?.setAttribute("aria-pressed", "true");
   usageTab?.setAttribute("aria-pressed", "false");
   focusTab?.setAttribute("aria-pressed", "false");
@@ -1557,6 +1829,11 @@ function showFocusView() {
   focusView.hidden = false;
   back.hidden = true;
   renderPomodoro();
+  syncPomodoroStatsVisibility();
+
+  if (pomodoroStatsVisible) {
+    void loadPomodoroStats();
+  }
 }
 
 async function loadUsageData() {
@@ -3369,11 +3646,11 @@ function siteSummary(site, usage = null) {
   }
 
   if (settings.allowExtraTimeForAll || site.allowExtraTime) {
-    parts.push("adding minutes on");
+    parts.push("extra time allowed");
   }
 
   if (settings.hasPin && (site.requirePinForExtraTime || settings.requirePinForAllExtraTime)) {
-    parts.push("PIN for adding minutes");
+    parts.push("PIN required for extra time");
   }
 
   return parts.join(" · ");

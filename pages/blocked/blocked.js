@@ -4,6 +4,10 @@ const extraTime = document.getElementById("extra-time");
 const popupViewRoot = document.getElementById("popup-view-root");
 const blockedTitle = document.getElementById("blocked-title");
 const blockedMessage = document.getElementById("blocked-message");
+const pomodoroBlock = document.getElementById("pomodoro-block");
+const blockedPomodoroTimer = document.getElementById("blocked-pomodoro-timer");
+const blockedPomodoroMode = document.getElementById("blocked-pomodoro-mode");
+const isPomodoroOnlyPage = params.get("pomodoro") === "1";
 
 const VIEW_STATE = {
   SELECT: "select",
@@ -19,14 +23,28 @@ let blockedPinVisible = false;
 let actionInFlight = false;
 let pinDraft = "";
 let pinError = "";
+let pomodoroTickTimer = 0;
 
 void loadExtraTimeStatus();
+
+window.addEventListener("beforeunload", clearPomodoroTimer);
 
 async function loadExtraTimeStatus() {
   const pomodoro = await loadPomodoroState();
 
   if (pomodoro.active) {
     renderPomodoroBlock(pomodoro);
+    return;
+  }
+
+  clearPomodoroTimer();
+
+  if (pomodoroBlock) {
+    pomodoroBlock.hidden = true;
+  }
+
+  if (isPomodoroOnlyPage) {
+    renderPomodoroEnded();
     return;
   }
 
@@ -79,17 +97,108 @@ async function loadPomodoroState() {
 }
 
 function renderPomodoroBlock(pomodoro) {
+  const activePomodoro = normalizePomodoro(pomodoro);
+
+  if (!activePomodoro.active) {
+    renderPomodoroEnded();
+    return;
+  }
+
+  clearPomodoroTimer();
+
   if (blockedTitle) {
-    blockedTitle.textContent = "Focus Session Active.";
+    blockedTitle.textContent = "Focus Session Active";
   }
 
   if (blockedMessage) {
-    blockedMessage.textContent = pomodoro.mode === "strict"
+    blockedMessage.textContent = activePomodoro.mode === "strict"
       ? "Strict Mode is blocking the internet except your whitelist."
-      : "Standard Mode is keeping your scheduled websites blocked until the focus session ends.";
+      : "Standard Mode is keeping websites blocked until the focus session ends.";
   }
 
-  extraTime.hidden = true;
+  if (extraTime) {
+    extraTime.hidden = true;
+  }
+
+  if (pomodoroBlock) {
+    pomodoroBlock.hidden = false;
+  }
+
+  if (blockedPomodoroMode) {
+    blockedPomodoroMode.textContent = activePomodoro.mode === "strict"
+      ? getStrictModeLabel(activePomodoro)
+      : "Standard Focus Mode";
+  }
+
+  updatePomodoroTimer(activePomodoro);
+
+  pomodoroTickTimer = window.setInterval(() => {
+    const stillActive = updatePomodoroTimer(activePomodoro);
+
+    if (!stillActive) {
+      renderPomodoroEnded();
+    }
+  }, 1000);
+}
+
+function updatePomodoroTimer(pomodoro) {
+  const remainingSeconds = Math.max(0, Math.ceil((pomodoro.until - Date.now()) / 1000));
+
+  if (blockedPomodoroTimer) {
+    blockedPomodoroTimer.textContent = formatPomodoroTime(remainingSeconds);
+  }
+
+  return remainingSeconds > 0;
+}
+
+function renderPomodoroEnded() {
+  clearPomodoroTimer();
+
+  if (blockedTitle) {
+    blockedTitle.textContent = "Focus session ended";
+  }
+
+  if (blockedMessage) {
+    blockedMessage.textContent = "Reload the page or return to your tab to continue.";
+  }
+
+  if (pomodoroBlock) {
+    pomodoroBlock.hidden = true;
+  }
+
+  if (extraTime) {
+    extraTime.hidden = true;
+  }
+}
+
+function clearPomodoroTimer() {
+  if (pomodoroTickTimer) {
+    window.clearInterval(pomodoroTickTimer);
+    pomodoroTickTimer = 0;
+  }
+}
+
+function formatPomodoroTime(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+  }
+
+  return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+}
+
+function getStrictModeLabel(pomodoro) {
+  const whitelistCount = Array.isArray(pomodoro.whitelist) ? pomodoro.whitelist.length : 0;
+
+  if (whitelistCount === 0) {
+    return "Strict Focus Mode";
+  }
+
+  return `Strict Focus Mode · ${whitelistCount} allowed`;
 }
 
 function renderCurrentView() {
@@ -120,7 +229,7 @@ function createSelectionView() {
 
     button.type = "button";
     button.className = "minutes-button";
-    button.textContent = `Add ${minutes} min`;
+      button.textContent = `${minutes} min`;
     button.disabled = actionInFlight;
     button.addEventListener("click", () => {
       void handleMinuteSelection(minutes);

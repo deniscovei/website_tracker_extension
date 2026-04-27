@@ -78,6 +78,175 @@ button {
   line-height: 1;
 }
 
+.pomodoro-stats-toggle {
+  width: 100%;
+}
+
+.pomodoro-stats-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 12px;
+}
+
+.pomodoro-stats-panel[hidden] {
+  display: none;
+}
+
+.date-input {
+  min-height: 32px;
+  border: 1px solid rgba(22, 32, 28, 0.14);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #111827;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 0 8px;
+}
+
+.pomodoro-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pomodoro-stat-card {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(22, 32, 28, 0.1);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.pomodoro-stat-card span,
+.pomodoro-week-day small,
+.pomodoro-history-copy span,
+#pomodoro-stats-subtitle,
+#pomodoro-week-total,
+#pomodoro-history-count {
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.pomodoro-stat-card strong {
+  color: #1d4ed8;
+  font-size: 1.1rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.pomodoro-week-panel,
+.pomodoro-history-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.pomodoro-week-bars {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  min-height: 112px;
+  align-items: end;
+}
+
+.pomodoro-week-day {
+  display: grid;
+  align-items: end;
+  gap: 5px;
+  min-width: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-align: center;
+}
+
+.pomodoro-week-day[aria-pressed="true"] {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.pomodoro-week-bar {
+  display: block;
+  width: 100%;
+  height: var(--height, 6%);
+  min-height: 6px;
+  border-radius: 999px 999px 4px 4px;
+  background: #2563eb;
+}
+
+.pomodoro-week-day strong {
+  color: #334155;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.pomodoro-history-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pomodoro-history-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(22, 32, 28, 0.1);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.pomodoro-history-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.pomodoro-history-copy strong {
+  color: #111827;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.session-badge {
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  padding: 5px 7px;
+  white-space: nowrap;
+}
+
+.session-badge.is-completed {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+
+.session-badge.is-stopped {
+  background: rgba(167, 45, 79, 0.12);
+  color: #a72d4f;
+}
+
+.empty-state {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: center;
+}
+
 .focus-view .pomodoro-timer {
   font-size: 3rem;
   letter-spacing: 0;
@@ -1378,10 +1547,18 @@ h2 {
 
 .allowance-panel .field-note {
   grid-column: 1 / -1;
-  margin: -4px 0 2px 26px;
-  color: #1d4ed8;
+  margin: -2px 0 2px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
   font-size: 0.74rem;
   font-weight: 800;
+  line-height: 1.35;
+  padding: 9px 10px;
+}
+
+.allowance-panel .field-note[hidden] {
+  display: none;
 }
 
 .allowance-field input {
@@ -1686,8 +1863,12 @@ h2 {
 
 .form-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+
+#site-form.is-new-site .form-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .primary-button,
@@ -1780,6 +1961,11 @@ button:focus-visible {
   .usage-panel {
     background: #1f2937;
     color: #f7f2e8;
+  }
+
+  .allowance-panel .field-note {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24 !important;
   }
 
   .icon-button:hover,
@@ -1964,6 +2150,46 @@ button:focus-visible {
   .pomodoro-heading .eyebrow,
   .pomodoro-timer {
     color: #60a5fa;
+  }
+
+  .pomodoro-stats-panel {
+    border-color: rgba(245, 247, 245, 0.14);
+    background: #1f2937;
+  }
+
+  .date-input,
+  .pomodoro-stat-card,
+  .pomodoro-history-item {
+    border-color: rgba(245, 247, 245, 0.14);
+    background: #111827;
+    color: #f7f2e8;
+  }
+
+  .pomodoro-history-copy strong,
+  .pomodoro-week-day strong {
+    color: #f7f2e8;
+  }
+
+  .pomodoro-stat-card span,
+  .pomodoro-week-day small,
+  .pomodoro-history-copy span,
+  #pomodoro-stats-subtitle,
+  #pomodoro-week-total,
+  #pomodoro-history-count,
+  .empty-state {
+    color: #cbd5e1;
+  }
+
+  .pomodoro-stat-card strong {
+    color: #60a5fa;
+  }
+
+  .pomodoro-week-day[aria-pressed="true"] {
+    background: rgba(96, 165, 250, 0.12);
+  }
+
+  .pomodoro-week-bar {
+    background: #60a5fa;
   }
 
   .pomodoro-mode strong {
