@@ -416,11 +416,11 @@ newSite?.addEventListener("click", () => {
   editingIndex = null;
   openEditor({
     domain: "",
-    blockMode: "slots",
+    blockMode: "always",
     dailyAllowanceMinutes: 0,
     allowExtraTime: false,
     requirePinForExtraTime: false,
-    intervals: [{ ...DEFAULT_INTERVAL }]
+    intervals: [{ ...ALL_DAY_INTERVAL }]
   });
 });
 

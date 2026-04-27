@@ -8,7 +8,6 @@
   const OVERLAY_ID = "focus-tracker-state-preserving-block";
   const ROOT_ID = "focus-tracker-state-preserving-root";
   const MINUTE_OPTIONS = [5, 15, 30];
-  const BRAND_ICON_URL = chrome.runtime.getURL("assets/icons/icon48.png");
   const STYLE_TEXT = `
     :host {
       all: initial;
@@ -21,208 +20,6 @@
 
     *, *::before, *::after {
       box-sizing: border-box;
-    }
-
-    .overlay {
-      position: fixed;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      padding: 18px;
-      background:
-        linear-gradient(135deg, rgba(96, 165, 250, 0.1), transparent 42%),
-        linear-gradient(315deg, rgba(222, 84, 113, 0.08), transparent 40%),
-        rgba(17, 24, 39, 0.76);
-      backdrop-filter: blur(5px);
-      pointer-events: auto;
-    }
-
-    .card {
-      width: min(460px, calc(100vw - 28px));
-      border: 1px solid rgba(245, 247, 245, 0.14);
-      border-radius: 8px;
-      background: rgba(29, 33, 29, 0.92);
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
-      padding: clamp(20px, 4vw, 28px);
-      text-align: center;
-    }
-
-    .brand-header {
-      display: inline-grid;
-      grid-template-columns: auto 1fr;
-      align-items: center;
-      gap: 10px;
-      margin: 0 auto 16px;
-      text-align: left;
-    }
-
-    .brand-icon {
-      width: 32px;
-      height: 32px;
-      display: block;
-    }
-
-    .brand-name {
-      margin: 0;
-      color: #f8fafc;
-      font-size: 1.06rem;
-      font-weight: 950;
-      letter-spacing: -0.03em;
-      line-height: 1.05;
-    }
-
-    .eyebrow {
-      margin: 0 0 12px;
-      color: #f18eaa;
-      font-size: 0.76rem;
-      font-weight: 800;
-      letter-spacing: 0;
-      text-transform: uppercase;
-    }
-
-    h1 {
-      max-width: 9ch;
-      margin: 0 auto;
-      color: #f8fafc;
-      font-size: clamp(1.8rem, 5.8vw, 2.5rem);
-      font-weight: 950;
-      line-height: 1.06;
-      letter-spacing: -0.04em;
-    }
-
-    .message {
-      max-width: 24rem;
-      margin: 14px auto 0;
-      color: #cbd5e1;
-      font-size: 0.96rem;
-      font-weight: 500;
-      line-height: 1.5;
-    }
-
-    .extra-actions {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 20px;
-    }
-
-    .extra-actions button {
-      min-height: 44px;
-      border: 1px solid rgba(245, 247, 245, 0.14);
-      border-radius: 6px;
-      background: #1f2937;
-      color: #dbeafe;
-      cursor: pointer;
-      font: inherit;
-      font-size: 1rem;
-      font-weight: 800;
-      line-height: 1;
-      padding: 0 14px;
-    }
-
-    .extra-actions button:hover:not(:disabled) {
-      background: #273449;
-    }
-
-    .panel-button {
-      min-height: 44px;
-      border: 1px solid transparent;
-      border-radius: 6px;
-      font: inherit;
-      font-weight: 800;
-      padding: 0 18px;
-      cursor: pointer;
-    }
-
-    .panel-button.primary {
-      background: #2563eb;
-      color: #ffffff;
-    }
-
-    .panel-button.primary:hover:not(:disabled) {
-      background: #1d4ed8;
-    }
-
-    .panel-button.secondary {
-      border-color: rgba(245, 247, 245, 0.14);
-      background: #1f2937;
-      color: #dbeafe;
-    }
-
-    .panel-button.secondary:hover:not(:disabled) {
-      background: #273449;
-    }
-
-    .popup-view-actions {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 14px;
-    }
-
-    .pin-field {
-      display: block;
-      margin: 18px 0 0;
-      border: 0;
-      padding: 0;
-      text-align: left;
-    }
-
-    .pin-label {
-      display: block;
-      margin: 0 0 8px;
-      color: #cbd5e1;
-      font-size: 0.84rem;
-      font-weight: 800;
-      line-height: 1.35;
-      text-align: center;
-    }
-
-    .pin-input {
-      width: 100%;
-      min-width: 0;
-      min-height: 42px;
-      border: 1px solid rgba(245, 247, 245, 0.14);
-      border-radius: 6px;
-      background: #1f2937;
-      color: #dbeafe;
-      font: inherit;
-      font-weight: 900;
-      letter-spacing: 0.12em;
-      padding: 0 10px;
-      text-align: center;
-    }
-
-    .pin-input:focus {
-      outline: 3px solid rgba(37, 99, 235, 0.32);
-      outline-offset: 3px;
-    }
-
-    .error {
-      min-height: 18px;
-      margin: 12px 0 0;
-      color: #f18eaa;
-      font-size: 0.82rem;
-      font-weight: 800;
-      line-height: 1.35;
-      text-align: center;
-    }
-
-    button:disabled {
-      cursor: not-allowed;
-      opacity: 0.58;
-    }
-
-    button:focus-visible {
-      outline: 3px solid rgba(37, 99, 235, 0.32);
-      outline-offset: 3px;
-    }
-
-    @media (max-width: 520px) {
-      .extra-actions,
-      .popup-view-actions {
-        grid-template-columns: 1fr;
-      }
     }
   `;
 
@@ -295,10 +92,14 @@
       const style = document.createElement("style");
       style.textContent = STYLE_TEXT;
 
+      const sharedStyles = document.createElement("link");
+      sharedStyles.rel = "stylesheet";
+      sharedStyles.href = chrome.runtime.getURL("shared/block-panel.css");
+
       const root = document.createElement("div");
       root.id = ROOT_ID;
 
-      shadowRoot.append(style, root);
+      shadowRoot.append(style, sharedStyles, root);
       document.documentElement.append(overlayHost);
     } else {
       shadowRoot = overlayHost.shadowRoot;
@@ -308,28 +109,19 @@
   function renderSelectView() {
     const root = getRoot();
     const allowExtraTime = Boolean(currentStatus?.allowExtraTime);
+    const ui = globalThis.FocusTrackerBlockPanel;
 
-    root.innerHTML = `
-      <section class="overlay" role="dialog" aria-modal="true" aria-labelledby="focus-tracker-block-title">
-        <div class="card">
-          <header class="brand-header" aria-label="Focus Tracker">
-            <img class="brand-icon" src="${BRAND_ICON_URL}" alt="" aria-hidden="true">
-            <p class="brand-name">Focus Tracker</p>
-          </header>
-
-          <h1 id="focus-tracker-block-title">This website is blocked</h1>
-          <p class="message">${allowExtraTime
-            ? "Your time is up for this website. Add more time to continue where you left off."
-            : "Your time is up for this website."}</p>
-
-          ${allowExtraTime ? `<div class="extra-actions">${MINUTE_OPTIONS.map((minutes) => (
-            `<button type="button" data-minutes="${minutes}" ${actionInFlight ? "disabled" : ""}>${minutes} min</button>`
-          )).join("")}</div>` : ""}
-
-          ${pinError ? `<p class="error">${escapeHtml(pinError)}</p>` : ""}
-        </div>
-      </section>
-    `;
+    root.innerHTML = ui.renderShell({
+      title: "This website is blocked",
+      message: allowExtraTime
+        ? "Your time is up for this website. Add more time to continue where you left off."
+        : "Your time is up for this website.",
+      actions: allowExtraTime
+        ? ui.renderMinuteButtons({ minutes: MINUTE_OPTIONS, disabled: actionInFlight })
+        : "",
+      body: ui.renderError(pinError),
+      titleId: "focus-tracker-block-title"
+    });
 
     root.querySelectorAll("[data-minutes]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -342,37 +134,29 @@
   function renderPinView() {
     const root = getRoot();
     const minutes = Math.max(0, Number(pendingMinutes) || 0);
+    const ui = globalThis.FocusTrackerBlockPanel;
 
-    root.innerHTML = `
-      <section class="overlay" role="dialog" aria-modal="true" aria-labelledby="focus-tracker-pin-title">
-        <div class="card">
-          <header class="brand-header" aria-label="Focus Tracker">
-            <img class="brand-icon" src="${BRAND_ICON_URL}" alt="" aria-hidden="true">
-            <p class="brand-name">Focus Tracker</p>
-          </header>
-
-          <p class="eyebrow">PIN required</p>
-          <h1 id="focus-tracker-pin-title">Enter your PIN</h1>
-          <p class="message">Add ${minutes} minute${minutes === 1 ? "" : "s"}.</p>
-
-          <label class="pin-field">
-            <span class="pin-label">PIN</span>
-            <input id="focus-tracker-pin-input" class="pin-input" type="password" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="0000" ${actionInFlight ? "disabled" : ""}>
-          </label>
-
-          ${pinError ? `<p class="error">${escapeHtml(pinError)}</p>` : ""}
-
-          <div class="popup-view-actions">
-            <button class="panel-button primary" id="focus-tracker-submit-pin" type="button" ${actionInFlight ? "disabled" : ""}>Add time</button>
-            <button class="panel-button secondary" id="focus-tracker-back" type="button" ${actionInFlight ? "disabled" : ""}>Back</button>
-          </div>
-        </div>
-      </section>
-    `;
+    root.innerHTML = ui.renderShell({
+      title: "Enter your PIN",
+      message: `Add ${minutes} minute${minutes === 1 ? "" : "s"} to continue.`,
+      body: `
+        ${ui.renderPinField({
+          inputId: "focus-tracker-pin-input",
+          disabled: actionInFlight
+        })}
+        ${ui.renderError(pinError)}
+      `,
+      actions: ui.renderActionButtons({
+        primaryText: "Add time",
+        secondaryText: "Back",
+        disabled: actionInFlight
+      }),
+      titleId: "focus-tracker-pin-title"
+    });
 
     const input = root.querySelector("#focus-tracker-pin-input");
-    const submit = root.querySelector("#focus-tracker-submit-pin");
-    const back = root.querySelector("#focus-tracker-back");
+    const submit = root.querySelector("[data-primary-action]");
+    const back = root.querySelector("[data-secondary-action]");
 
     if (input instanceof HTMLInputElement) {
       input.focus();
@@ -626,15 +410,6 @@
 
   function sanitizePin(value) {
     return String(value || "").replace(/\D+/g, "").slice(0, 4);
-  }
-
-  function escapeHtml(value) {
-    return String(value || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;")
-      .replace(/'/g, "&#39;");
   }
 
   function cleanError(error) {

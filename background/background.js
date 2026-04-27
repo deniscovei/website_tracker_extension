@@ -1263,7 +1263,7 @@ async function ensureStatePreservingContentScript(tabId) {
 
   await chrome.scripting.executeScript({
     target: { tabId },
-    files: ["content/state-preserving-block.js"]
+    files: ["shared/block-panel-ui.js", "content/state-preserving-block.js"]
   });
 }
 

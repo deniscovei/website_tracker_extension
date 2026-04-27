@@ -4,17 +4,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Focus Tracker</title>
+    <link rel="stylesheet" href="../../shared/block-panel.css">
     <link rel="stylesheet" href="blocked.css">
   </head>
   <body>
-    <main class="blocked-shell">
-      <section class="blocked-panel" aria-labelledby="blocked-title">
-        <header class="brand-header" aria-label="Focus Tracker">
-          <img class="brand-icon" src="../../assets/icons/icon48.png" alt="" aria-hidden="true">
-          <p class="brand-name">Focus Tracker</p>
+    <main class="blocked-shell ft-block-shell">
+      <section class="blocked-panel ft-block-card" aria-labelledby="blocked-title">
+        <header class="ft-block-brand" aria-label="Focus Tracker">
+          <img class="ft-block-brand-icon" src="../../assets/icons/icon48.png" alt="" aria-hidden="true">
+          <p class="ft-block-brand-name">Focus Tracker</p>
         </header>
-        <h1 id="blocked-title">This website is blocked</h1>
-        <p id="blocked-message" class="message">
+        <h1 id="blocked-title" class="ft-block-title">This website is blocked</h1>
+        <p id="blocked-message" class="message ft-block-message">
           Your time is up for this website.
         </p>
         <section id="pomodoro-block" class="pomodoro-block" hidden aria-live="polite">
@@ -27,6 +28,7 @@
         </section>
       </section>
     </main>
+    <script src="../../shared/block-panel-ui.js" data-global="FocusTrackerBlockPanel"></script>
     <script src="blocked.js"></script>
   </body>
 </html>

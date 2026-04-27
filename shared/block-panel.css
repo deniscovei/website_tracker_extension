@@ -1,0 +1,194 @@
+.ft-block-shell {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background:
+    linear-gradient(135deg, rgba(96, 165, 250, 0.1), transparent 42%),
+    linear-gradient(315deg, rgba(222, 84, 113, 0.08), transparent 40%),
+    rgba(17, 24, 39, 0.76);
+  backdrop-filter: blur(5px);
+  pointer-events: auto;
+}
+
+.ft-block-card {
+  width: min(460px, calc(100vw - 28px));
+  border: 1px solid rgba(245, 247, 245, 0.14);
+  border-radius: 8px;
+  background: rgba(29, 33, 29, 0.92);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
+  padding: clamp(20px, 4vw, 28px);
+  text-align: center;
+}
+
+.ft-block-brand {
+  display: inline-grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto 16px;
+  text-align: left;
+}
+
+.ft-block-brand-icon {
+  width: 32px;
+  height: 32px;
+  display: block;
+}
+
+.ft-block-brand-name {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 1.06rem;
+  font-weight: 950;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.ft-block-title {
+  max-width: 9ch;
+  margin: 0 auto;
+  color: #f8fafc;
+  font-size: clamp(1.8rem, 5.8vw, 2.5rem);
+  font-weight: 950;
+  line-height: 1.06;
+  letter-spacing: -0.04em;
+}
+
+.ft-block-message {
+  max-width: 24rem;
+  margin: 14px auto 0;
+  color: #cbd5e1;
+  font-size: 0.96rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.ft-block-minute-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.ft-block-minute-button {
+  min-height: 44px;
+  border: 1px solid rgba(245, 247, 245, 0.14);
+  border-radius: 6px;
+  background: #1f2937;
+  color: #dbeafe;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0 14px;
+}
+
+.ft-block-minute-button:hover:not(:disabled) {
+  background: #273449;
+}
+
+.ft-block-pin-field {
+  display: block;
+  margin: 18px 0 0;
+  border: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.ft-block-pin-label {
+  display: block;
+  margin: 0 0 8px;
+  color: #cbd5e1;
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.ft-block-pin-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid rgba(245, 247, 245, 0.14);
+  border-radius: 6px;
+  background: #1f2937;
+  color: #dbeafe;
+  font: inherit;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  padding: 0 10px;
+  text-align: center;
+}
+
+.ft-block-pin-input:focus {
+  outline: 3px solid rgba(37, 99, 235, 0.32);
+  outline-offset: 3px;
+}
+
+.ft-block-panel-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.ft-block-panel-button {
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0 16px;
+  cursor: pointer;
+}
+
+.ft-block-panel-button-primary {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.ft-block-panel-button-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.ft-block-panel-button-secondary {
+  border-color: rgba(245, 247, 245, 0.14);
+  background: #1f2937;
+  color: #dbeafe;
+}
+
+.ft-block-panel-button-secondary:hover:not(:disabled) {
+  background: #273449;
+}
+
+.ft-block-error {
+  min-height: 18px;
+  margin: 12px 0 0;
+  color: #f18eaa;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.ft-block-card button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.ft-block-card button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.32);
+  outline-offset: 3px;
+}
+
+@media (max-width: 520px) {
+  .ft-block-minute-actions,
+  .ft-block-panel-actions {
+    grid-template-columns: 1fr;
+  }
+}

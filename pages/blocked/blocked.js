@@ -19,7 +19,6 @@ const FINAL_ACTION_LABEL = "Enter Page";
 let latestStatus = null;
 let currentView = VIEW_STATE.SELECT;
 let pendingMinutes = 0;
-let blockedPinVisible = false;
 let actionInFlight = false;
 let pinDraft = "";
 let pinError = "";
@@ -71,7 +70,6 @@ async function loadExtraTimeStatus() {
     latestStatus = response.status;
     currentView = VIEW_STATE.SELECT;
     pendingMinutes = 0;
-    blockedPinVisible = false;
     actionInFlight = false;
     pinDraft = "";
     pinError = "";
@@ -202,6 +200,7 @@ function getStrictModeLabel(pomodoro) {
 }
 
 function renderCurrentView() {
+  syncBlockedHeader();
   popupViewRoot.replaceChildren();
 
   if (currentView === VIEW_STATE.SUCCESS) {
@@ -216,148 +215,133 @@ function renderCurrentView() {
   }
 }
 
+function syncBlockedHeader() {
+  if (currentView === VIEW_STATE.PIN) {
+    const minutes = Math.max(0, Number(pendingMinutes) || 0);
+
+    if (blockedTitle) {
+      blockedTitle.textContent = "Enter your PIN";
+    }
+
+    if (blockedMessage) {
+      blockedMessage.textContent = `Add ${minutes} minute${minutes === 1 ? "" : "s"} to continue.`;
+    }
+
+    return;
+  }
+
+  if (blockedTitle) {
+    blockedTitle.textContent = "This website is blocked";
+  }
+
+  if (blockedMessage) {
+    blockedMessage.textContent = latestStatus?.allowExtraTime
+      ? "Your time is up for this website. Add more time to continue where you left off."
+      : "Your time is up for this website.";
+  }
+}
+
 function createSelectionView() {
   const view = document.createElement("section");
-  const actions = document.createElement("div");
-  const minuteOptions = [5, 15, 30];
+  const ui = globalThis.FocusTrackerBlockPanel;
 
   view.className = "popup-view popup-view-selection";
-  actions.className = "extra-actions";
-
-  minuteOptions.forEach((minutes) => {
-    const button = document.createElement("button");
-
-    button.type = "button";
-    button.className = "minutes-button";
-      button.textContent = `${minutes} min`;
-    button.disabled = actionInFlight;
-    button.addEventListener("click", () => {
-      void handleMinuteSelection(minutes);
-    });
-    actions.append(button);
+  view.innerHTML = ui.renderMinuteButtons({
+    minutes: [5, 15, 30],
+    disabled: actionInFlight
   });
 
-  view.append(actions);
+  view.querySelectorAll("[data-minutes]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const minutes = Number(button.getAttribute("data-minutes"));
+      void handleMinuteSelection(minutes);
+    });
+  });
+
   return view;
 }
 
 function createSuccessView() {
   const view = document.createElement("section");
   const message = document.createElement("p");
-  const actions = document.createElement("div");
-  const backButton = document.createElement("button");
-  const button = document.createElement("button");
+  const ui = globalThis.FocusTrackerBlockPanel;
 
   view.className = "popup-view popup-view-success";
   message.className = "view-message";
   message.textContent = `Add ${formatMinutes(pendingMinutes)} and enter the page.`;
 
-  actions.className = "popup-view-actions";
+  view.innerHTML = ui.renderActionButtons({
+    primaryText: FINAL_ACTION_LABEL,
+    secondaryText: "Back",
+    disabled: actionInFlight
+  });
+  view.prepend(message);
 
-  backButton.type = "button";
-  backButton.className = "panel-button secondary";
-  backButton.textContent = "Back";
-  backButton.disabled = actionInFlight;
-  backButton.addEventListener("click", () => {
+  view.querySelector("[data-secondary-action]")?.addEventListener("click", () => {
     returnToSelection();
   });
 
-  button.type = "button";
-  button.className = "panel-button primary";
-  button.textContent = FINAL_ACTION_LABEL;
-  button.disabled = actionInFlight;
-  button.addEventListener("click", () => {
+  view.querySelector("[data-primary-action]")?.addEventListener("click", () => {
     void confirmStagedMinutes();
   });
 
-  actions.append(backButton, button);
-  view.append(message, actions);
   return view;
 }
 
 function createPinView() {
   const view = document.createElement("section");
-  const field = document.createElement("label");
-  const wrap = document.createElement("div");
-  const input = document.createElement("input");
-  const visibilityButton = document.createElement("button");
-  const errorMessage = document.createElement("p");
-  const actions = document.createElement("div");
-  const backButton = document.createElement("button");
-  const continueButton = document.createElement("button");
+  const ui = globalThis.FocusTrackerBlockPanel;
 
   view.className = "popup-view popup-view-pin";
+  view.innerHTML = `
+    ${ui.renderPinField({
+      inputId: "pin-code",
+      disabled: actionInFlight,
+      value: pinDraft
+    })}
+    ${ui.renderError(pinError)}
+    ${ui.renderActionButtons({
+      primaryText: FINAL_ACTION_LABEL,
+      secondaryText: "Back",
+      disabled: actionInFlight
+    })}
+  `;
 
-  field.className = "pin-field";
-  field.setAttribute("aria-label", "PIN entry");
+  const input = view.querySelector("#pin-code");
+  const continueButton = view.querySelector("[data-primary-action]");
+  const backButton = view.querySelector("[data-secondary-action]");
 
-  wrap.className = "pin-input-wrap";
+  if (input instanceof HTMLInputElement) {
+    input.setAttribute("aria-label", "PIN");
+    input.addEventListener("input", () => {
+      input.value = sanitizePinValue(input.value);
+      pinDraft = input.value;
+      pinError = "";
+      view.querySelector(".ft-block-error")?.remove();
 
-  input.id = "pin-code";
-  input.type = blockedPinVisible ? "text" : "password";
-  input.inputMode = "numeric";
-  input.autocomplete = "off";
-  input.maxLength = 4;
-  input.placeholder = "0000";
-  input.className = "pin-input";
-  input.value = pinDraft;
-  input.disabled = actionInFlight;
-  input.setAttribute("aria-label", "PIN");
-  input.setAttribute("aria-describedby", "pin-error");
-  input.addEventListener("input", () => {
-    input.value = sanitizePinValue(input.value);
-    pinDraft = input.value;
-    pinError = "";
-    errorMessage.textContent = "";
-    errorMessage.hidden = true;
-    continueButton.disabled = actionInFlight || input.value.length !== 4;
-  });
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !continueButton.disabled) {
-      event.preventDefault();
-      continueButton.click();
-    }
-  });
+      if (continueButton instanceof HTMLButtonElement) {
+        continueButton.disabled = actionInFlight || input.value.length !== 4;
+      }
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && continueButton instanceof HTMLButtonElement && !continueButton.disabled) {
+        event.preventDefault();
+        continueButton.click();
+      }
+    });
+  }
 
-  visibilityButton.type = "button";
-  visibilityButton.className = "eye-button";
-  visibilityButton.disabled = actionInFlight;
-  visibilityButton.setAttribute("aria-label", `${blockedPinVisible ? "Hide" : "Show"} PIN`);
-  visibilityButton.setAttribute("aria-pressed", String(blockedPinVisible));
-  visibilityButton.innerHTML = blockedPinVisible ? getEyeOffIcon() : getEyeIcon();
-  visibilityButton.addEventListener("click", () => {
-    blockedPinVisible = !blockedPinVisible;
-    renderCurrentView();
-  });
-
-  errorMessage.id = "pin-error";
-  errorMessage.className = "pin-error";
-  errorMessage.setAttribute("aria-live", "polite");
-  errorMessage.hidden = !pinError;
-  errorMessage.textContent = pinError;
-
-  actions.className = "popup-view-actions";
-
-  backButton.type = "button";
-  backButton.className = "panel-button secondary";
-  backButton.textContent = "Back";
-  backButton.disabled = actionInFlight;
-  backButton.addEventListener("click", () => {
+  backButton?.addEventListener("click", () => {
     returnToSelection();
   });
 
-  continueButton.type = "button";
-  continueButton.className = "panel-button primary";
-  continueButton.textContent = FINAL_ACTION_LABEL;
-  continueButton.disabled = actionInFlight || input.value.length !== 4;
-  continueButton.addEventListener("click", () => {
+  if (continueButton instanceof HTMLButtonElement) {
+    continueButton.disabled = actionInFlight || pinDraft.length !== 4;
+  }
+
+  continueButton?.addEventListener("click", () => {
     void handlePinSubmit(input);
   });
-
-  wrap.append(input, visibilityButton);
-  field.append(wrap);
-  actions.append(backButton, continueButton);
-  view.append(field, errorMessage, actions);
 
   return view;
 }
@@ -402,7 +386,6 @@ async function handleMinuteSelection(minutes) {
   if (latestStatus.requiresPinForExtraTime) {
     pinDraft = "";
     pinError = "";
-    blockedPinVisible = false;
     currentView = VIEW_STATE.PIN;
     renderCurrentView();
     return;
@@ -510,7 +493,6 @@ async function confirmStagedMinutes() {
       currentView = VIEW_STATE.PIN;
       pinDraft = "";
       pinError = "";
-      blockedPinVisible = false;
       renderCurrentView();
       return;
     }
@@ -537,7 +519,6 @@ function returnToSelection() {
   pendingMinutes = 0;
   pinDraft = "";
   pinError = "";
-  blockedPinVisible = false;
   renderCurrentView();
 }
 
@@ -606,26 +587,6 @@ function getHostname(url) {
 
 function domainMatches(host, domain) {
   return host === domain || host.endsWith(`.${domain}`);
-}
-
-function getEyeIcon() {
-  return [
-    '<svg viewBox="0 0 24 24" aria-hidden="true">',
-    '<path d="M1.5 12s3.9-6.5 10.5-6.5S22.5 12 22.5 12s-3.9 6.5-10.5 6.5S1.5 12 1.5 12Z"/>',
-    '<circle cx="12" cy="12" r="3.25"/>',
-    "</svg>"
-  ].join("");
-}
-
-function getEyeOffIcon() {
-  return [
-    '<svg viewBox="0 0 24 24" aria-hidden="true">',
-    '<path d="M3 4.5 21 19.5"/>',
-    '<path d="M10.6 5.7a12 12 0 0 1 1.4-.2C18.6 5.5 22.5 12 22.5 12a18.5 18.5 0 0 1-4.1 4.8"/>',
-    '<path d="M6.2 8.2A18.1 18.1 0 0 0 1.5 12s3.9 6.5 10.5 6.5c1 0 1.9-.1 2.8-.4"/>',
-    '<path d="M9.4 9.4A3.7 3.7 0 0 0 12 15.8"/>',
-    "</svg>"
-  ].join("");
 }
 
 function cleanError(error) {

@@ -41,7 +41,9 @@
         "assets/icons/icon16.png",
         "assets/icons/icon32.png",
         "assets/icons/icon48.png",
-        "assets/icons/icon128.png"
+        "assets/icons/icon128.png",
+        "shared/block-panel.css",
+        "shared/block-panel-ui.js"
       ],
       "matches": [
         "<all_urls>"
