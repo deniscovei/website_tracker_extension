@@ -39,6 +39,7 @@ const siteForm = document.getElementById("site-form");
 const siteDomain = document.getElementById("site-domain");
 const exceptionInput = document.getElementById("exception-input");
 const addException = document.getElementById("add-exception");
+const exceptionWarning = document.getElementById("exception-warning");
 const exceptionList = document.getElementById("exception-list");
 const blockModeRadios = Array.from(document.querySelectorAll('input[name="block-mode"]'));
 const dailyAllowance = document.getElementById("daily-allowance");
@@ -310,10 +311,14 @@ savePin?.addEventListener("click", () => {
 
 siteDomain?.addEventListener("input", () => {
   clearFormError();
+  clearExceptionWarning();
   queueEditorAutosave();
 });
 
-exceptionInput?.addEventListener("input", clearFormError);
+exceptionInput?.addEventListener("input", () => {
+  clearFormError();
+  clearExceptionWarning();
+});
 
 exceptionInput?.addEventListener("keydown", (event) => {
   if (event.key !== "Enter") {
@@ -341,6 +346,7 @@ exceptionList?.addEventListener("click", (event) => {
 
   removeButton.closest("[data-exception]")?.remove();
   clearFormError();
+  clearExceptionWarning();
   queueEditorAutosave({ immediate: true });
 });
 
@@ -1715,9 +1721,11 @@ function addExceptionFromInput() {
     renderExceptionList([...existing, exception]);
     exceptionInput.value = "";
     clearFormError();
+    clearExceptionWarning();
     queueEditorAutosave({ immediate: true });
   } catch (error) {
-    setFormError(cleanError(error));
+    clearFormError();
+    setExceptionWarning(cleanError(error));
     exceptionInput.focus();
   }
 }
@@ -1784,6 +1792,7 @@ function readExceptionsForSave(domain) {
 
 function openEditor(site) {
   clearFormError();
+  clearExceptionWarning();
   scheduleTab?.setAttribute("aria-pressed", "true");
   usageTab?.setAttribute("aria-pressed", "false");
   siteDomain.value = site.domain || "";
@@ -1982,6 +1991,7 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
 
 function showList() {
   clearTimeout(editorAutosaveTimer);
+  clearExceptionWarning();
   scheduleTab?.setAttribute("aria-pressed", "true");
   usageTab?.setAttribute("aria-pressed", "false");
   focusTab?.setAttribute("aria-pressed", "false");
@@ -2002,6 +2012,7 @@ async function showUsageView() {
   clearTimeout(editorAutosaveTimer);
   editingIndex = null;
   clearFormError();
+  clearExceptionWarning();
   scheduleTab?.setAttribute("aria-pressed", "false");
   usageTab?.setAttribute("aria-pressed", "true");
   focusTab?.setAttribute("aria-pressed", "false");
@@ -2018,6 +2029,7 @@ function showFocusView() {
   clearTimeout(editorAutosaveTimer);
   editingIndex = null;
   clearFormError();
+  clearExceptionWarning();
   scheduleTab?.setAttribute("aria-pressed", "false");
   usageTab?.setAttribute("aria-pressed", "false");
   focusTab?.setAttribute("aria-pressed", "true");
@@ -3934,6 +3946,24 @@ function setFormError(message) {
 
 function clearFormError() {
   formError.textContent = "";
+}
+
+function setExceptionWarning(message) {
+  if (!exceptionWarning) {
+    return;
+  }
+
+  exceptionWarning.textContent = message;
+  exceptionWarning.hidden = false;
+}
+
+function clearExceptionWarning() {
+  if (!exceptionWarning) {
+    return;
+  }
+
+  exceptionWarning.textContent = "";
+  exceptionWarning.hidden = true;
 }
 
 function cleanError(error) {

@@ -1498,6 +1498,17 @@ h2 {
   min-width: 0;
 }
 
+.exception-warning {
+  margin: 0;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.35;
+  padding: 9px 10px;
+}
+
 .exception-list {
   display: grid;
   gap: 6px;
@@ -2349,6 +2360,11 @@ button:focus-visible {
   .global-settings-warning {
     background: rgba(245, 158, 11, 0.15);
     color: #fbbf24 !important;
+  }
+
+  .exception-warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
   }
 
   .clock-hand,
