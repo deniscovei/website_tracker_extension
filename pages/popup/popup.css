@@ -151,12 +151,13 @@ button {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
-  min-height: 112px;
-  align-items: end;
+  min-height: 144px;
+  align-items: stretch;
 }
 
 .pomodoro-week-day {
   display: grid;
+  grid-template-rows: 104px auto auto;
   align-items: end;
   gap: 5px;
   min-width: 0;
@@ -175,6 +176,7 @@ button {
 
 .pomodoro-week-bar {
   display: block;
+  align-self: end;
   width: 100%;
   height: var(--height, 6%);
   min-height: 6px;
@@ -1862,17 +1864,13 @@ h2 {
 }
 
 .form-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
   gap: 10px;
 }
 
-#site-form.is-new-site .form-actions {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-#site-form.is-existing-site .form-actions {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.form-actions > button {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .primary-button,

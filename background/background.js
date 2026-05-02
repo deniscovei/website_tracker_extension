@@ -80,7 +80,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "save-schedule") {
-    saveSchedule(message.schedule)
+    accrueScreenUsage()
+      .then(() => accrueActiveUsage())
+      .then(() => saveSchedule(message.schedule))
       .then((schedule) => Promise.all([refreshRules(), loadPublicSettings()]).then(([state, settings]) => ({ schedule, state, settings })))
       .then((data) => sendResponse({ ok: true, ...data }))
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
@@ -138,7 +140,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "add-extra-time") {
-    addExtraTime(message.domain, message.minutes, message.pin)
+    addExtraTime(message.domain, message.minutes, message.pin, _sender?.tab?.id)
       .then(() => refreshRules())
       .then(() => getSiteStatus(message.domain))
       .then((status) => {
@@ -166,7 +168,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "get-pomodoro-state") {
-    loadPomodoroState()
+    getPomodoroStateForResponse()
       .then((pomodoro) => sendResponse({ ok: true, pomodoro }))
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
 
@@ -366,6 +368,21 @@ async function loadPomodoroState() {
   return pomodoro;
 }
 
+async function getPomodoroStateForResponse() {
+  const stored = await chrome.storage.local.get(POMODORO_KEY);
+  const wasActive = Boolean(stored[POMODORO_KEY]?.active);
+  const pomodoro = await loadPomodoroState();
+
+  if (wasActive && !pomodoro.active) {
+    try {
+      await refreshRules();
+    } catch (_error) {
+    }
+  }
+
+  return pomodoro;
+}
+
 async function savePomodoroState(value = {}) {
   const pomodoro = normalizePomodoroState(value);
   await chrome.storage.local.set({ [POMODORO_KEY]: pomodoro });
@@ -439,6 +456,11 @@ async function stopPomodoro({ completed = false } = {}) {
     await saveState(state);
   }
 
+  try {
+    await enforceActiveTabBlock(state);
+  } catch (_error) {
+  }
+
   return { pomodoro, state };
 }
 
@@ -508,10 +530,12 @@ async function getPomodoroStats(date = "") {
     const day = dateKeyFromDate(dateObject);
     const sessions = history.filter((entry) => entry.date === day);
     const totalSeconds = sessions.reduce((sum, entry) => sum + entry.elapsedSeconds, 0);
+    const longestSessionSeconds = Math.max(0, ...sessions.map((entry) => entry.elapsedSeconds));
 
     return {
       date: day,
       totalSeconds,
+      longestSessionSeconds,
       sessionCount: sessions.length,
       completedCount: sessions.filter((entry) => entry.completed).length
     };
@@ -1101,10 +1125,22 @@ async function accrueActiveUsage() {
   if (previous?.date === today && previous?.domain && Number.isFinite(previous.lastTick)) {
     const previousSite = findSiteForHost(schedule, previous.domain);
 
-    if (previousSite && isSiteInBlockedSlot(previousSite, now) && !hasTemporaryUnblock(previousSite, usage, currentTime)) {
-      const remainingSeconds = getAllowanceRemainingSeconds(previousSite, usage);
+    if (previousSite && isSiteInBlockedSlot(previousSite, now)) {
+      const entry = getSiteUsageEntry(usage, previousSite.domain);
       const elapsedSeconds = getTrackableElapsedSeconds(previous.lastTick, currentTime);
-      const consumedSeconds = Math.min(elapsedSeconds, remainingSeconds);
+      const extraConsumedSeconds = Math.min(
+        elapsedSeconds,
+        getTemporaryUnblockOverlapSeconds(entry, previous.lastTick, currentTime)
+      );
+      const allowanceRemainingSeconds = Math.max(
+        0,
+        getAllowanceRemainingSeconds(previousSite, usage) - extraConsumedSeconds
+      );
+      const allowanceConsumedSeconds = Math.min(
+        Math.max(0, elapsedSeconds - extraConsumedSeconds),
+        allowanceRemainingSeconds
+      );
+      const consumedSeconds = extraConsumedSeconds + allowanceConsumedSeconds;
 
       addUsedSeconds(usage, previousSite.domain, consumedSeconds);
       changedUsage = consumedSeconds > 0;
@@ -1185,7 +1221,11 @@ async function getActiveTrackedInfo(schedule, now, usage) {
   const host = getHostname(tab.url);
   const site = findSiteForHost(schedule, host);
 
-  if (!site || !isSiteInBlockedSlot(site, now) || hasTemporaryUnblock(site, usage) || getAllowanceRemainingSeconds(site, usage) <= 0) {
+  if (!site || !isSiteInBlockedSlot(site, now)) {
+    return null;
+  }
+
+  if (!hasTemporaryUnblock(site, usage) && getAllowanceRemainingSeconds(site, usage) <= 0) {
     return null;
   }
 
@@ -1324,7 +1364,7 @@ async function getSiteStatus(domain) {
   return buildSiteUsageState(site, now, usage, settings, pomodoro);
 }
 
-async function addExtraTime(domain, minutes, pin = "") {
+async function addExtraTime(domain, minutes, pin = "", tabId = null) {
   const normalizedDomain = normalizeDomain(domain);
   const [schedule, usage, settings, pomodoro] = await Promise.all([loadSchedule(), getUsage(), loadSettings(), loadPomodoroState()]);
   const site = findSiteForHost(schedule, normalizedDomain);
@@ -1359,7 +1399,7 @@ async function addExtraTime(domain, minutes, pin = "") {
 
   grantExtraTime(usage, site, Math.min(Math.round(extraMinutes), 240) * 60);
   await saveUsage(usage);
-  await chrome.storage.local.remove(TRACKING_KEY);
+  await startActiveUsageTracking(site, tabId);
 }
 
 async function cutOffSite(domain) {
@@ -1454,13 +1494,26 @@ function addUsedSeconds(usage, domain, seconds) {
   entry.usedSeconds += seconds;
 }
 
+async function startActiveUsageTracking(site, tabId = null) {
+  const tracking = {
+    domain: site.domain,
+    lastTick: Date.now(),
+    date: getDateKey()
+  };
+
+  if (Number.isFinite(tabId)) {
+    tracking.tabId = tabId;
+  }
+
+  await chrome.storage.local.set({ [TRACKING_KEY]: tracking });
+}
+
 function resetExtraTimeState(usage, site) {
   const entry = ensureUsageEntry(usage, site.domain);
-  const allowanceSeconds = normalizeDailyAllowance(site.dailyAllowanceMinutes) * 60;
 
   entry.extraSeconds = 0;
   entry.extraUntil = 0;
-  entry.usedSeconds = Math.max(0, Math.min(entry.usedSeconds, allowanceSeconds));
+  entry.usedSeconds = Math.max(0, entry.usedSeconds);
 }
 
 function grantExtraTime(usage, site, seconds) {
@@ -1626,6 +1679,23 @@ function getExtraRemainingSeconds(entry, now = Date.now()) {
   }
 
   return Math.ceil(remainingMilliseconds / 1000);
+}
+
+function getTemporaryUnblockOverlapSeconds(entry, startTime, endTime) {
+  const start = Number(startTime);
+  const end = Number(endTime);
+  const extraEnd = normalizeTimestamp(entry.extraUntil);
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || extraEnd <= start) {
+    return 0;
+  }
+
+  const extraDurationMilliseconds = Math.max(0, Number(entry.extraSeconds) || 0) * 1000;
+  const extraStart = extraDurationMilliseconds > 0 ? Math.max(0, extraEnd - extraDurationMilliseconds) : start;
+  const overlapStart = Math.max(start, extraStart);
+  const overlapEnd = Math.min(end, extraEnd);
+
+  return Math.max(0, (overlapEnd - overlapStart) / 1000);
 }
 
 function getSiteUsageStates(schedule, now, usage, settings, pomodoro = normalizePomodoroState()) {

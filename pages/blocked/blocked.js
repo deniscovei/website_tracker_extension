@@ -23,6 +23,8 @@ let actionInFlight = false;
 let pinDraft = "";
 let pinError = "";
 let pomodoroTickTimer = 0;
+let pomodoroStateCheckTicks = 0;
+let pomodoroStateCheckInFlight = false;
 
 void loadExtraTimeStatus();
 
@@ -62,12 +64,23 @@ async function loadExtraTimeStatus() {
       return;
     }
 
-    if (!response?.ok || !response.status?.found || !response.status.allowExtraTime) {
+    if (!response?.ok || !response.status?.found) {
       extraTime.hidden = true;
       return;
     }
 
     latestStatus = response.status;
+
+    if (!latestStatus.isBlocked) {
+      navigateToSite();
+      return;
+    }
+
+    if (!latestStatus.allowExtraTime) {
+      extraTime.hidden = true;
+      return;
+    }
+
     currentView = VIEW_STATE.SELECT;
     pendingMinutes = 0;
     actionInFlight = false;
@@ -129,14 +142,53 @@ function renderPomodoroBlock(pomodoro) {
   }
 
   updatePomodoroTimer(activePomodoro);
+  pomodoroStateCheckTicks = 0;
 
   pomodoroTickTimer = window.setInterval(() => {
     const stillActive = updatePomodoroTimer(activePomodoro);
 
     if (!stillActive) {
-      renderPomodoroEnded();
+      void syncPomodoroBlockState(activePomodoro).catch(() => {
+        renderPomodoroEnded();
+      });
+      return;
+    }
+
+    pomodoroStateCheckTicks += 1;
+
+    if (pomodoroStateCheckTicks >= 2) {
+      pomodoroStateCheckTicks = 0;
+      void syncPomodoroBlockState(activePomodoro);
     }
   }, 1000);
+}
+
+async function syncPomodoroBlockState(renderedPomodoro) {
+  if (pomodoroStateCheckInFlight) {
+    return;
+  }
+
+  pomodoroStateCheckInFlight = true;
+
+  try {
+    const latestPomodoro = await loadPomodoroState();
+
+    if (!latestPomodoro.active && !isPomodoroOnlyPage && site) {
+      await loadExtraTimeStatus();
+      return;
+    }
+
+    if (!latestPomodoro.active) {
+      renderPomodoroEnded();
+      return;
+    }
+
+    if (latestPomodoro.until !== renderedPomodoro.until || latestPomodoro.mode !== renderedPomodoro.mode) {
+      renderPomodoroBlock(latestPomodoro);
+    }
+  } finally {
+    pomodoroStateCheckInFlight = false;
+  }
 }
 
 function updatePomodoroTimer(pomodoro) {
@@ -174,6 +226,8 @@ function clearPomodoroTimer() {
     window.clearInterval(pomodoroTickTimer);
     pomodoroTickTimer = 0;
   }
+
+  pomodoroStateCheckTicks = 0;
 }
 
 function formatPomodoroTime(totalSeconds) {
@@ -267,7 +321,7 @@ function createSuccessView() {
   const ui = globalThis.FocusTrackerBlockPanel;
 
   view.className = "popup-view popup-view-success";
-  message.className = "view-message";
+  message.className = "ft-block-confirm-message";
   message.textContent = `Add ${formatMinutes(pendingMinutes)} and enter the page.`;
 
   view.innerHTML = ui.renderActionButtons({
@@ -294,6 +348,7 @@ function createPinView() {
 
   view.className = "popup-view popup-view-pin";
   view.innerHTML = `
+    <p class="ft-block-confirm-message">Add ${formatMinutes(pendingMinutes)} and enter the page.</p>
     ${ui.renderPinField({
       inputId: "pin-code",
       disabled: actionInFlight,
@@ -382,6 +437,11 @@ async function handleMinuteSelection(minutes) {
   }
 
   latestStatus = refreshedStatus;
+
+  if (!latestStatus.isBlocked) {
+    navigateToSite();
+    return;
+  }
 
   if (latestStatus.requiresPinForExtraTime) {
     pinDraft = "";

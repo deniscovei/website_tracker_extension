@@ -8,6 +8,17 @@
   const OVERLAY_ID = "focus-tracker-state-preserving-block";
   const ROOT_ID = "focus-tracker-state-preserving-root";
   const MINUTE_OPTIONS = [5, 15, 30];
+  const SCROLL_KEYS = new Set([
+    " ",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "End",
+    "Home",
+    "PageDown",
+    "PageUp"
+  ]);
   const STYLE_TEXT = `
     :host {
       all: initial;
@@ -29,8 +40,13 @@
   let pendingMinutes = 0;
   let actionInFlight = false;
   let pinError = "";
-  let pausedMedia = [];
+  const mediaStates = new Map();
   let mediaGuardTimer = 0;
+  let scrollLockActive = false;
+  let previousRootOverflow = "";
+  let previousRootOverscroll = "";
+  let previousBodyOverflow = "";
+  let previousBodyOverscroll = "";
 
   document.addEventListener("play", handleMediaPlayWhileBlocked, true);
 
@@ -48,7 +64,7 @@
     }
 
     if (message?.type === "focus-tracker-hide-state-blocker") {
-      hideOverlay(false);
+      hideOverlay(true);
       sendResponse({ ok: true });
       return false;
     }
@@ -57,15 +73,31 @@
   });
 
   async function showOverlay(status = null) {
-    currentStatus = status?.found ? status : await loadStatus();
-    pendingMinutes = 0;
-    actionInFlight = false;
-    pinError = "";
+    const overlayAlreadyVisible = Boolean(overlayHost?.isConnected);
 
-    pauseMedia();
+    currentStatus = status?.found ? status : await loadStatus();
+
+    if (!overlayAlreadyVisible) {
+      pendingMinutes = 0;
+      actionInFlight = false;
+      pinError = "";
+    }
+
+    if (overlayAlreadyVisible) {
+      enforceMediaSilence();
+    } else {
+      pauseMedia();
+    }
+
     startMediaGuard();
+    lockPageScroll();
     ensureOverlay();
-    renderSelectView();
+
+    if (overlayAlreadyVisible && currentStatus?.requiresPinForExtraTime && pendingMinutes > 0) {
+      renderPinView();
+    } else {
+      renderSelectView();
+    }
   }
 
   async function loadStatus() {
@@ -134,12 +166,14 @@
   function renderPinView() {
     const root = getRoot();
     const minutes = Math.max(0, Number(pendingMinutes) || 0);
+    const minutesLabel = `${minutes} minute${minutes === 1 ? "" : "s"}`;
     const ui = globalThis.FocusTrackerBlockPanel;
 
     root.innerHTML = ui.renderShell({
       title: "Enter your PIN",
-      message: `Add ${minutes} minute${minutes === 1 ? "" : "s"} to continue.`,
+      message: `Add ${minutesLabel} to continue.`,
       body: `
+        <p class="ft-block-confirm-message">Add ${ui.escapeHtml(minutesLabel)} and enter the page.</p>
         ${ui.renderPinField({
           inputId: "focus-tracker-pin-input",
           disabled: actionInFlight
@@ -265,64 +299,63 @@
     pinError = "";
 
     stopMediaGuard();
+    unlockPageScroll();
 
     if (resumeMediaAfterHide) {
       resumeMedia();
     } else {
-      pausedMedia = [];
+      mediaStates.clear();
     }
   }
 
   function pauseMedia() {
-    pausedMedia = [];
+    mediaStates.clear();
 
     document.querySelectorAll("video, audio").forEach((media) => {
-      const wasPlaying = !media.paused && !media.ended;
-      const previousMuted = Boolean(media.muted);
-      const previousVolume = Number.isFinite(media.volume) ? media.volume : 1;
-
-      if (wasPlaying) {
-        pausedMedia.push({
-          media,
-          previousMuted,
-          previousVolume
-        });
-      }
-
-      try {
-        media.muted = true;
-      } catch (_error) {
-      }
-
-      try {
-        media.volume = 0;
-      } catch (_error) {
-      }
-
-      try {
-        media.pause();
-      } catch (_error) {
-      }
+      pauseMediaElement(media, {
+        resumeAfterHide: !media.paused && !media.ended
+      });
     });
   }
 
-  function resumeMedia() {
-    const mediaToResume = pausedMedia;
-    pausedMedia = [];
+  function rememberMediaState(media, resumeAfterHide = false) {
+    if (!(media instanceof HTMLMediaElement)) {
+      return null;
+    }
 
-    mediaToResume.forEach(({ media, previousMuted, previousVolume }) => {
-      if (!document.contains(media)) {
+    if (!mediaStates.has(media)) {
+      mediaStates.set(media, {
+        wasPlaying: Boolean(resumeAfterHide)
+      });
+    }
+
+    return mediaStates.get(media);
+  }
+
+  function pauseMediaElement(media, { resumeAfterHide = false } = {}) {
+    if (!(media instanceof HTMLMediaElement)) {
+      return;
+    }
+
+    rememberMediaState(media, resumeAfterHide);
+
+    try {
+      media.pause();
+    } catch (_error) {
+    }
+  }
+
+  function resumeMedia() {
+    const mediaToRestore = Array.from(mediaStates.entries());
+    mediaStates.clear();
+
+    mediaToRestore.forEach(([media, state]) => {
+      if (!media || !document.contains(media)) {
         return;
       }
 
-      try {
-        media.muted = previousMuted;
-      } catch (_error) {
-      }
-
-      try {
-        media.volume = previousVolume;
-      } catch (_error) {
+      if (!state.wasPlaying) {
+        return;
       }
 
       try {
@@ -355,20 +388,7 @@
     }
 
     document.querySelectorAll("video, audio").forEach((media) => {
-      try {
-        media.muted = true;
-      } catch (_error) {
-      }
-
-      try {
-        media.volume = 0;
-      } catch (_error) {
-      }
-
-      try {
-        media.pause();
-      } catch (_error) {
-      }
+      pauseMediaElement(media);
     });
   }
 
@@ -377,26 +397,78 @@
       return;
     }
 
-    const media = event.target;
+    pauseMediaElement(event.target);
+  }
 
-    if (!(media instanceof HTMLMediaElement)) {
+  function lockPageScroll() {
+    if (scrollLockActive) {
       return;
     }
 
-    try {
-      media.muted = true;
-    } catch (_error) {
+    scrollLockActive = true;
+    previousRootOverflow = document.documentElement.style.overflow;
+    previousRootOverscroll = document.documentElement.style.overscrollBehavior;
+    previousBodyOverflow = document.body?.style.overflow || "";
+    previousBodyOverscroll = document.body?.style.overscrollBehavior || "";
+
+    document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.overscrollBehavior = "none";
+
+    if (document.body) {
+      document.body.style.overflow = "hidden";
+      document.body.style.overscrollBehavior = "none";
     }
 
-    try {
-      media.volume = 0;
-    } catch (_error) {
+    window.addEventListener("wheel", preventBlockedScroll, { capture: true, passive: false });
+    window.addEventListener("touchmove", preventBlockedScroll, { capture: true, passive: false });
+    window.addEventListener("keydown", preventBlockedScrollKeys, true);
+  }
+
+  function unlockPageScroll() {
+    if (!scrollLockActive) {
+      return;
     }
 
-    try {
-      media.pause();
-    } catch (_error) {
+    scrollLockActive = false;
+    document.documentElement.style.overflow = previousRootOverflow;
+    document.documentElement.style.overscrollBehavior = previousRootOverscroll;
+
+    if (document.body) {
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
     }
+
+    window.removeEventListener("wheel", preventBlockedScroll, true);
+    window.removeEventListener("touchmove", preventBlockedScroll, true);
+    window.removeEventListener("keydown", preventBlockedScrollKeys, true);
+  }
+
+  function preventBlockedScroll(event) {
+    if (!overlayHost) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function preventBlockedScrollKeys(event) {
+    if (!overlayHost || isEditableTarget(event.target)) {
+      return;
+    }
+
+    if (SCROLL_KEYS.has(event.key)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+
+  function isEditableTarget(target) {
+    if (!(target instanceof Element)) {
+      return false;
+    }
+
+    return Boolean(target.closest("input, textarea, select, [contenteditable=''], [contenteditable='true']"));
   }
 
   function getRoot() {

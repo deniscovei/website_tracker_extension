@@ -354,6 +354,20 @@ pomodoroStop?.addEventListener("click", () => {
   void stopPomodoroSession();
 });
 
+pomodoroStatsToggle?.addEventListener("click", () => {
+  pomodoroStatsVisible = !pomodoroStatsVisible;
+  syncPomodoroStatsVisibility();
+
+  if (pomodoroStatsVisible) {
+    void loadPomodoroStats();
+  }
+});
+
+pomodoroStatsDate?.addEventListener("change", () => {
+  selectedPomodoroStatsDay = pomodoroStatsDate.value || dateToDayKey(new Date());
+  void loadPomodoroStats();
+});
+
 pomodoroDial?.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   pomodoroDial.setPointerCapture(event.pointerId);
@@ -416,26 +430,12 @@ newSite?.addEventListener("click", () => {
   editingIndex = null;
   openEditor({
     domain: "",
-    blockMode: "always",
+    blockMode: "slots",
     dailyAllowanceMinutes: 0,
     allowExtraTime: false,
     requirePinForExtraTime: false,
-    intervals: [{ ...ALL_DAY_INTERVAL }]
+    intervals: [{ ...DEFAULT_INTERVAL }]
   });
-});
-
-pomodoroStatsToggle?.addEventListener("click", () => {
-  pomodoroStatsVisible = !pomodoroStatsVisible;
-  syncPomodoroStatsVisibility();
-
-  if (pomodoroStatsVisible) {
-    void loadPomodoroStats();
-  }
-});
-
-pomodoroStatsDate?.addEventListener("change", () => {
-  selectedPomodoroStatsDay = pomodoroStatsDate.value || dateToDayKey(new Date());
-  void loadPomodoroStats();
 });
 
 back?.addEventListener("click", showList);
@@ -592,7 +592,6 @@ async function saveGlobalSettingsToggle() {
     requirePinForAllExtraTime: nextRequirePin,
     allowExtraTimeForAll: nextAllowExtraTime
   };
-
   pinGlobal.checked = nextRequirePin;
   globalExtraTime.checked = nextAllowExtraTime;
 
@@ -625,7 +624,7 @@ async function saveGlobalSettingsToggle() {
         state = refreshResponse.state || state;
       }
     } catch (_error) {
-      // Settings were saved. The next background tick can refresh rules.
+      // Settings are already saved. The next background tick can refresh rules.
     }
 
     renderStatus();
@@ -642,9 +641,6 @@ async function saveGlobalSettingsToggle() {
     syncGlobalSettingsView();
   }
 }
-
-
-
 
 async function persistPinSettings({
   pin,
@@ -702,17 +698,19 @@ async function persistPinSettings({
     renderPinSettings(statusTarget === "pin" ? successMessage : "");
     renderGlobalSettings(statusTarget === "global" ? successMessage : "");
     syncEditorGlobalOverrideView();
-    renderSiteList();
 
     try {
-      const refreshPromise = chrome.runtime.sendMessage({ type: "refresh-rules" });
+      const refreshResponse = await chrome.runtime.sendMessage({ type: "refresh-rules" });
 
-      if (refreshPromise?.catch) {
-        void refreshPromise.catch(() => {});
+      if (refreshResponse?.ok) {
+        state = refreshResponse.state || state;
       }
     } catch (_error) {
       // Saving the PIN already succeeded; refreshing status can wait for the next tick.
     }
+
+    renderStatus();
+    renderSiteList();
     return true;
   } catch (error) {
     setSettingsStatus(statusTarget, cleanError(error), { error: true });
@@ -875,7 +873,7 @@ function updateGlobalSettingsStatus() {
 
   const enabled = [
     settings.requirePinForAllExtraTime ? "PIN" : "",
-    settings.allowExtraTimeForAll ? "adding minutes" : ""
+    settings.allowExtraTimeForAll ? "extra time" : ""
   ].filter(Boolean);
 
   globalSettingsStatus.classList.remove("error");
@@ -1053,187 +1051,6 @@ function renderPomodoro() {
     updatePomodoroDial();
     pomodoroTimer.textContent = `${String(getPreferredPomodoroMinutes()).padStart(2, "0")}:00`;
   }
-}
-
-function syncPomodoroStatsVisibility() {
-  if (!pomodoroStatsToggle || !pomodoroStatsPanel) {
-    return;
-  }
-
-  pomodoroStatsPanel.hidden = !pomodoroStatsVisible;
-  pomodoroStatsToggle.textContent = pomodoroStatsVisible ? "Hide statistics" : "Show statistics";
-  pomodoroStatsToggle.setAttribute("aria-expanded", String(pomodoroStatsVisible));
-
-  if (pomodoroStatsDate && !pomodoroStatsDate.value) {
-    pomodoroStatsDate.value = selectedPomodoroStatsDay;
-  }
-}
-
-async function loadPomodoroStats() {
-  if (!pomodoroStatsPanel) {
-    return;
-  }
-
-  syncPomodoroStatsVisibility();
-
-  try {
-    const response = await chrome.runtime.sendMessage({
-      type: "get-pomodoro-stats",
-      date: selectedPomodoroStatsDay
-    });
-
-    if (!response?.ok) {
-      throw new Error(response?.error || "Could not load focus statistics.");
-    }
-
-    pomodoroStatsData = response.stats;
-    renderPomodoroStats();
-  } catch (error) {
-    if (pomodoroHistoryEmpty) {
-      pomodoroHistoryEmpty.hidden = false;
-      pomodoroHistoryEmpty.textContent = cleanError(error);
-    }
-  }
-}
-
-function renderPomodoroStats() {
-  const stats = pomodoroStatsData;
-
-  if (!stats) {
-    return;
-  }
-
-  const selected = stats.selectedDay || {};
-  const sessions = Array.isArray(selected.sessions) ? selected.sessions : [];
-  const last7Days = Array.isArray(stats.last7Days) ? stats.last7Days : [];
-  const weekTotalSeconds = last7Days.reduce((sum, day) => sum + Math.max(0, Number(day.totalSeconds) || 0), 0);
-
-  if (pomodoroStatsDate) {
-    pomodoroStatsDate.value = stats.date || selectedPomodoroStatsDay;
-  }
-
-  if (pomodoroStatsSubtitle) {
-    pomodoroStatsSubtitle.textContent = formatDayLabel(stats.date);
-  }
-
-  if (pomodoroStatsTotal) {
-    pomodoroStatsTotal.textContent = formatDuration(selected.totalSeconds || 0);
-  }
-
-  if (pomodoroStatsSessions) {
-    pomodoroStatsSessions.textContent = String(selected.sessionCount || 0);
-  }
-
-  if (pomodoroStatsCompleted) {
-    pomodoroStatsCompleted.textContent = `${selected.completionRate || 0}%`;
-  }
-
-  if (pomodoroStatsStreak) {
-    pomodoroStatsStreak.textContent = `${stats.streakDays || 0}d`;
-  }
-
-  if (pomodoroWeekTotal) {
-    pomodoroWeekTotal.textContent = formatDuration(weekTotalSeconds);
-  }
-
-  renderPomodoroWeekBars(last7Days);
-  renderPomodoroHistory(sessions);
-}
-
-function renderPomodoroWeekBars(days) {
-  if (!pomodoroWeekBars) {
-    return;
-  }
-
-  pomodoroWeekBars.replaceChildren();
-
-  const maxSeconds = Math.max(1, ...days.map((day) => Math.max(0, Number(day.totalSeconds) || 0)));
-
-  days.forEach((day) => {
-    const button = document.createElement("button");
-    const bar = document.createElement("span");
-    const label = document.createElement("small");
-    const amount = document.createElement("strong");
-    const totalSeconds = Math.max(0, Number(day.totalSeconds) || 0);
-
-    button.type = "button";
-    button.className = "pomodoro-week-day";
-    button.setAttribute("aria-pressed", String(day.date === selectedPomodoroStatsDay));
-    button.addEventListener("click", () => {
-      selectedPomodoroStatsDay = day.date;
-
-      if (pomodoroStatsDate) {
-        pomodoroStatsDate.value = day.date;
-      }
-
-      void loadPomodoroStats();
-    });
-
-    bar.className = "pomodoro-week-bar";
-    bar.style.setProperty("--height", `${Math.max(6, Math.round(totalSeconds / maxSeconds * 100))}%`);
-
-    label.textContent = formatShortWeekday(day.date);
-    amount.textContent = formatDuration(totalSeconds);
-
-    button.append(bar, label, amount);
-    pomodoroWeekBars.append(button);
-  });
-}
-
-function renderPomodoroHistory(sessions) {
-  if (!pomodoroHistoryList || !pomodoroHistoryCount || !pomodoroHistoryEmpty) {
-    return;
-  }
-
-  pomodoroHistoryList.replaceChildren();
-  pomodoroHistoryCount.textContent = String(sessions.length);
-  pomodoroHistoryEmpty.hidden = sessions.length > 0;
-  pomodoroHistoryEmpty.textContent = "No focus sessions for this day yet.";
-
-  if (sessions.length === 0) {
-    return;
-  }
-
-  sessions.forEach((session) => {
-    const item = document.createElement("li");
-    const main = document.createElement("div");
-    const title = document.createElement("strong");
-    const meta = document.createElement("span");
-    const status = document.createElement("span");
-
-    item.className = "pomodoro-history-item";
-    main.className = "pomodoro-history-copy";
-    title.textContent = `${session.mode === "strict" ? "Strict" : "Standard"} focus`;
-    meta.textContent = `${formatTimeRange(session.startedAt, session.endedAt)} · ${formatDuration(session.elapsedSeconds)}`;
-
-    status.className = session.completed ? "session-badge is-completed" : "session-badge is-stopped";
-    status.textContent = session.completed ? "Completed" : "Stopped";
-
-    main.append(title, meta);
-    item.append(main, status);
-    pomodoroHistoryList.append(item);
-  });
-}
-
-function formatShortWeekday(day) {
-  const date = parseDayKey(day);
-
-  if (!date) {
-    return "";
-  }
-
-  return date.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3);
-}
-
-function formatTimeRange(start, end) {
-  const startDate = new Date(Number(start) || 0);
-  const endDate = new Date(Number(end) || 0);
-
-  if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) {
-    return "";
-  }
-
-  return `${startDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – ${endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 function syncPomodoroModeView() {
@@ -1496,12 +1313,204 @@ function updatePomodoroCountdown() {
   if (remainingSeconds <= 0 && pomodoro.active) {
     pomodoro = normalizePomodoro();
     renderPomodoro();
-    void loadData();
+    void loadData()
+      .catch(() => {})
+      .finally(() => {
+        if (pomodoroStatsVisible) {
+          void loadPomodoroStats();
+        }
+      });
+  }
+}
 
-    if (pomodoroStatsVisible) {
-      void loadPomodoroStats();
+function syncPomodoroStatsVisibility() {
+  if (!pomodoroStatsToggle || !pomodoroStatsPanel) {
+    return;
+  }
+
+  pomodoroStatsPanel.hidden = !pomodoroStatsVisible;
+  pomodoroStatsToggle.textContent = pomodoroStatsVisible ? "Hide statistics" : "Show statistics";
+  pomodoroStatsToggle.setAttribute("aria-expanded", String(pomodoroStatsVisible));
+
+  if (pomodoroStatsDate && !pomodoroStatsDate.value) {
+    pomodoroStatsDate.value = selectedPomodoroStatsDay;
+  }
+}
+
+async function loadPomodoroStats() {
+  if (!pomodoroStatsPanel) {
+    return;
+  }
+
+  syncPomodoroStatsVisibility();
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "get-pomodoro-stats",
+      date: selectedPomodoroStatsDay
+    });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not load focus statistics.");
+    }
+
+    pomodoroStatsData = response.stats;
+    renderPomodoroStats();
+  } catch (error) {
+    if (pomodoroHistoryEmpty) {
+      pomodoroHistoryEmpty.hidden = false;
+      pomodoroHistoryEmpty.textContent = cleanError(error);
     }
   }
+}
+
+function renderPomodoroStats() {
+  const stats = pomodoroStatsData;
+
+  if (!stats) {
+    return;
+  }
+
+  const selected = stats.selectedDay || {};
+  const sessions = Array.isArray(selected.sessions) ? selected.sessions : [];
+  const last7Days = Array.isArray(stats.last7Days) ? stats.last7Days : [];
+  const weekTotalSeconds = last7Days.reduce((sum, day) => sum + Math.max(0, Number(day.totalSeconds) || 0), 0);
+
+  if (pomodoroStatsDate) {
+    pomodoroStatsDate.value = stats.date || selectedPomodoroStatsDay;
+  }
+
+  if (pomodoroStatsSubtitle) {
+    pomodoroStatsSubtitle.textContent = formatDayLabel(stats.date);
+  }
+
+  if (pomodoroStatsTotal) {
+    pomodoroStatsTotal.textContent = formatDuration(selected.totalSeconds || 0);
+  }
+
+  if (pomodoroStatsSessions) {
+    pomodoroStatsSessions.textContent = String(selected.sessionCount || 0);
+  }
+
+  if (pomodoroStatsCompleted) {
+    pomodoroStatsCompleted.textContent = `${selected.completedCount || 0} / ${selected.stoppedCount || 0}`;
+    pomodoroStatsCompleted.title = `${selected.completionRate || 0}% completion rate`;
+  }
+
+  if (pomodoroStatsStreak) {
+    pomodoroStatsStreak.textContent = `${stats.streakDays || 0}d`;
+  }
+
+  if (pomodoroWeekTotal) {
+    pomodoroWeekTotal.textContent = formatDuration(weekTotalSeconds);
+  }
+
+  renderPomodoroWeekBars(last7Days);
+  renderPomodoroHistory(sessions);
+}
+
+function renderPomodoroWeekBars(days) {
+  if (!pomodoroWeekBars) {
+    return;
+  }
+
+  pomodoroWeekBars.replaceChildren();
+
+  const maxSeconds = Math.max(1, ...days.map((day) => {
+    return Math.max(0, Number(day.longestSessionSeconds ?? day.totalSeconds) || 0);
+  }));
+
+  days.forEach((day) => {
+    const button = document.createElement("button");
+    const bar = document.createElement("span");
+    const label = document.createElement("small");
+    const amount = document.createElement("strong");
+    const totalSeconds = Math.max(0, Number(day.totalSeconds) || 0);
+    const longestSessionSeconds = Math.max(0, Number(day.longestSessionSeconds ?? totalSeconds) || 0);
+    const barSeconds = longestSessionSeconds || totalSeconds;
+    const accessibleLabel = longestSessionSeconds > 0 && totalSeconds > longestSessionSeconds
+      ? `${formatDayLabel(day.date)}: ${formatDuration(totalSeconds)} total, longest session ${formatDuration(longestSessionSeconds)}`
+      : `${formatDayLabel(day.date)}: ${formatDuration(totalSeconds)}`;
+
+    button.type = "button";
+    button.className = "pomodoro-week-day";
+    button.setAttribute("aria-pressed", String(day.date === selectedPomodoroStatsDay));
+    button.setAttribute("aria-label", accessibleLabel);
+    button.addEventListener("click", () => {
+      selectedPomodoroStatsDay = day.date;
+
+      if (pomodoroStatsDate) {
+        pomodoroStatsDate.value = day.date;
+      }
+
+      void loadPomodoroStats();
+    });
+
+    bar.className = "pomodoro-week-bar";
+    bar.style.setProperty("--height", `${Math.max(8, Math.round(barSeconds / maxSeconds * 100))}%`);
+
+    label.textContent = formatShortWeekday(day.date);
+    amount.textContent = formatDuration(totalSeconds);
+
+    button.append(bar, label, amount);
+    pomodoroWeekBars.append(button);
+  });
+}
+
+function renderPomodoroHistory(sessions) {
+  if (!pomodoroHistoryList || !pomodoroHistoryCount || !pomodoroHistoryEmpty) {
+    return;
+  }
+
+  pomodoroHistoryList.replaceChildren();
+  pomodoroHistoryCount.textContent = String(sessions.length);
+  pomodoroHistoryEmpty.hidden = sessions.length > 0;
+  pomodoroHistoryEmpty.textContent = "No focus sessions for this day yet.";
+
+  if (sessions.length === 0) {
+    return;
+  }
+
+  sessions.forEach((session) => {
+    const item = document.createElement("li");
+    const main = document.createElement("div");
+    const title = document.createElement("strong");
+    const meta = document.createElement("span");
+    const status = document.createElement("span");
+
+    item.className = "pomodoro-history-item";
+    main.className = "pomodoro-history-copy";
+    title.textContent = `${session.mode === "strict" ? "Strict" : "Standard"} focus`;
+    meta.textContent = `${formatTimeRange(session.startedAt, session.endedAt)} · ${formatDuration(session.elapsedSeconds)}`;
+
+    status.className = session.completed ? "session-badge is-completed" : "session-badge is-stopped";
+    status.textContent = session.completed ? "Completed" : "Stopped";
+
+    main.append(title, meta);
+    item.append(main, status);
+    pomodoroHistoryList.append(item);
+  });
+}
+
+function formatShortWeekday(day) {
+  const date = parseDayKey(day);
+
+  if (!date) {
+    return "";
+  }
+
+  return date.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3);
+}
+
+function formatTimeRange(start, end) {
+  const startDate = new Date(Number(start) || 0);
+  const endDate = new Date(Number(end) || 0);
+
+  if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) {
+    return "";
+  }
+
+  return `${startDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – ${endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 function renderSiteList() {
@@ -1622,9 +1631,9 @@ function openEditor(site) {
   focusView.hidden = true;
   statusPanel.hidden = false;
   back.hidden = false;
+  focusTab?.setAttribute("aria-pressed", "false");
   deleteSite.hidden = editingIndex === null;
   siteForm?.classList.toggle("is-new-site", editingIndex === null);
-  siteForm?.classList.toggle("is-existing-site", editingIndex !== null);
 
   if (saveSite) {
     saveSite.hidden = editingIndex !== null;
@@ -1686,15 +1695,12 @@ function queueEditorAutosave({ immediate = false } = {}) {
   }
 
   // New websites must be explicitly created with the Add website button.
-  // Existing websites still autosave like before.
+  // Existing websites can still autosave.
   if (editingIndex === null) {
     return;
   }
 
-  if (editorAutosaveTimer) {
-    window.clearTimeout(editorAutosaveTimer);
-  }
-
+  clearTimeout(editorAutosaveTimer);
   editorAutosaveTimer = window.setTimeout(() => {
     void autosaveEditor();
   }, immediate ? 0 : 350);
@@ -1733,19 +1739,18 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
   }
 
   editorAutosaveInFlight = true;
-
-  if (saveSite && editingIndex === null) {
-    saveSite.disabled = true;
-    saveSite.textContent = "Adding...";
-  }
-
   const previousIndex = editingIndex;
   const previousSite = previousIndex === null ? null : cloneSite(schedule.sites[previousIndex]);
 
-  if (previousIndex === null && fromSubmit) {
+  if (saveSite) {
+    saveSite.disabled = true;
+    saveSite.textContent = previousIndex === null ? "Adding..." : "Add website";
+  }
+
+  if (previousIndex === null) {
     schedule.sites.push(site);
     editingIndex = schedule.sites.length - 1;
-  } else if (previousIndex !== null) {
+  } else {
     schedule.sites[previousIndex] = site;
   }
 
@@ -1755,8 +1760,8 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
     clearFormError();
 
     if (saveSite) {
-      saveSite.textContent = "Add website";
       saveSite.hidden = editingIndex !== null;
+      saveSite.textContent = "Add website";
     }
 
     if (fromSubmit && previousIndex === null) {
@@ -1777,9 +1782,9 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
     editorAutosaveInFlight = false;
 
     if (saveSite) {
+      saveSite.hidden = editingIndex !== null;
       saveSite.disabled = false;
       saveSite.textContent = "Add website";
-      saveSite.hidden = editingIndex !== null;
     }
 
     if (editorAutosaveQueued) {
@@ -1791,8 +1796,6 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
 
 function showList() {
   clearTimeout(editorAutosaveTimer);
-  siteForm?.classList.remove("is-new-site");
-  siteForm?.classList.remove("is-existing-site");
   scheduleTab?.setAttribute("aria-pressed", "true");
   usageTab?.setAttribute("aria-pressed", "false");
   focusTab?.setAttribute("aria-pressed", "false");
@@ -1839,6 +1842,7 @@ function showFocusView() {
   focusView.hidden = false;
   back.hidden = true;
   renderPomodoro();
+
   syncPomodoroStatsVisibility();
 
   if (pomodoroStatsVisible) {
@@ -3310,18 +3314,12 @@ function readSiteForm() {
     throw new Error("Add at least one time slot.");
   }
 
-  const existingSite = editingIndex === null ? null : schedule.sites[editingIndex];
-  const storedAllowExtraTime = existingSite ? Boolean(existingSite.allowExtraTime) : false;
-  const storedRequirePinForExtraTime = existingSite ? Boolean(existingSite.requirePinForExtraTime) : false;
-
   return {
     domain,
     blockMode,
     dailyAllowanceMinutes,
-    allowExtraTime: settings.allowExtraTimeForAll ? storedAllowExtraTime : allowExtraTime.checked,
-    requirePinForExtraTime: settings.requirePinForAllExtraTime
-      ? storedRequirePinForExtraTime
-      : settings.hasPin ? requirePinExtra.checked : false,
+    allowExtraTime: Boolean(allowExtraTime?.checked),
+    requirePinForExtraTime: settings.hasPin ? Boolean(requirePinExtra?.checked) : false,
     intervals: intervals.length > 0 ? intervals : [{ ...DEFAULT_INTERVAL }]
   };
 }

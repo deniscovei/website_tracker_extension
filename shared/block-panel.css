@@ -3,22 +3,34 @@
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 18px;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  padding: 12px;
   background:
     linear-gradient(135deg, rgba(96, 165, 250, 0.1), transparent 42%),
     linear-gradient(315deg, rgba(222, 84, 113, 0.08), transparent 40%),
     rgba(17, 24, 39, 0.76);
-  backdrop-filter: blur(5px);
+  backdrop-filter: blur(4px);
   pointer-events: auto;
+  touch-action: none;
 }
 
 .ft-block-card {
-  width: min(460px, calc(100vw - 28px));
+  display: grid;
+  width: min(340px, calc(100vw - 24px));
+  height: 300px;
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+  align-content: center;
+  overflow: hidden;
   border: 1px solid rgba(245, 247, 245, 0.14);
   border-radius: 8px;
   background: rgba(29, 33, 29, 0.92);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
-  padding: clamp(20px, 4vw, 28px);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.32);
+  padding: 16px;
   text-align: center;
 }
 
@@ -26,73 +38,86 @@
   display: inline-grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 10px;
-  margin: 0 auto 16px;
+  gap: 8px;
+  margin: 0 auto 12px;
   text-align: left;
 }
 
 .ft-block-brand-icon {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: block;
 }
 
 .ft-block-brand-name {
   margin: 0;
   color: #f8fafc;
-  font-size: 1.06rem;
-  font-weight: 950;
-  letter-spacing: -0.03em;
+  font-size: 0.9rem;
+  font-weight: 850;
+  letter-spacing: 0;
   line-height: 1.05;
 }
 
 .ft-block-title {
-  max-width: 9ch;
+  max-width: 12ch;
   margin: 0 auto;
   color: #f8fafc;
-  font-size: clamp(1.8rem, 5.8vw, 2.5rem);
-  font-weight: 950;
-  line-height: 1.06;
-  letter-spacing: -0.04em;
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1.12;
+  letter-spacing: 0;
 }
 
 .ft-block-message {
-  max-width: 24rem;
-  margin: 14px auto 0;
+  max-width: 18rem;
+  margin: 6px auto 0;
   color: #cbd5e1;
-  font-size: 0.96rem;
+  font-size: 0.9rem;
   font-weight: 500;
-  line-height: 1.5;
+  line-height: 1.42;
+}
+
+.ft-block-confirm-message {
+  margin: 10px 0 0;
+  border: 1px solid rgba(96, 165, 250, 0.24);
+  border-radius: 6px;
+  background: rgba(96, 165, 250, 0.12);
+  color: #dbeafe;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.45;
+  padding: 8px 10px;
+  text-align: center;
 }
 
 .ft-block-minute-actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-top: 20px;
+  gap: 7px;
+  margin-top: 10px;
 }
 
 .ft-block-minute-button {
-  min-height: 44px;
+  min-height: 32px;
   border: 1px solid rgba(245, 247, 245, 0.14);
   border-radius: 6px;
-  background: #1f2937;
-  color: #dbeafe;
+  background: #2563eb;
+  color: #ffffff;
   cursor: pointer;
   font: inherit;
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 800;
   line-height: 1;
-  padding: 0 14px;
+  padding: 0 9px;
 }
 
 .ft-block-minute-button:hover:not(:disabled) {
-  background: #273449;
+  background: #1d4ed8;
 }
 
 .ft-block-pin-field {
   display: block;
-  margin: 18px 0 0;
+  margin: 10px 0 0;
   border: 0;
   padding: 0;
   text-align: left;
@@ -100,9 +125,9 @@
 
 .ft-block-pin-label {
   display: block;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   color: #cbd5e1;
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   font-weight: 800;
   line-height: 1.35;
   text-align: center;
@@ -111,15 +136,16 @@
 .ft-block-pin-input {
   width: 100%;
   min-width: 0;
-  min-height: 42px;
+  min-height: 34px;
   border: 1px solid rgba(245, 247, 245, 0.14);
   border-radius: 6px;
   background: #1f2937;
   color: #dbeafe;
   font: inherit;
-  font-weight: 900;
+  font-size: 0.85rem;
+  font-weight: 850;
   letter-spacing: 0.12em;
-  padding: 0 10px;
+  padding: 0 9px;
   text-align: center;
 }
 
@@ -131,19 +157,19 @@
 .ft-block-panel-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 14px;
+  gap: 7px;
+  margin-top: 10px;
 }
 
 .ft-block-panel-button {
-  min-height: 44px;
+  min-height: 34px;
   border: 1px solid transparent;
   border-radius: 6px;
   font: inherit;
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 800;
   line-height: 1;
-  padding: 0 16px;
+  padding: 0 10px;
   cursor: pointer;
 }
 
@@ -167,11 +193,11 @@
 }
 
 .ft-block-error {
-  min-height: 18px;
-  margin: 12px 0 0;
+  min-height: 16px;
+  margin: 10px 0 0;
   color: #f18eaa;
-  font-size: 0.82rem;
-  font-weight: 800;
+  font-size: 0.8rem;
+  font-weight: 750;
   line-height: 1.35;
   text-align: center;
 }
@@ -184,11 +210,4 @@
 .ft-block-card button:focus-visible {
   outline: 3px solid rgba(37, 99, 235, 0.32);
   outline-offset: 3px;
-}
-
-@media (max-width: 520px) {
-  .ft-block-minute-actions,
-  .ft-block-panel-actions {
-    grid-template-columns: 1fr;
-  }
 }

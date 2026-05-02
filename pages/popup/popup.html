@@ -23,7 +23,7 @@
       </nav>
 
       <section class="status" aria-live="polite">
-        <p id="summary">Loading website status....</p>
+        <p id="summary">Loading website status...</p>
         <ul id="active-sites"></ul>
         <p id="updated"></p>
       </section>
@@ -34,6 +34,7 @@
           <button id="new-site" class="primary-button" type="button">Add website</button>
         </div>
         <ul id="site-list" class="site-list"></ul>
+        <button id="refresh" class="secondary-button" type="button">Refresh rules</button>
 
         <div class="section-heading">
           <h2 id="pin-settings-title">PIN protection</h2>
@@ -320,8 +321,8 @@
               <strong id="pomodoro-stats-sessions">0</strong>
             </div>
             <div class="pomodoro-stat-card">
-              <span>Completed</span>
-              <strong id="pomodoro-stats-completed">0%</strong>
+              <span>Completed / stopped</span>
+              <strong id="pomodoro-stats-completed">0 / 0</strong>
             </div>
             <div class="pomodoro-stat-card">
               <span>Streak</span>
