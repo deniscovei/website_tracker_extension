@@ -8,6 +8,14 @@ const DAYS = [
   { id: "sun", label: "S" }
 ];
 
+let popupUsagePausePort = null;
+
+try {
+  popupUsagePausePort = chrome.runtime.connect({ name: "focus-tracker-popup" });
+} catch (_error) {
+  popupUsagePausePort = null;
+}
+
 const DEFAULT_INTERVAL = {
   start: "09:00",
   end: "17:00"
@@ -29,6 +37,9 @@ const siteList = document.getElementById("site-list");
 const newSite = document.getElementById("new-site");
 const siteForm = document.getElementById("site-form");
 const siteDomain = document.getElementById("site-domain");
+const exceptionInput = document.getElementById("exception-input");
+const addException = document.getElementById("add-exception");
+const exceptionList = document.getElementById("exception-list");
 const blockModeRadios = Array.from(document.querySelectorAll('input[name="block-mode"]'));
 const dailyAllowance = document.getElementById("daily-allowance");
 const allowExtraTime = document.getElementById("allow-extra-time");
@@ -302,6 +313,37 @@ siteDomain?.addEventListener("input", () => {
   queueEditorAutosave();
 });
 
+exceptionInput?.addEventListener("input", clearFormError);
+
+exceptionInput?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") {
+    return;
+  }
+
+  event.preventDefault();
+  addExceptionFromInput();
+});
+
+addException?.addEventListener("click", addExceptionFromInput);
+
+exceptionList?.addEventListener("click", (event) => {
+  const target = event.target;
+
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+
+  const removeButton = target.closest("[data-remove-exception]");
+
+  if (!removeButton) {
+    return;
+  }
+
+  removeButton.closest("[data-exception]")?.remove();
+  clearFormError();
+  queueEditorAutosave({ immediate: true });
+});
+
 dailyAllowance?.addEventListener("input", () => {
   clearFormError();
   queueEditorAutosave();
@@ -431,6 +473,7 @@ newSite?.addEventListener("click", () => {
   openEditor({
     domain: "",
     blockMode: "slots",
+    exceptions: [],
     dailyAllowanceMinutes: 0,
     allowExtraTime: false,
     requirePinForExtraTime: false,
@@ -598,6 +641,7 @@ async function saveGlobalSettingsToggle() {
   setSettingsStatus("global", "Saving...");
   syncGlobalSettingsView();
   syncEditorGlobalOverrideView();
+  updatePinDraftStatus();
   renderSiteList();
 
   try {
@@ -615,6 +659,7 @@ async function saveGlobalSettingsToggle() {
 
     settings = normalizeSettings(response.settings || settings);
     renderGlobalSettings("Global settings saved.");
+    updatePinDraftStatus();
     syncEditorGlobalOverrideView();
 
     try {
@@ -634,6 +679,7 @@ async function saveGlobalSettingsToggle() {
     pinGlobal.checked = Boolean(previousSettings.requirePinForAllExtraTime);
     globalExtraTime.checked = Boolean(previousSettings.allowExtraTimeForAll);
     setSettingsStatus("global", cleanError(error), { error: true });
+    updatePinDraftStatus();
     syncEditorGlobalOverrideView();
     renderSiteList();
   } finally {
@@ -1558,40 +1604,57 @@ function renderSiteList() {
 
       item.append(button);
 
-      if ((usage?.extraRemainingSeconds || 0) > 0) {
+      if (site.exceptions?.length > 0) {
+        const exceptions = document.createElement("span");
+
+        exceptions.className = "site-exceptions-preview";
+        exceptions.textContent = `Allowed: ${formatExceptionPreview(site.exceptions)}`;
+        item.append(exceptions);
+      }
+
+      const dailyRemainingSeconds = getDailyAllowanceRemainingSeconds(site, usage);
+      const extraRemainingSeconds = Math.max(0, Number(usage?.extraRemainingSeconds) || 0);
+
+      if (dailyRemainingSeconds !== null || extraRemainingSeconds > 0) {
         const actions = document.createElement("div");
-        const note = document.createElement("span");
-        const cutOffButton = document.createElement("button");
 
         actions.className = "site-row-actions";
-        note.className = "site-extra-note";
-        note.textContent = `${formatDuration(usage.extraRemainingSeconds)} added time remaining`;
-        cutOffButton.type = "button";
-        cutOffButton.className = "revoke-button";
-        cutOffButton.textContent = "Revoke added time";
-        cutOffButton.addEventListener("click", async (event) => {
-          event.stopPropagation();
-          cutOffButton.disabled = true;
 
-          try {
-            const response = await chrome.runtime.sendMessage({
-              type: "cut-off-site",
-              domain: site.domain
-            });
+        if (extraRemainingSeconds > 0) {
+          const cutOffButton = document.createElement("button");
 
-            if (!response?.ok) {
-              throw new Error(response?.error || "Could not revoke added minutes.");
+          actions.append(createSiteRemainingNote(`${formatDuration(extraRemainingSeconds)} added time remaining`));
+
+          cutOffButton.type = "button";
+          cutOffButton.className = "revoke-button";
+          cutOffButton.textContent = "Revoke added time";
+          cutOffButton.addEventListener("click", async (event) => {
+            event.stopPropagation();
+            cutOffButton.disabled = true;
+
+            try {
+              const response = await chrome.runtime.sendMessage({
+                type: "cut-off-site",
+                domain: site.domain
+              });
+
+              if (!response?.ok) {
+                throw new Error(response?.error || "Could not revoke added minutes.");
+              }
+
+              await loadData();
+            } catch (error) {
+              renderError(cleanError(error));
+            } finally {
+              cutOffButton.disabled = false;
             }
+          });
 
-            await loadData();
-          } catch (error) {
-            renderError(cleanError(error));
-          } finally {
-            cutOffButton.disabled = false;
-          }
-        });
+          actions.append(cutOffButton);
+        } else if (dailyRemainingSeconds !== null) {
+          actions.append(createSiteRemainingNote(formatDailyAllowanceRemaining(dailyRemainingSeconds)));
+        }
 
-        actions.append(note, cutOffButton);
         item.append(actions);
       }
 
@@ -1600,11 +1663,134 @@ function renderSiteList() {
   );
 }
 
+function createSiteRemainingNote(text) {
+  const note = document.createElement("span");
+
+  note.className = "site-extra-note";
+  note.textContent = text;
+  return note;
+}
+
+function formatExceptionPreview(exceptions = []) {
+  const visible = exceptions.slice(0, 2);
+  const suffix = exceptions.length > visible.length
+    ? ` +${exceptions.length - visible.length} more`
+    : "";
+
+  return `${visible.join(", ")}${suffix}`;
+}
+
+function getDailyAllowanceRemainingSeconds(site, usage = null) {
+  const allowanceSeconds = Math.max(0, Number(site?.dailyAllowanceMinutes) || 0) * 60;
+
+  if (allowanceSeconds <= 0) {
+    return null;
+  }
+
+  const usedSeconds = Math.max(0, Number(usage?.usedSeconds) || 0);
+  return Math.max(0, allowanceSeconds - usedSeconds);
+}
+
+function formatDailyAllowanceRemaining(seconds) {
+  return seconds > 0
+    ? `${formatDuration(seconds)} included time remaining`
+    : "Daily time is up for today";
+}
+
+function addExceptionFromInput() {
+  if (!exceptionInput) {
+    return;
+  }
+
+  const siteDomainValue = normalizeDomain(siteDomain.value);
+
+  try {
+    const exception = normalizeExceptionForSite(exceptionInput.value, siteDomainValue);
+    const existing = getEditorExceptions();
+
+    if (existing.includes(exception)) {
+      throw new Error("That exception is already added.");
+    }
+
+    renderExceptionList([...existing, exception]);
+    exceptionInput.value = "";
+    clearFormError();
+    queueEditorAutosave({ immediate: true });
+  } catch (error) {
+    setFormError(cleanError(error));
+    exceptionInput.focus();
+  }
+}
+
+function renderExceptionList(exceptions = []) {
+  if (!exceptionList) {
+    return;
+  }
+
+  const normalized = normalizeExceptionList(exceptions, normalizeDomain(siteDomain.value));
+  exceptionList.replaceChildren();
+
+  if (normalized.length === 0) {
+    const empty = document.createElement("li");
+
+    empty.className = "exception-empty";
+    empty.textContent = "No exceptions.";
+    exceptionList.append(empty);
+    return;
+  }
+
+  normalized.forEach((exception) => {
+    const item = document.createElement("li");
+    const label = document.createElement("span");
+    const remove = document.createElement("button");
+
+    item.className = "exception-chip";
+    item.dataset.exception = exception;
+    label.textContent = exception;
+    remove.type = "button";
+    remove.className = "exception-remove";
+    remove.dataset.removeException = exception;
+    remove.setAttribute("aria-label", `Remove ${exception}`);
+    remove.textContent = "Remove";
+
+    item.append(label, remove);
+    exceptionList.append(item);
+  });
+}
+
+function getEditorExceptions() {
+  if (!exceptionList) {
+    return [];
+  }
+
+  return Array.from(exceptionList.querySelectorAll("[data-exception]"))
+    .map((item) => normalizeDomain(item.dataset.exception || ""))
+    .filter(Boolean);
+}
+
+function readExceptionsForSave(domain) {
+  const normalized = [];
+
+  getEditorExceptions().forEach((item) => {
+    const exception = normalizeExceptionForSite(item, domain);
+
+    if (!normalized.includes(exception)) {
+      normalized.push(exception);
+    }
+  });
+
+  return normalized;
+}
+
 function openEditor(site) {
   clearFormError();
   scheduleTab?.setAttribute("aria-pressed", "true");
   usageTab?.setAttribute("aria-pressed", "false");
   siteDomain.value = site.domain || "";
+  if (exceptionInput) {
+    exceptionInput.value = "";
+  }
+  renderExceptionList(site.exceptions || []);
   dailyAllowance.value = String(site.dailyAllowanceMinutes || 0);
   allowExtraTime.checked = Boolean(site.allowExtraTime);
   requirePinExtra.checked = Boolean(site.requirePinForExtraTime);
@@ -3314,9 +3500,12 @@ function readSiteForm() {
     throw new Error("Add at least one time slot.");
   }
 
+  const exceptions = readExceptionsForSave(domain);
+
   return {
     domain,
     blockMode,
+    exceptions,
     dailyAllowanceMinutes,
     allowExtraTime: Boolean(allowExtraTime?.checked),
     requirePinForExtraTime: settings.hasPin ? Boolean(requirePinExtra?.checked) : false,
@@ -3446,14 +3635,19 @@ function normalizeSchedule(value) {
       ? value.timezone.trim()
       : "local",
     sites: sites
-      .map((site) => ({
-        domain: normalizeDomain(site.domain || site.domains?.[0] || ""),
-        blockMode: normalizeBlockMode(site.blockMode, site.intervals),
-        dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
-        allowExtraTime: Boolean(site.allowExtraTime),
-        requirePinForExtraTime: Boolean(site.requirePinForExtraTime),
-        intervals: Array.isArray(site.intervals) ? site.intervals.map(normalizeInterval) : []
-      }))
+      .map((site) => {
+        const domain = normalizeDomain(site.domain || site.domains?.[0] || "");
+
+        return {
+          domain,
+          blockMode: normalizeBlockMode(site.blockMode, site.intervals),
+          exceptions: normalizeExceptionList(site.exceptions ?? site.allowlist ?? site.allowList ?? site.allowedDomains, domain),
+          dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
+          allowExtraTime: Boolean(site.allowExtraTime),
+          requirePinForExtraTime: Boolean(site.requirePinForExtraTime),
+          intervals: Array.isArray(site.intervals) ? site.intervals.map(normalizeInterval) : []
+        };
+      })
       .filter((site) => site.domain)
   };
 }
@@ -3568,6 +3762,55 @@ function normalizeDomain(value) {
   }
 }
 
+function normalizeExceptionForSite(value, siteDomain) {
+  const exception = normalizeDomain(value);
+  const domain = normalizeDomain(siteDomain);
+
+  if (!exception) {
+    throw new Error("Enter an exception domain.");
+  }
+
+  if (!domain) {
+    throw new Error("Enter the blocked website before adding exceptions.");
+  }
+
+  if (!isValidWebsiteDomain(exception)) {
+    throw new Error("Enter a valid exception domain.");
+  }
+
+  if (exception === domain || !domainMatches(exception, domain)) {
+    throw new Error("Exceptions must be subdomains of the blocked website.");
+  }
+
+  return exception;
+}
+
+function normalizeExceptionList(value, siteDomain) {
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[\s,]+/)
+      : [];
+  const normalized = [];
+
+  values.forEach((item) => {
+    try {
+      const exception = normalizeExceptionForSite(item, siteDomain);
+
+      if (!normalized.includes(exception)) {
+        normalized.push(exception);
+      }
+    } catch (_error) {
+    }
+  });
+
+  return normalized;
+}
+
+function domainMatches(host, domain) {
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
 function normalizeTime(value) {
   const match = /^(\d{1,2}):([0-5]\d)$/.exec(String(value || ""));
 
@@ -3626,6 +3869,7 @@ function cloneSite(site) {
   return {
     domain: site.domain,
     blockMode: normalizeBlockMode(site.blockMode, site.intervals),
+    exceptions: normalizeExceptionList(site.exceptions, site.domain),
     dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
     allowExtraTime: Boolean(site.allowExtraTime),
     requirePinForExtraTime: Boolean(site.requirePinForExtraTime),
@@ -3649,16 +3893,16 @@ function siteSummary(site, usage = null) {
     parts.push(`${site.dailyAllowanceMinutes} min/day`);
   }
 
-  if ((usage?.extraRemainingSeconds || 0) > 0) {
-    parts.push(`${Math.ceil(usage.extraRemainingSeconds / 60)} min left`);
-  }
-
   if (settings.allowExtraTimeForAll || site.allowExtraTime) {
     parts.push("extra time allowed");
   }
 
   if (settings.hasPin && (site.requirePinForExtraTime || settings.requirePinForAllExtraTime)) {
     parts.push("PIN required for extra time");
+  }
+
+  if (site.exceptions?.length > 0) {
+    parts.push(`${site.exceptions.length} exception${site.exceptions.length === 1 ? "" : "s"}`);
   }
 
   return parts.join(" · ");

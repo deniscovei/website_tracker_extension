@@ -88,6 +88,20 @@
             <input id="site-domain" type="text" inputmode="url" autocomplete="off" placeholder="instagram.com" required>
           </label>
 
+          <section class="exceptions-panel" aria-labelledby="exceptions-title">
+            <div class="exceptions-heading">
+              <h2 id="exceptions-title">Exceptions</h2>
+            </div>
+            <div class="exception-add-row">
+              <label class="field exception-field">
+                <span>Allowed subdomain</span>
+                <input id="exception-input" type="text" inputmode="url" autocomplete="off" placeholder="music.youtube.com">
+              </label>
+              <button id="add-exception" class="secondary-button small" type="button">Add exception</button>
+            </div>
+            <ul id="exception-list" class="exception-list"></ul>
+          </section>
+
           <section class="mode-panel" aria-labelledby="mode-title">
             <h2 id="mode-title">Blocking mode</h2>
             <div class="mode-options">

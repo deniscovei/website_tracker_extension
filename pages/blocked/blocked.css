@@ -26,15 +26,6 @@ button {
   position: relative;
 }
 
-.blocked-panel.ft-block-card {
-  width: min(400px, calc(100vw - 24px));
-  height: 320px;
-  min-height: 320px;
-  max-height: calc(100vh - 24px);
-  max-height: calc(100dvh - 24px);
-  overflow: hidden;
-}
-
 .pomodoro-block {
   display: grid;
   justify-items: center;
@@ -55,7 +46,7 @@ button {
 .blocked-pomodoro-mode {
   margin: 0;
   color: #cbd5e1;
-  font-size: 0.8rem;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.35;
 }
@@ -66,22 +57,22 @@ button {
 
 .blocked-pomodoro-timer {
   color: #60a5fa;
-  font-size: clamp(2.6rem, 10vw, 3.6rem);
+  font-size: clamp(42px, 10vw, 58px);
   font-variant-numeric: tabular-nums;
   font-weight: 950;
   line-height: 1;
 }
 
 .extra-time {
-  margin-top: 0;
+  margin-top: 12px;
   padding: 0;
 }
 
 .popup-view {
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .popup-view-success {
-  margin-top: 12px;
+  margin-top: 0;
 }

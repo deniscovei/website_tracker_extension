@@ -56,15 +56,15 @@
   function renderPinField({ inputId = "focus-tracker-pin-input", disabled = false, value = "" } = {}) {
     return `
       <label class="ft-block-pin-field">
-        <span class="ft-block-pin-label">PIN</span>
         <input
           id="${escapeHtml(inputId)}"
           class="ft-block-pin-input"
           type="password"
           inputmode="numeric"
           autocomplete="off"
+          aria-label="PIN"
           maxlength="4"
-          placeholder="0000"
+          placeholder="Enter PIN"
           value="${escapeHtml(value)}"
           ${disabled ? "disabled" : ""}
         >

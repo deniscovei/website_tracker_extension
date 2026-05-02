@@ -8,29 +8,31 @@
   height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
-  padding: 12px;
+  padding: 16px;
   background:
     linear-gradient(135deg, rgba(96, 165, 250, 0.1), transparent 42%),
     linear-gradient(315deg, rgba(222, 84, 113, 0.08), transparent 40%),
     rgba(17, 24, 39, 0.76);
   backdrop-filter: blur(4px);
+  font-size: 16px;
   pointer-events: auto;
   touch-action: none;
 }
 
 .ft-block-card {
   display: grid;
-  width: min(340px, calc(100vw - 24px));
-  height: 300px;
-  max-height: calc(100vh - 24px);
-  max-height: calc(100dvh - 24px);
-  align-content: center;
-  overflow: hidden;
+  width: min(400px, calc(100vw - 32px));
+  height: auto;
+  min-height: 0;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  align-content: start;
+  overflow-y: auto;
   border: 1px solid rgba(245, 247, 245, 0.14);
   border-radius: 8px;
   background: rgba(29, 33, 29, 0.92);
   box-shadow: 0 16px 44px rgba(0, 0, 0, 0.32);
-  padding: 16px;
+  padding: 18px;
   text-align: center;
 }
 
@@ -52,41 +54,39 @@
 .ft-block-brand-name {
   margin: 0;
   color: #f8fafc;
-  font-size: 0.9rem;
+  font-size: 15px;
   font-weight: 850;
   letter-spacing: 0;
   line-height: 1.05;
 }
 
 .ft-block-title {
-  max-width: 12ch;
+  max-width: 14ch;
   margin: 0 auto;
   color: #f8fafc;
-  font-size: 1.45rem;
+  font-size: 25px;
   font-weight: 900;
-  line-height: 1.12;
+  line-height: 1.1;
   letter-spacing: 0;
 }
 
 .ft-block-message {
-  max-width: 18rem;
-  margin: 6px auto 0;
+  max-width: 340px;
+  margin: 8px auto 0;
   color: #cbd5e1;
-  font-size: 0.9rem;
+  font-size: 15px;
   font-weight: 500;
   line-height: 1.42;
 }
 
 .ft-block-confirm-message {
-  margin: 10px 0 0;
-  border: 1px solid rgba(96, 165, 250, 0.24);
-  border-radius: 6px;
-  background: rgba(96, 165, 250, 0.12);
-  color: #dbeafe;
-  font-size: 0.9rem;
+  max-width: 288px;
+  margin: 10px auto 0;
+  color: #93c5fd;
+  font-size: 15px;
   font-weight: 800;
-  line-height: 1.45;
-  padding: 8px 10px;
+  line-height: 1.4;
+  padding: 0;
   text-align: center;
 }
 
@@ -94,18 +94,18 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 7px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .ft-block-minute-button {
-  min-height: 32px;
+  min-height: 36px;
   border: 1px solid rgba(245, 247, 245, 0.14);
   border-radius: 6px;
   background: #2563eb;
   color: #ffffff;
   cursor: pointer;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 15px;
   font-weight: 800;
   line-height: 1;
   padding: 0 9px;
@@ -117,56 +117,57 @@
 
 .ft-block-pin-field {
   display: block;
-  margin: 10px 0 0;
+  max-width: 288px;
+  margin: 12px auto 0;
   border: 0;
   padding: 0;
   text-align: left;
 }
 
-.ft-block-pin-label {
-  display: block;
-  margin: 0 0 6px;
-  color: #cbd5e1;
-  font-size: 0.8rem;
-  font-weight: 800;
-  line-height: 1.35;
-  text-align: center;
+.ft-block-confirm-message + .ft-block-pin-field {
+  margin-top: 8px;
 }
 
 .ft-block-pin-input {
   width: 100%;
   min-width: 0;
-  min-height: 34px;
+  min-height: 36px;
   border: 1px solid rgba(245, 247, 245, 0.14);
   border-radius: 6px;
   background: #1f2937;
   color: #dbeafe;
   font: inherit;
-  font-size: 0.85rem;
-  font-weight: 850;
-  letter-spacing: 0.12em;
-  padding: 0 9px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0;
+  padding: 0 10px;
   text-align: center;
 }
 
+.ft-block-pin-input::placeholder {
+  color: #94a3b8;
+  opacity: 0.82;
+}
+
 .ft-block-pin-input:focus {
-  outline: 3px solid rgba(37, 99, 235, 0.32);
-  outline-offset: 3px;
+  border-color: rgba(96, 165, 250, 0.44);
+  outline: 2px solid rgba(96, 165, 250, 0.18);
+  outline-offset: 2px;
 }
 
 .ft-block-panel-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .ft-block-panel-button {
-  min-height: 34px;
+  min-height: 38px;
   border: 1px solid transparent;
   border-radius: 6px;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 15px;
   font-weight: 800;
   line-height: 1;
   padding: 0 10px;
@@ -196,7 +197,7 @@
   min-height: 16px;
   margin: 10px 0 0;
   color: #f18eaa;
-  font-size: 0.8rem;
+  font-size: 13px;
   font-weight: 750;
   line-height: 1.35;
   text-align: center;
@@ -210,4 +211,25 @@
 .ft-block-card button:focus-visible {
   outline: 3px solid rgba(37, 99, 235, 0.32);
   outline-offset: 3px;
+}
+
+@media (max-width: 420px) {
+  .ft-block-card {
+    width: min(100%, calc(100vw - 24px));
+    padding: 16px;
+  }
+
+  .ft-block-title {
+    font-size: 23px;
+  }
+
+  .ft-block-minute-actions {
+    gap: 6px;
+  }
+
+  .ft-block-minute-button,
+  .ft-block-panel-button {
+    font-size: 14px;
+    padding: 0 8px;
+  }
 }

@@ -19,6 +19,7 @@
     "PageDown",
     "PageUp"
   ]);
+  const KEYBOARD_EVENTS = ["keydown", "keypress", "keyup"];
   const STYLE_TEXT = `
     :host {
       all: initial;
@@ -133,9 +134,22 @@
 
       shadowRoot.append(style, sharedStyles, root);
       document.documentElement.append(overlayHost);
+      bindOverlayKeyboardGuards();
     } else {
       shadowRoot = overlayHost.shadowRoot;
+      bindOverlayKeyboardGuards();
     }
+  }
+
+  function bindOverlayKeyboardGuards() {
+    if (!shadowRoot || shadowRoot.__focusTrackerKeyboardGuardsBound) {
+      return;
+    }
+
+    KEYBOARD_EVENTS.forEach((eventName) => {
+      shadowRoot.addEventListener(eventName, stopOverlayKeyboardPropagation);
+    });
+    shadowRoot.__focusTrackerKeyboardGuardsBound = true;
   }
 
   function renderSelectView() {
@@ -170,8 +184,8 @@
     const ui = globalThis.FocusTrackerBlockPanel;
 
     root.innerHTML = ui.renderShell({
-      title: "Enter your PIN",
-      message: `Add ${minutesLabel} to continue.`,
+      title: "This website is blocked",
+      message: "Your time is up for this website. Add more time to continue where you left off.",
       body: `
         <p class="ft-block-confirm-message">Add ${ui.escapeHtml(minutesLabel)} and enter the page.</p>
         ${ui.renderPinField({
@@ -181,7 +195,7 @@
         ${ui.renderError(pinError)}
       `,
       actions: ui.renderActionButtons({
-        primaryText: "Add time",
+        primaryText: "Enter Page",
         secondaryText: "Back",
         disabled: actionInFlight
       }),
@@ -421,7 +435,9 @@
 
     window.addEventListener("wheel", preventBlockedScroll, { capture: true, passive: false });
     window.addEventListener("touchmove", preventBlockedScroll, { capture: true, passive: false });
-    window.addEventListener("keydown", preventBlockedScrollKeys, true);
+    KEYBOARD_EVENTS.forEach((eventName) => {
+      window.addEventListener(eventName, preventBlockedPageKeyboard, true);
+    });
   }
 
   function unlockPageScroll() {
@@ -440,7 +456,9 @@
 
     window.removeEventListener("wheel", preventBlockedScroll, true);
     window.removeEventListener("touchmove", preventBlockedScroll, true);
-    window.removeEventListener("keydown", preventBlockedScrollKeys, true);
+    KEYBOARD_EVENTS.forEach((eventName) => {
+      window.removeEventListener(eventName, preventBlockedPageKeyboard, true);
+    });
   }
 
   function preventBlockedScroll(event) {
@@ -452,23 +470,24 @@
     event.stopPropagation();
   }
 
-  function preventBlockedScrollKeys(event) {
-    if (!overlayHost || isEditableTarget(event.target)) {
+  function stopOverlayKeyboardPropagation(event) {
+    if (!overlayHost) {
       return;
     }
 
-    if (SCROLL_KEYS.has(event.key)) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
+    event.stopPropagation();
   }
 
-  function isEditableTarget(target) {
-    if (!(target instanceof Element)) {
-      return false;
+  function preventBlockedPageKeyboard(event) {
+    if (!overlayHost || event.composedPath?.().includes(overlayHost)) {
+      return;
     }
 
-    return Boolean(target.closest("input, textarea, select, [contenteditable=''], [contenteditable='true']"));
+    if (event.type === "keydown" && SCROLL_KEYS.has(event.key)) {
+      event.preventDefault();
+    }
+
+    event.stopPropagation();
   }
 
   function getRoot() {

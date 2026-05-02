@@ -16,6 +16,7 @@ const MAX_POMODORO_HISTORY_ITEMS = 500;
 const MAX_USAGE_HISTORY_DAYS = 30;
 const MAX_TRACKING_GAP_SECONDS = 2 * 60;
 const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+let extensionPopupOpenCount = 0;
 
 const DAY_ALIASES = new Map([
   ["sun", 0],
@@ -54,23 +55,39 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 chrome.tabs.onActivated.addListener(() => {
-  void tick();
+  void tick({ requireCurrentMatch: false });
 });
 
-chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
   if (changeInfo.url || changeInfo.status === "complete") {
-    void tick();
+    void tick({ requireCurrentMatch: !tab?.active });
   }
 });
 
 chrome.windows.onFocusChanged.addListener(() => {
-  void tick();
+  void tick({ requireCurrentMatch: false });
+});
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port?.name !== "focus-tracker-popup") {
+    return;
+  }
+
+  extensionPopupOpenCount += 1;
+  void accrueActiveUsage({ trackCurrent: false, requireCurrentMatch: true });
+
+  port.onDisconnect.addListener(() => {
+    extensionPopupOpenCount = Math.max(0, extensionPopupOpenCount - 1);
+
+    if (extensionPopupOpenCount === 0) {
+      void tick();
+    }
+  });
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "get-schedule-data") {
     accrueScreenUsage()
-      .then(() => accrueActiveUsage())
       .then(() => refreshRules())
       .then(() => getScheduleData())
       .then((data) => sendResponse({ ok: true, ...data }))
@@ -81,7 +98,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "save-schedule") {
     accrueScreenUsage()
-      .then(() => accrueActiveUsage())
       .then(() => saveSchedule(message.schedule))
       .then((schedule) => Promise.all([refreshRules(), loadPublicSettings()]).then(([state, settings]) => ({ schedule, state, settings })))
       .then((data) => sendResponse({ ok: true, ...data }))
@@ -100,7 +116,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "refresh-rules") {
     accrueScreenUsage()
-      .then(() => accrueActiveUsage())
       .then(() => refreshRules())
       .then((state) => sendResponse({ ok: true, state }))
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
@@ -208,10 +223,10 @@ async function initialize() {
   await refreshRules();
 }
 
-async function tick() {
+async function tick({ requireCurrentMatch = true } = {}) {
   try {
     await accrueScreenUsage();
-    await accrueActiveUsage();
+    await accrueActiveUsage({ requireCurrentMatch });
     const state = await refreshRules();
     await enforceActiveTabBlock(state);
   } catch {
@@ -232,9 +247,10 @@ async function refreshRules() {
       : pomodoro.active && pomodoro.mode === "strict"
         ? []
         : getActiveSites(schedule, now, usage, settings);
+    const activeExceptionDomains = getExceptionDomains(activeSites);
     const rules = pomodoro.active && pomodoro.mode === "strict"
       ? [createStrictPomodoroRule(pomodoro)]
-      : activeSites.map((site, index) => createRedirectRule(index + 1, site));
+      : activeSites.map((site, index) => createRedirectRule(index + 1, site, activeExceptionDomains));
 
     await replaceDynamicRules(rules);
 
@@ -788,6 +804,7 @@ function normalizeSiteForStorage(site) {
   return {
     domain: uniqueDomains[0],
     blockMode: normalizeBlockMode(site.blockMode, site.intervals),
+    exceptions: normalizeExceptionDomains(site.exceptions ?? site.allowlist ?? site.allowList ?? site.allowedDomains, uniqueDomains),
     intervals: normalizeIntervalsForStorage(site.intervals),
     dailyAllowanceMinutes: normalizeDailyAllowance(site.dailyAllowanceMinutes ?? site.allowanceMinutes),
     allowExtraTime: Boolean(site.allowExtraTime),
@@ -881,7 +898,8 @@ function toActiveSite(site, settings = {}) {
     name: site.name,
     domain: site.domain,
     allowExtraTime: isExtraTimeAllowed(site, settings),
-    domains: site.domains
+    domains: site.domains,
+    exceptions: site.exceptions
   };
 }
 
@@ -897,6 +915,7 @@ function normalizeSite(site) {
     domain: domains[0] || "",
     domains: Array.from(new Set(domains)),
     blockMode: normalizeBlockMode(site.blockMode, intervals),
+    exceptions: normalizeExceptionDomains(site.exceptions ?? site.allowlist ?? site.allowList ?? site.allowedDomains, domains),
     intervals,
     dailyAllowanceMinutes: normalizeDailyAllowance(site.dailyAllowanceMinutes ?? site.allowanceMinutes),
     allowExtraTime: Boolean(site.allowExtraTime),
@@ -950,8 +969,59 @@ function normalizeDomain(value) {
   }
 }
 
-function shouldBlockSite(site, now, usage) {
+function normalizeExceptionDomains(value, baseDomains = []) {
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[\s,]+/)
+      : [];
+  const normalizedBaseDomains = baseDomains
+    .map((domain) => normalizeDomain(domain))
+    .filter(Boolean);
+  const domains = values
+    .map((domain) => normalizeDomain(domain))
+    .filter(Boolean)
+    .filter((domain) => normalizedBaseDomains.length === 0 || normalizedBaseDomains.some((baseDomain) => {
+      return domain !== baseDomain && domainMatches(domain, baseDomain);
+    }));
+
+  return Array.from(new Set(domains));
+}
+
+function getExceptionDomains(sites = []) {
+  return Array.from(new Set(
+    sites.flatMap((site) => Array.isArray(site.exceptions) ? site.exceptions : [])
+      .map((domain) => normalizeDomain(domain))
+      .filter(Boolean)
+  ));
+}
+
+function hostMatchesException(host, exceptions = []) {
+  const normalizedHost = normalizeDomain(host);
+
+  return Boolean(normalizedHost && exceptions.some((domain) => domainMatches(normalizedHost, domain)));
+}
+
+function siteMatchesHost(site, host, { respectExceptions = true } = {}) {
+  const normalizedHost = normalizeDomain(host);
+
+  if (!normalizedHost) {
+    return false;
+  }
+
+  if (!site.domains.some((domain) => domainMatches(normalizedHost, domain))) {
+    return false;
+  }
+
+  return !respectExceptions || !hostMatchesException(normalizedHost, site.exceptions);
+}
+
+function shouldBlockSite(site, now, usage, host = "") {
   if (!isSiteInBlockedSlot(site, now)) {
+    return false;
+  }
+
+  if (host && hostMatchesException(host, site.exceptions)) {
     return false;
   }
 
@@ -1110,7 +1180,7 @@ function dayMatches(days, day) {
   return !days || days.has(day);
 }
 
-async function accrueActiveUsage() {
+async function accrueActiveUsage({ trackCurrent = true, requireCurrentMatch = true } = {}) {
   const [schedule, usage, trackingResult] = await Promise.all([
     loadSchedule(),
     getUsage(),
@@ -1125,13 +1195,14 @@ async function accrueActiveUsage() {
   if (previous?.date === today && previous?.domain && Number.isFinite(previous.lastTick)) {
     const previousSite = findSiteForHost(schedule, previous.domain);
 
-    if (previousSite && isSiteInBlockedSlot(previousSite, now)) {
-      const entry = getSiteUsageEntry(usage, previousSite.domain);
+    if (
+      previousSite &&
+      isSiteInBlockedSlot(previousSite, now) &&
+      (!requireCurrentMatch || await isTrackedSiteCurrentlyActive(previousSite, previous))
+    ) {
+      const entry = ensureUsageEntry(usage, previousSite.domain);
       const elapsedSeconds = getTrackableElapsedSeconds(previous.lastTick, currentTime);
-      const extraConsumedSeconds = Math.min(
-        elapsedSeconds,
-        getTemporaryUnblockOverlapSeconds(entry, previous.lastTick, currentTime)
-      );
+      const extraConsumedSeconds = Math.min(elapsedSeconds, getExtraRemainingSeconds(entry));
       const allowanceRemainingSeconds = Math.max(
         0,
         getAllowanceRemainingSeconds(previousSite, usage) - extraConsumedSeconds
@@ -1142,6 +1213,14 @@ async function accrueActiveUsage() {
       );
       const consumedSeconds = extraConsumedSeconds + allowanceConsumedSeconds;
 
+      if (extraConsumedSeconds > 0) {
+        entry.extraSeconds = Math.max(0, entry.extraSeconds - extraConsumedSeconds);
+
+        if (entry.extraSeconds <= 0) {
+          entry.extraUntil = 0;
+        }
+      }
+
       addUsedSeconds(usage, previousSite.domain, consumedSeconds);
       changedUsage = consumedSeconds > 0;
     }
@@ -1149,6 +1228,11 @@ async function accrueActiveUsage() {
 
   if (changedUsage) {
     await saveUsage(usage);
+  }
+
+  if (!trackCurrent || extensionPopupOpenCount > 0) {
+    await chrome.storage.local.remove(TRACKING_KEY);
+    return;
   }
 
   const activeInfo = await getActiveTrackedInfo(schedule, now, usage);
@@ -1232,6 +1316,21 @@ async function getActiveTrackedInfo(schedule, now, usage) {
   return { site, tab };
 }
 
+async function isTrackedSiteCurrentlyActive(site, tracking) {
+  const tab = await getActiveHttpTab();
+
+  if (!tab) {
+    return false;
+  }
+
+  if (Number.isFinite(tracking?.tabId) && tab.id !== tracking.tabId) {
+    return false;
+  }
+
+  const host = getHostname(tab.url);
+  return siteMatchesHost(site, host);
+}
+
 async function enforceActiveTabBlock(state) {
   const tab = await getActiveHttpTab();
 
@@ -1252,7 +1351,8 @@ async function enforceActiveTabBlock(state) {
   }
 
   const blockedSite = (state.activeSites || []).find((site) => {
-    return (site.domains || []).some((domain) => domainMatches(host, domain));
+    return (site.domains || []).some((domain) => domainMatches(host, domain)) &&
+      !hostMatchesException(host, getExceptionDomains(state.activeSites || []));
   });
 
   if (!blockedSite) {
@@ -1332,7 +1432,7 @@ function findSiteForHost(schedule, host) {
 
   return sites
     .map((site) => normalizeSite(site))
-    .find((site) => site.domains.some((domain) => domainMatches(host, domain))) || null;
+    .find((site) => siteMatchesHost(site, host)) || null;
 }
 
 function domainMatches(host, domain) {
@@ -1528,7 +1628,7 @@ function grantExtraTime(usage, site, seconds) {
 
   entry.usedSeconds = Math.max(entry.usedSeconds, allowanceSeconds);
   entry.extraSeconds = addedSeconds;
-  entry.extraUntil = Date.now() + addedSeconds * 1000;
+  entry.extraUntil = 0;
 }
 
 function getTrackableElapsedSeconds(startTime, endTime) {
@@ -1671,31 +1771,8 @@ function hasTemporaryUnblock(site, usage, now = Date.now()) {
   return getExtraRemainingSeconds(getSiteUsageEntry(usage, site.domain), now) > 0;
 }
 
-function getExtraRemainingSeconds(entry, now = Date.now()) {
-  const remainingMilliseconds = normalizeTimestamp(entry.extraUntil) - Number(now);
-
-  if (!Number.isFinite(remainingMilliseconds) || remainingMilliseconds <= 0) {
-    return 0;
-  }
-
-  return Math.ceil(remainingMilliseconds / 1000);
-}
-
-function getTemporaryUnblockOverlapSeconds(entry, startTime, endTime) {
-  const start = Number(startTime);
-  const end = Number(endTime);
-  const extraEnd = normalizeTimestamp(entry.extraUntil);
-
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || extraEnd <= start) {
-    return 0;
-  }
-
-  const extraDurationMilliseconds = Math.max(0, Number(entry.extraSeconds) || 0) * 1000;
-  const extraStart = extraDurationMilliseconds > 0 ? Math.max(0, extraEnd - extraDurationMilliseconds) : start;
-  const overlapStart = Math.max(start, extraStart);
-  const overlapEnd = Math.min(end, extraEnd);
-
-  return Math.max(0, (overlapEnd - overlapStart) / 1000);
+function getExtraRemainingSeconds(entry, _now = Date.now()) {
+  return Math.max(0, Number(entry?.extraSeconds) || 0);
 }
 
 function getSiteUsageStates(schedule, now, usage, settings, pomodoro = normalizePomodoroState()) {
@@ -1717,6 +1794,7 @@ function buildSiteUsageState(site, now, usage, settings = {}, pomodoro = normali
     domain: site.domain,
     allowExtraTime: pomodoroBlocking ? false : isExtraTimeAllowed(site, settings),
     dailyAllowanceMinutes: site.dailyAllowanceMinutes,
+    exceptions: site.exceptions,
     extraSeconds: entry.extraSeconds,
     extraUntil: entry.extraUntil,
     extraRemainingSeconds: getExtraRemainingSeconds(entry, currentTime),
@@ -1772,7 +1850,20 @@ function getTimeParts(timezone = "local") {
   }
 }
 
-function createRedirectRule(id, site) {
+function createRedirectRule(id, site, exceptionDomains = []) {
+  const condition = {
+    requestDomains: site.domains,
+    resourceTypes: ["main_frame"]
+  };
+  const excludedRequestDomains = getExceptionDomains([
+    { exceptions: exceptionDomains },
+    site
+  ]);
+
+  if (excludedRequestDomains.length > 0) {
+    condition.excludedRequestDomains = excludedRequestDomains;
+  }
+
   return {
     id,
     priority: 1,
@@ -1782,10 +1873,7 @@ function createRedirectRule(id, site) {
         url: getBlockedPageUrl(site.domain || site.domains[0])
       }
     },
-    condition: {
-      requestDomains: site.domains,
-      resourceTypes: ["main_frame"]
-    }
+    condition
   };
 }
 

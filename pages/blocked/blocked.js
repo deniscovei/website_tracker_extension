@@ -270,20 +270,6 @@ function renderCurrentView() {
 }
 
 function syncBlockedHeader() {
-  if (currentView === VIEW_STATE.PIN) {
-    const minutes = Math.max(0, Number(pendingMinutes) || 0);
-
-    if (blockedTitle) {
-      blockedTitle.textContent = "Enter your PIN";
-    }
-
-    if (blockedMessage) {
-      blockedMessage.textContent = `Add ${minutes} minute${minutes === 1 ? "" : "s"} to continue.`;
-    }
-
-    return;
-  }
-
   if (blockedTitle) {
     blockedTitle.textContent = "This website is blocked";
   }

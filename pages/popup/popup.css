@@ -1362,6 +1362,17 @@ h2 {
   font-weight: 800;
 }
 
+.site-exceptions-preview {
+  display: block;
+  margin-top: 8px;
+  border-top: 1px solid rgba(22, 32, 28, 0.08);
+  color: #2563eb;
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.35;
+  padding-top: 8px;
+}
+
 .revoke-button {
   width: 100%;
   min-height: 34px;
@@ -1461,6 +1472,84 @@ h2 {
 .field textarea:focus {
   border-color: #2563eb;
   outline: 3px solid rgba(37, 99, 235, 0.18);
+}
+
+.exceptions-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(22, 32, 28, 0.12);
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 10px;
+}
+
+.exceptions-heading h2 {
+  font-size: 0.92rem;
+}
+
+.exception-add-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.exception-field {
+  min-width: 0;
+}
+
+.exception-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.exception-chip,
+.exception-empty {
+  list-style: none;
+}
+
+.exception-chip {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-radius: 6px;
+  background: rgba(37, 99, 235, 0.07);
+  color: #1e40af;
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 6px 7px 6px 10px;
+}
+
+.exception-chip span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.exception-empty {
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.exception-remove {
+  min-height: 26px;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0 8px;
+}
+
+.exception-remove:hover {
+  background: rgba(37, 99, 235, 0.1);
 }
 
 .allowance-panel {
@@ -1954,6 +2043,7 @@ button:focus-visible {
   .field input,
   .field textarea,
   .mode-option,
+  .exception-remove,
   .pomodoro-mode span,
   .category-chip,
   .analytics-card,
@@ -1993,6 +2083,9 @@ button:focus-visible {
   .interval-row,
   .mode-panel,
   .mode-option,
+  .exceptions-panel,
+  .exception-chip,
+  .exception-remove,
   .pomodoro-mode span,
   .settings-panel,
   .category-chip,
@@ -2012,6 +2105,7 @@ button:focus-visible {
   .pomodoro-panel,
   .allowance-panel,
   .mode-panel,
+  .exceptions-panel,
   .settings-panel,
   .usage-total,
   .week-stats div,
@@ -2032,6 +2126,7 @@ button:focus-visible {
   }
 
   .mode-option.is-selected,
+  .exception-chip,
   .usage-pie-button.is-highlighted,
   .usage-pie-button[aria-pressed="true"],
   .usage-site-row.is-highlighted {
@@ -2119,6 +2214,7 @@ button:focus-visible {
   .week-heading-copy span,
   .week-trend,
   .site-meta,
+  .exception-empty,
   .slot-summary-days,
   .empty-row,
   .field,
@@ -2150,7 +2246,10 @@ button:focus-visible {
   }
 
   .pomodoro-heading .eyebrow,
-  .pomodoro-timer {
+  .pomodoro-timer,
+  .site-exceptions-preview,
+  .exception-chip,
+  .exception-remove {
     color: #60a5fa;
   }
 
