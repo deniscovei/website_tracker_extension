@@ -217,6 +217,7 @@ let editorAutosaveTimer = 0;
 let editorAutosaveInFlight = false;
 let editorAutosaveQueued = false;
 let pomodoroTickTimer = 0;
+let extraTimeTickTimer = 0;
 let pomodoroMutationStartedAt = 0;
 let pomodoroStatsVisible = false;
 let selectedPomodoroStatsDay = dateToDayKey(new Date());
@@ -1619,7 +1620,7 @@ function renderSiteList() {
       }
 
       const dailyRemainingSeconds = getDailyAllowanceRemainingSeconds(site, usage);
-      const extraRemainingSeconds = Math.max(0, Number(usage?.extraRemainingSeconds) || 0);
+      const extraRemainingSeconds = getExtraRemainingSecondsForUsage(usage);
 
       if (dailyRemainingSeconds !== null || extraRemainingSeconds > 0) {
         const actions = document.createElement("div");
@@ -1628,8 +1629,19 @@ function renderSiteList() {
 
         if (extraRemainingSeconds > 0) {
           const cutOffButton = document.createElement("button");
+          const remainingNote = createSiteRemainingNote(`${formatDuration(extraRemainingSeconds)} added time remaining`);
+          const extraUntil = normalizeTimestamp(usage?.extraUntil);
+          const extraSeconds = Math.max(0, Number(usage?.extraSeconds) || 0);
 
-          actions.append(createSiteRemainingNote(`${formatDuration(extraRemainingSeconds)} added time remaining`));
+          if (extraUntil > 0) {
+            remainingNote.dataset.extraUntil = String(extraUntil);
+          }
+
+          if (extraSeconds > 0) {
+            remainingNote.dataset.extraSeconds = String(extraSeconds);
+          }
+
+          actions.append(remainingNote);
 
           cutOffButton.type = "button";
           cutOffButton.className = "revoke-button";
@@ -1667,6 +1679,7 @@ function renderSiteList() {
       return item;
     })
   );
+  syncExtraTimeTicker();
 }
 
 function createSiteRemainingNote(text) {
@@ -1675,6 +1688,82 @@ function createSiteRemainingNote(text) {
   note.className = "site-extra-note";
   note.textContent = text;
   return note;
+}
+
+function syncExtraTimeTicker() {
+  const notes = Array.from(document.querySelectorAll("[data-extra-until]"));
+  const hasActiveExtraTime = notes.some((note) => getExtraRemainingSecondsForNote(note) > 0);
+
+  if (!hasActiveExtraTime) {
+    stopExtraTimeTicker();
+    return;
+  }
+
+  updateExtraTimeCountdowns();
+
+  if (!extraTimeTickTimer) {
+    extraTimeTickTimer = window.setInterval(updateExtraTimeCountdowns, 1000);
+  }
+}
+
+function stopExtraTimeTicker() {
+  if (extraTimeTickTimer) {
+    window.clearInterval(extraTimeTickTimer);
+    extraTimeTickTimer = 0;
+  }
+}
+
+function updateExtraTimeCountdowns() {
+  const notes = Array.from(document.querySelectorAll("[data-extra-until]"));
+  let hasActiveExtraTime = false;
+  let hasExpiredExtraTime = false;
+
+  notes.forEach((note) => {
+    const remainingSeconds = getExtraRemainingSecondsForNote(note);
+
+    note.textContent = `${formatDuration(remainingSeconds)} added time remaining`;
+    hasActiveExtraTime ||= remainingSeconds > 0;
+    hasExpiredExtraTime ||= remainingSeconds <= 0;
+  });
+
+  if (hasExpiredExtraTime) {
+    stopExtraTimeTicker();
+    void loadData().catch(() => {});
+    return;
+  }
+
+  if (!hasActiveExtraTime) {
+    stopExtraTimeTicker();
+  }
+}
+
+function getExtraRemainingSecondsForUsage(usage = null) {
+  const extraUntil = normalizeTimestamp(usage?.extraUntil);
+
+  if (extraUntil > 0) {
+    return getExtraRemainingSecondsFromValues(extraUntil, usage?.extraSeconds);
+  }
+
+  return Math.max(0, Number(usage?.extraRemainingSeconds) || 0);
+}
+
+function getExtraRemainingSecondsForNote(note) {
+  return getExtraRemainingSecondsFromValues(note?.dataset?.extraUntil, note?.dataset?.extraSeconds);
+}
+
+function getExtraRemainingSecondsFromValues(until, seconds) {
+  const extraUntil = normalizeTimestamp(until);
+
+  if (extraUntil <= 0) {
+    return 0;
+  }
+
+  const storedSeconds = Math.max(0, Number(seconds) || 0);
+  const clockRemainingSeconds = Math.max(0, (extraUntil - Date.now()) / 1000);
+
+  return storedSeconds > 0
+    ? Math.min(storedSeconds, clockRemainingSeconds)
+    : clockRemainingSeconds;
 }
 
 function formatExceptionPreview(exceptions = []) {

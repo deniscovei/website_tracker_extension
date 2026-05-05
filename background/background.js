@@ -15,6 +15,7 @@ const MAX_POMODORO_HISTORY_DAYS = 90;
 const MAX_POMODORO_HISTORY_ITEMS = 500;
 const MAX_USAGE_HISTORY_DAYS = 30;
 const MAX_TRACKING_GAP_SECONDS = 2 * 60;
+const MAX_EXTRA_TIME_MINUTES = 240;
 const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 let extensionPopupOpenCount = 0;
 
@@ -1202,7 +1203,8 @@ async function accrueActiveUsage({ trackCurrent = true, requireCurrentMatch = tr
     ) {
       const entry = ensureUsageEntry(usage, previousSite.domain);
       const elapsedSeconds = getTrackableElapsedSeconds(previous.lastTick, currentTime);
-      const extraConsumedSeconds = Math.min(elapsedSeconds, getExtraRemainingSeconds(entry));
+      const extraConsumedSeconds = getExtraElapsedSeconds(entry, previous.lastTick, currentTime);
+      let changedEntry = false;
       const allowanceRemainingSeconds = Math.max(
         0,
         getAllowanceRemainingSeconds(previousSite, usage) - extraConsumedSeconds
@@ -1213,16 +1215,21 @@ async function accrueActiveUsage({ trackCurrent = true, requireCurrentMatch = tr
       );
       const consumedSeconds = extraConsumedSeconds + allowanceConsumedSeconds;
 
-      if (extraConsumedSeconds > 0) {
+      if (extraConsumedSeconds > 0 && !entry.extraUntil) {
         entry.extraSeconds = Math.max(0, entry.extraSeconds - extraConsumedSeconds);
 
         if (entry.extraSeconds <= 0) {
           entry.extraUntil = 0;
         }
+        changedEntry = true;
+      } else if (entry.extraUntil && getExtraRemainingSeconds(entry, currentTime) <= 0) {
+        entry.extraSeconds = 0;
+        entry.extraUntil = 0;
+        changedEntry = true;
       }
 
       addUsedSeconds(usage, previousSite.domain, consumedSeconds);
-      changedUsage = consumedSeconds > 0;
+      changedUsage = consumedSeconds > 0 || changedEntry;
     }
   }
 
@@ -1497,7 +1504,7 @@ async function addExtraTime(domain, minutes, pin = "", tabId = null) {
     throw new Error("Choose how many minutes to add.");
   }
 
-  grantExtraTime(usage, site, Math.min(Math.round(extraMinutes), 240) * 60);
+  grantExtraTime(usage, site, Math.min(Math.round(extraMinutes), MAX_EXTRA_TIME_MINUTES) * 60);
   await saveUsage(usage);
   await startActiveUsageTracking(site, tabId);
 }
@@ -1522,6 +1529,12 @@ async function getUsage() {
   const usage = normalizeUsageSnapshot(stored[USAGE_KEY], today);
 
   if (usage.date === today) {
+    const migratedExtraTime = migrateLegacyExtraTimeCounters(usage);
+
+    if (migratedExtraTime) {
+      await saveUsage(usage);
+    }
+
     return usage;
   }
 
@@ -1616,8 +1629,24 @@ function resetExtraTimeState(usage, site) {
   entry.usedSeconds = Math.max(0, entry.usedSeconds);
 }
 
-function grantExtraTime(usage, site, seconds) {
-  const addedSeconds = Math.max(0, Number(seconds) || 0);
+function migrateLegacyExtraTimeCounters(usage, now = Date.now()) {
+  let changed = false;
+
+  Object.values(usage?.sites || {}).forEach((entry) => {
+    if (!entry || entry.extraUntil || entry.extraSeconds <= 0) {
+      return;
+    }
+
+    entry.extraSeconds = Math.ceil(entry.extraSeconds);
+    entry.extraUntil = now + entry.extraSeconds * 1000;
+    changed = true;
+  });
+
+  return changed;
+}
+
+function grantExtraTime(usage, site, seconds, now = Date.now()) {
+  const addedSeconds = Math.max(0, Math.round(Number(seconds) || 0));
 
   if (addedSeconds <= 0) {
     return;
@@ -1625,10 +1654,12 @@ function grantExtraTime(usage, site, seconds) {
 
   const entry = ensureUsageEntry(usage, site.domain);
   const allowanceSeconds = normalizeDailyAllowance(site.dailyAllowanceMinutes) * 60;
+  const currentExtraSeconds = Math.ceil(getExtraRemainingSeconds(entry, now));
+  const totalExtraSeconds = currentExtraSeconds + addedSeconds;
 
   entry.usedSeconds = Math.max(entry.usedSeconds, allowanceSeconds);
-  entry.extraSeconds = addedSeconds;
-  entry.extraUntil = 0;
+  entry.extraSeconds = totalExtraSeconds;
+  entry.extraUntil = now + totalExtraSeconds * 1000;
 }
 
 function getTrackableElapsedSeconds(startTime, endTime) {
@@ -1771,8 +1802,36 @@ function hasTemporaryUnblock(site, usage, now = Date.now()) {
   return getExtraRemainingSeconds(getSiteUsageEntry(usage, site.domain), now) > 0;
 }
 
-function getExtraRemainingSeconds(entry, _now = Date.now()) {
-  return Math.max(0, Number(entry?.extraSeconds) || 0);
+function getExtraElapsedSeconds(entry, startTime, endTime) {
+  const start = Number(startTime);
+  const end = Number(endTime);
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return 0;
+  }
+
+  const elapsedSeconds = getTrackableElapsedSeconds(start, end);
+
+  if (elapsedSeconds <= 0) {
+    return 0;
+  }
+
+  return Math.min(elapsedSeconds, getExtraRemainingSeconds(entry, start));
+}
+
+function getExtraRemainingSeconds(entry, now = Date.now()) {
+  const extraSeconds = Math.max(0, Number(entry?.extraSeconds) || 0);
+  const extraUntil = normalizeTimestamp(entry?.extraUntil);
+
+  if (extraUntil <= 0) {
+    return extraSeconds;
+  }
+
+  const clockRemainingSeconds = Math.max(0, (extraUntil - Number(now)) / 1000);
+
+  return extraSeconds > 0
+    ? Math.min(extraSeconds, clockRemainingSeconds)
+    : clockRemainingSeconds;
 }
 
 function getSiteUsageStates(schedule, now, usage, settings, pomodoro = normalizePomodoroState()) {

@@ -48,6 +48,11 @@
   let previousRootOverscroll = "";
   let previousBodyOverflow = "";
   let previousBodyOverscroll = "";
+  let lockedScrollX = 0;
+  let lockedScrollY = 0;
+  let scrollRestoreFrame = 0;
+  let restoringScrollPosition = false;
+  const lockedElementScrollPositions = new Map();
 
   document.addEventListener("play", handleMediaPlayWhileBlocked, true);
 
@@ -419,6 +424,7 @@
       return;
     }
 
+    captureLockedScrollPosition();
     scrollLockActive = true;
     previousRootOverflow = document.documentElement.style.overflow;
     previousRootOverscroll = document.documentElement.style.overscrollBehavior;
@@ -435,9 +441,13 @@
 
     window.addEventListener("wheel", preventBlockedScroll, { capture: true, passive: false });
     window.addEventListener("touchmove", preventBlockedScroll, { capture: true, passive: false });
+    window.addEventListener("scroll", handleBlockedScrollMove, true);
+    document.addEventListener("scroll", handleBlockedScrollMove, true);
     KEYBOARD_EVENTS.forEach((eventName) => {
       window.addEventListener(eventName, preventBlockedPageKeyboard, true);
     });
+    restoreLockedScrollPosition();
+    scheduleLockedScrollRestore();
   }
 
   function unlockPageScroll() {
@@ -445,6 +455,7 @@
       return;
     }
 
+    restoreLockedScrollPosition();
     scrollLockActive = false;
     document.documentElement.style.overflow = previousRootOverflow;
     document.documentElement.style.overscrollBehavior = previousRootOverscroll;
@@ -456,9 +467,18 @@
 
     window.removeEventListener("wheel", preventBlockedScroll, true);
     window.removeEventListener("touchmove", preventBlockedScroll, true);
+    window.removeEventListener("scroll", handleBlockedScrollMove, true);
+    document.removeEventListener("scroll", handleBlockedScrollMove, true);
     KEYBOARD_EVENTS.forEach((eventName) => {
       window.removeEventListener(eventName, preventBlockedPageKeyboard, true);
     });
+    restoreLockedScrollPosition({ force: true });
+    lockedElementScrollPositions.clear();
+
+    if (scrollRestoreFrame) {
+      window.cancelAnimationFrame(scrollRestoreFrame);
+      scrollRestoreFrame = 0;
+    }
   }
 
   function preventBlockedScroll(event) {
@@ -468,6 +488,76 @@
 
     event.preventDefault();
     event.stopPropagation();
+    scheduleLockedScrollRestore();
+  }
+
+  function handleBlockedScrollMove() {
+    if (!overlayHost || restoringScrollPosition) {
+      return;
+    }
+
+    scheduleLockedScrollRestore();
+  }
+
+  function captureLockedScrollPosition() {
+    lockedScrollX = window.scrollX || window.pageXOffset || 0;
+    lockedScrollY = window.scrollY || window.pageYOffset || 0;
+    lockedElementScrollPositions.clear();
+
+    document.querySelectorAll("*").forEach((element) => {
+      if (!(element instanceof HTMLElement) || element === overlayHost || overlayHost?.contains(element)) {
+        return;
+      }
+
+      if (element.scrollTop !== 0 || element.scrollLeft !== 0) {
+        lockedElementScrollPositions.set(element, {
+          left: element.scrollLeft,
+          top: element.scrollTop
+        });
+      }
+    });
+  }
+
+  function scheduleLockedScrollRestore() {
+    if (scrollRestoreFrame || !scrollLockActive) {
+      return;
+    }
+
+    scrollRestoreFrame = window.requestAnimationFrame(() => {
+      scrollRestoreFrame = 0;
+      restoreLockedScrollPosition();
+    });
+  }
+
+  function restoreLockedScrollPosition({ force = false } = {}) {
+    if ((!scrollLockActive && !force) || restoringScrollPosition) {
+      return;
+    }
+
+    restoringScrollPosition = true;
+
+    try {
+      if ((window.scrollX || window.pageXOffset || 0) !== lockedScrollX || (window.scrollY || window.pageYOffset || 0) !== lockedScrollY) {
+        window.scrollTo(lockedScrollX, lockedScrollY);
+      }
+
+      lockedElementScrollPositions.forEach((position, element) => {
+        if (!document.contains(element)) {
+          lockedElementScrollPositions.delete(element);
+          return;
+        }
+
+        if (element.scrollLeft !== position.left) {
+          element.scrollLeft = position.left;
+        }
+
+        if (element.scrollTop !== position.top) {
+          element.scrollTop = position.top;
+        }
+      });
+    } finally {
+      restoringScrollPosition = false;
+    }
   }
 
   function stopOverlayKeyboardPropagation(event) {
@@ -485,6 +575,7 @@
 
     if (event.type === "keydown" && SCROLL_KEYS.has(event.key)) {
       event.preventDefault();
+      scheduleLockedScrollRestore();
     }
 
     event.stopPropagation();
