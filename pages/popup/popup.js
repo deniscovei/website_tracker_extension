@@ -479,6 +479,7 @@ newSite?.addEventListener("click", () => {
   editingIndex = null;
   openEditor({
     domain: "",
+    enabled: true,
     blockMode: "slots",
     exceptions: [],
     dailyAllowanceMinutes: 0,
@@ -665,18 +666,21 @@ async function saveGlobalSettingsToggle() {
     }
 
     settings = normalizeSettings(response.settings || settings);
+    state = response.state || state;
     renderGlobalSettings("Global settings saved.");
     updatePinDraftStatus();
     syncEditorGlobalOverrideView();
 
-    try {
-      const refreshResponse = await chrome.runtime.sendMessage({ type: "refresh-rules" });
+    if (!response.state) {
+      try {
+        const refreshResponse = await chrome.runtime.sendMessage({ type: "refresh-rules" });
 
-      if (refreshResponse?.ok) {
-        state = refreshResponse.state || state;
+        if (refreshResponse?.ok) {
+          state = refreshResponse.state || state;
+        }
+      } catch (_error) {
+        // Settings are already saved. The next background tick can refresh rules.
       }
-    } catch (_error) {
-      // Settings are already saved. The next background tick can refresh rules.
     }
 
     renderStatus();
@@ -740,6 +744,7 @@ async function persistPinSettings({
     }
 
     settings = normalizeSettings(response.settings || settings);
+    state = response.state || state;
 
     if (pin) {
       pinEditorOpen = false;
@@ -752,14 +757,16 @@ async function persistPinSettings({
     renderGlobalSettings(statusTarget === "global" ? successMessage : "");
     syncEditorGlobalOverrideView();
 
-    try {
-      const refreshResponse = await chrome.runtime.sendMessage({ type: "refresh-rules" });
+    if (!response.state) {
+      try {
+        const refreshResponse = await chrome.runtime.sendMessage({ type: "refresh-rules" });
 
-      if (refreshResponse?.ok) {
-        state = refreshResponse.state || state;
+        if (refreshResponse?.ok) {
+          state = refreshResponse.state || state;
+        }
+      } catch (_error) {
+        // Saving the PIN already succeeded; refreshing status can wait for the next tick.
       }
-    } catch (_error) {
-      // Saving the PIN already succeeded; refreshing status can wait for the next tick.
     }
 
     renderStatus();
@@ -1579,13 +1586,45 @@ function renderSiteList() {
 
   siteList.append(
     ...schedule.sites.map((site, index) => {
+      const enabled = isSiteEnabled(site);
       const item = document.createElement("li");
       const button = document.createElement("button");
+      const controls = document.createElement("div");
+      const enableToggle = document.createElement("input");
+      const deleteButton = document.createElement("button");
       const title = document.createElement("span");
       const meta = document.createElement("span");
       const usage = getUsageState(site.domain);
 
       item.className = "site-card";
+      item.classList.toggle("is-disabled", !enabled);
+
+      controls.className = "site-card-controls";
+
+      enableToggle.type = "checkbox";
+      enableToggle.className = "site-enable-toggle";
+      enableToggle.checked = enabled;
+      enableToggle.setAttribute("aria-label", `${enabled ? "Deactivate" : "Activate"} ${site.domain}`);
+      enableToggle.title = enabled ? "Deactivate website" : "Activate website";
+      enableToggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+      enableToggle.addEventListener("change", (event) => {
+        event.stopPropagation();
+        void toggleSiteEnabled(index, enableToggle.checked, enableToggle);
+      });
+
+      deleteButton.type = "button";
+      deleteButton.className = "site-delete-button";
+      deleteButton.setAttribute("aria-label", `Delete ${site.domain}`);
+      deleteButton.title = "Delete website";
+      deleteButton.append(createDeleteIcon());
+      deleteButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        void deleteSiteFromList(index, deleteButton);
+      });
+
+      controls.append(enableToggle, deleteButton);
 
       button.type = "button";
       button.className = "site-row";
@@ -1602,14 +1641,14 @@ function renderSiteList() {
 
       button.append(title, meta);
 
-      if (isBlockedNow(site)) {
+      if (enabled && isBlockedNow(site)) {
         const badge = document.createElement("span");
         badge.className = "active-badge";
         badge.textContent = "Blocked";
         button.append(badge);
       }
 
-      item.append(button);
+      item.append(controls, button);
 
       if (site.exceptions?.length > 0) {
         const exceptions = document.createElement("span");
@@ -1622,7 +1661,7 @@ function renderSiteList() {
       const dailyRemainingSeconds = getDailyAllowanceRemainingSeconds(site, usage);
       const extraRemainingSeconds = getExtraRemainingSecondsForUsage(usage);
 
-      if (dailyRemainingSeconds !== null || extraRemainingSeconds > 0) {
+      if (enabled && (dailyRemainingSeconds !== null || extraRemainingSeconds > 0)) {
         const actions = document.createElement("div");
 
         actions.className = "site-row-actions";
@@ -1680,6 +1719,75 @@ function renderSiteList() {
     })
   );
   syncExtraTimeTicker();
+}
+
+function createDeleteIcon() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  path.setAttribute("d", "M4.2 3.2 8 7l3.8-3.8 1 1L9 8l3.8 3.8-1 1L8 9l-3.8 3.8-1-1L7 8 3.2 4.2z");
+
+  svg.append(path);
+  return svg;
+}
+
+async function toggleSiteEnabled(index, enabled, control = null) {
+  const site = schedule.sites[index];
+
+  if (!site) {
+    return;
+  }
+
+  const previousSite = cloneSite(site);
+  const nextEnabled = Boolean(enabled);
+
+  schedule.sites[index] = {
+    ...site,
+    enabled: nextEnabled
+  };
+
+  if (control instanceof HTMLInputElement) {
+    control.disabled = true;
+  }
+
+  try {
+    await persistSchedule();
+  } catch (error) {
+    schedule.sites[index] = previousSite;
+    renderError(cleanError(error));
+    renderSiteList();
+  }
+}
+
+async function deleteSiteFromList(index, control = null) {
+  const site = schedule.sites[index];
+
+  if (!site) {
+    return;
+  }
+
+  const confirmed = window.confirm(`Delete ${site.domain} from your blocked websites?`);
+
+  if (!confirmed) {
+    return;
+  }
+
+  const [removedSite] = schedule.sites.splice(index, 1);
+
+  if (control instanceof HTMLButtonElement) {
+    control.disabled = true;
+  }
+
+  try {
+    await persistSchedule();
+  } catch (error) {
+    schedule.sites.splice(index, 0, removedSite);
+    renderError(cleanError(error));
+    renderSiteList();
+  }
 }
 
 function createSiteRemainingNote(text) {
@@ -3605,6 +3713,7 @@ function readSiteForm() {
 
   return {
     domain,
+    enabled: editingIndex === null ? true : isSiteEnabled(schedule.sites[editingIndex]),
     blockMode,
     exceptions,
     dailyAllowanceMinutes,
@@ -3741,6 +3850,7 @@ function normalizeSchedule(value) {
 
         return {
           domain,
+          enabled: site.enabled !== false && site.disabled !== true,
           blockMode: normalizeBlockMode(site.blockMode, site.intervals),
           exceptions: normalizeExceptionList(site.exceptions ?? site.allowlist ?? site.allowList ?? site.allowedDomains, domain),
           dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
@@ -3969,6 +4079,7 @@ function normalizeBlockMode(mode, intervals = []) {
 function cloneSite(site) {
   return {
     domain: site.domain,
+    enabled: isSiteEnabled(site),
     blockMode: normalizeBlockMode(site.blockMode, site.intervals),
     exceptions: normalizeExceptionList(site.exceptions, site.domain),
     dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
@@ -3984,6 +4095,10 @@ function cloneSite(site) {
 }
 
 function siteSummary(site, usage = null) {
+  if (!isSiteEnabled(site)) {
+    return "inactive";
+  }
+
   const count = site.intervals.length;
   const slotText = normalizeBlockMode(site.blockMode, site.intervals) === "always"
     ? "always"
@@ -4010,8 +4125,16 @@ function siteSummary(site, usage = null) {
 }
 
 function isBlockedNow(site) {
+  if (!isSiteEnabled(site)) {
+    return false;
+  }
+
   const blockedSites = Array.isArray(state?.activeSites) ? state.activeSites : [];
   return blockedSites.some((blockedSite) => blockedSite.domains.includes(site.domain));
+}
+
+function isSiteEnabled(site) {
+  return site?.enabled !== false;
 }
 
 function getUsageState(domain) {

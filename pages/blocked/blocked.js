@@ -1,5 +1,6 @@
 const params = new URLSearchParams(window.location.search);
 const site = params.get("site") || "";
+const BLOCK_STATE_UPDATED_MESSAGE = "focus-tracker-block-state-updated";
 const extraTime = document.getElementById("extra-time");
 const popupViewRoot = document.getElementById("popup-view-root");
 const blockedTitle = document.getElementById("blocked-title");
@@ -25,13 +26,31 @@ let pinError = "";
 let pomodoroTickTimer = 0;
 let pomodoroStateCheckTicks = 0;
 let pomodoroStateCheckInFlight = false;
+let statusRefreshToken = 0;
 
 void loadExtraTimeStatus();
 
 window.addEventListener("beforeunload", clearPomodoroTimer);
 
-async function loadExtraTimeStatus() {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== BLOCK_STATE_UPDATED_MESSAGE) {
+    return false;
+  }
+
+  loadExtraTimeStatus({ preserveInteraction: true })
+    .then(() => sendResponse({ ok: true }))
+    .catch((error) => sendResponse({ ok: false, error: cleanError(error) }));
+
+  return true;
+});
+
+async function loadExtraTimeStatus({ preserveInteraction = false } = {}) {
+  const refreshToken = ++statusRefreshToken;
   const pomodoro = await loadPomodoroState();
+
+  if (refreshToken !== statusRefreshToken) {
+    return;
+  }
 
   if (pomodoro.active) {
     renderPomodoroBlock(pomodoro);
@@ -59,6 +78,10 @@ async function loadExtraTimeStatus() {
       domain: site
     });
 
+    if (refreshToken !== statusRefreshToken) {
+      return;
+    }
+
     if (response?.status?.pomodoro?.active) {
       renderPomodoroBlock(response.status.pomodoro);
       return;
@@ -70,27 +93,70 @@ async function loadExtraTimeStatus() {
     }
 
     latestStatus = response.status;
-
-    if (!latestStatus.isBlocked) {
-      navigateToSite();
-      return;
-    }
-
-    if (!latestStatus.allowExtraTime) {
+    applyExtraTimeStatus({ preserveInteraction });
+  } catch {
+    if (refreshToken === statusRefreshToken) {
       extraTime.hidden = true;
-      return;
     }
+  }
+}
 
+function applyExtraTimeStatus({ preserveInteraction = false } = {}) {
+  if (!latestStatus?.isBlocked) {
+    navigateToSite();
+    return;
+  }
+
+  if (!latestStatus.allowExtraTime) {
+    resetExtraTimeInteraction();
+    extraTime.hidden = true;
+    syncBlockedHeader();
+    return;
+  }
+
+  extraTime.hidden = false;
+
+  if (preserveInteraction) {
+    syncCurrentViewWithStatus();
+  } else {
+    resetExtraTimeInteraction();
+  }
+
+  renderCurrentView();
+}
+
+function resetExtraTimeInteraction() {
+  currentView = VIEW_STATE.SELECT;
+  pendingMinutes = 0;
+  actionInFlight = false;
+  pinDraft = "";
+  pinError = "";
+}
+
+function syncCurrentViewWithStatus() {
+  if (pendingMinutes <= 0 || currentView === VIEW_STATE.SELECT) {
     currentView = VIEW_STATE.SELECT;
-    pendingMinutes = 0;
-    actionInFlight = false;
     pinDraft = "";
     pinError = "";
-    extraTime.hidden = false;
-    renderCurrentView();
-  } catch {
-    extraTime.hidden = true;
+    return;
   }
+
+  if (latestStatus?.requiresPinForExtraTime) {
+    if (currentView !== VIEW_STATE.PIN) {
+      pinDraft = "";
+      pinError = "";
+    }
+
+    currentView = VIEW_STATE.PIN;
+    return;
+  }
+
+  if (currentView === VIEW_STATE.PIN) {
+    pinDraft = "";
+    pinError = "";
+  }
+
+  currentView = VIEW_STATE.SUCCESS;
 }
 
 async function loadPomodoroState() {

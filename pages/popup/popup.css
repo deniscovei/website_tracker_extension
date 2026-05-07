@@ -1337,16 +1337,78 @@ h2 {
 
 .site-card {
   display: grid;
+  position: relative;
   gap: 8px;
   border: 1px solid rgba(22, 32, 28, 0.12);
   border-radius: 8px;
   background: #f8fbff;
-  padding: 9px 10px;
+  padding: 9px 58px 9px 10px;
 }
 
 .site-card:hover {
   border-color: rgba(37, 99, 235, 0.42);
   background: #f1f6ff;
+}
+
+.site-card.is-disabled {
+  border-color: rgba(100, 116, 139, 0.18);
+  background: #f8fafc;
+}
+
+.site-card.is-disabled .site-domain {
+  color: #64748b;
+}
+
+.site-card-controls {
+  display: grid;
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  width: 16px;
+  align-items: center;
+  justify-items: center;
+  gap: 7px;
+  transform: translateY(-50%);
+}
+
+.site-enable-toggle {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  cursor: pointer;
+  margin: 0;
+}
+
+.site-delete-button {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  appearance: none;
+  border: 0;
+  border-radius: 4px;
+  background: #dc2626;
+  color: #ffffff;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.site-delete-button:hover {
+  background: #b91c1c;
+}
+
+.site-delete-button svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.site-enable-toggle:disabled,
+.site-delete-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .site-row-actions {
@@ -2382,6 +2444,23 @@ button:focus-visible {
   .remove-button,
   .revoke-button {
     color: #f18eaa;
+  }
+
+  .site-delete-button {
+    background: #dc2626;
+    color: #ffffff;
+  }
+
+  .site-delete-button:hover {
+    background: #b91c1c;
+  }
+
+  .site-card.is-disabled {
+    background: #182230;
+  }
+
+  .site-card.is-disabled .site-domain {
+    color: #a8b4c8;
   }
 
   .revoke-button {

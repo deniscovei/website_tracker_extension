@@ -7,6 +7,7 @@
 
   const OVERLAY_ID = "focus-tracker-state-preserving-block";
   const ROOT_ID = "focus-tracker-state-preserving-root";
+  const BLOCK_STATE_UPDATED_MESSAGE = "focus-tracker-block-state-updated";
   const MINUTE_OPTIONS = [5, 15, 30];
   const SCROLL_KEYS = new Set([
     " ",
@@ -41,18 +42,10 @@
   let pendingMinutes = 0;
   let actionInFlight = false;
   let pinError = "";
+  let statusRefreshToken = 0;
   const mediaStates = new Map();
   let mediaGuardTimer = 0;
   let scrollLockActive = false;
-  let previousRootOverflow = "";
-  let previousRootOverscroll = "";
-  let previousBodyOverflow = "";
-  let previousBodyOverscroll = "";
-  let lockedScrollX = 0;
-  let lockedScrollY = 0;
-  let scrollRestoreFrame = 0;
-  let restoringScrollPosition = false;
-  const lockedElementScrollPositions = new Map();
 
   document.addEventListener("play", handleMediaPlayWhileBlocked, true);
 
@@ -73,6 +66,13 @@
       hideOverlay(true);
       sendResponse({ ok: true });
       return false;
+    }
+
+    if (message?.type === BLOCK_STATE_UPDATED_MESSAGE) {
+      syncOverlayStatus()
+        .then(() => sendResponse({ ok: true }))
+        .catch((error) => sendResponse({ ok: false, error: cleanError(error) }));
+      return true;
     }
 
     return false;
@@ -104,6 +104,47 @@
     } else {
       renderSelectView();
     }
+  }
+
+  async function syncOverlayStatus() {
+    if (!overlayHost?.isConnected) {
+      return;
+    }
+
+    const refreshToken = ++statusRefreshToken;
+    let nextStatus = null;
+
+    try {
+      nextStatus = await loadStatus();
+    } catch (_error) {
+      if (refreshToken === statusRefreshToken) {
+        hideOverlay(true);
+      }
+      return;
+    }
+
+    if (refreshToken !== statusRefreshToken) {
+      return;
+    }
+
+    if (!nextStatus?.isBlocked) {
+      hideOverlay(true);
+      return;
+    }
+
+    currentStatus = nextStatus;
+    pinError = "";
+
+    if (!currentStatus.allowExtraTime) {
+      pendingMinutes = 0;
+    }
+
+    if (currentStatus.requiresPinForExtraTime && pendingMinutes > 0) {
+      renderPinView();
+      return;
+    }
+
+    renderSelectView();
   }
 
   async function loadStatus() {
@@ -212,7 +253,7 @@
     const back = root.querySelector("[data-secondary-action]");
 
     if (input instanceof HTMLInputElement) {
-      input.focus();
+      focusWithoutScrolling(input);
       input.addEventListener("input", () => {
         input.value = sanitizePin(input.value);
         pinError = "";
@@ -344,7 +385,9 @@
 
     if (!mediaStates.has(media)) {
       mediaStates.set(media, {
-        wasPlaying: Boolean(resumeAfterHide)
+        wasPlaying: Boolean(resumeAfterHide),
+        currentTime: getMediaCurrentTime(media),
+        source: getMediaSource(media)
       });
     }
 
@@ -373,6 +416,8 @@
         return;
       }
 
+      restoreMediaCurrentTime(media, state);
+
       if (!state.wasPlaying) {
         return;
       }
@@ -386,6 +431,44 @@
       } catch (_error) {
       }
     });
+  }
+
+  function getMediaCurrentTime(media) {
+    const currentTime = Number(media.currentTime);
+    return Number.isFinite(currentTime) && currentTime >= 0 ? currentTime : null;
+  }
+
+  function getMediaSource(media) {
+    return String(media.currentSrc || media.src || "");
+  }
+
+  function restoreMediaCurrentTime(media, state) {
+    if (!Number.isFinite(state.currentTime) || state.currentTime < 0) {
+      return;
+    }
+
+    if (state.source && getMediaSource(media) && state.source !== getMediaSource(media)) {
+      return;
+    }
+
+    const currentTime = getMediaCurrentTime(media);
+
+    if (currentTime === null || Math.abs(currentTime - state.currentTime) < 0.25) {
+      return;
+    }
+
+    try {
+      media.currentTime = state.currentTime;
+    } catch (_error) {
+    }
+  }
+
+  function focusWithoutScrolling(element) {
+    try {
+      element.focus({ preventScroll: true });
+    } catch (_error) {
+      element.focus();
+    }
   }
 
   function startMediaGuard() {
@@ -424,30 +507,13 @@
       return;
     }
 
-    captureLockedScrollPosition();
     scrollLockActive = true;
-    previousRootOverflow = document.documentElement.style.overflow;
-    previousRootOverscroll = document.documentElement.style.overscrollBehavior;
-    previousBodyOverflow = document.body?.style.overflow || "";
-    previousBodyOverscroll = document.body?.style.overscrollBehavior || "";
-
-    document.documentElement.style.overflow = "hidden";
-    document.documentElement.style.overscrollBehavior = "none";
-
-    if (document.body) {
-      document.body.style.overflow = "hidden";
-      document.body.style.overscrollBehavior = "none";
-    }
 
     window.addEventListener("wheel", preventBlockedScroll, { capture: true, passive: false });
     window.addEventListener("touchmove", preventBlockedScroll, { capture: true, passive: false });
-    window.addEventListener("scroll", handleBlockedScrollMove, true);
-    document.addEventListener("scroll", handleBlockedScrollMove, true);
     KEYBOARD_EVENTS.forEach((eventName) => {
       window.addEventListener(eventName, preventBlockedPageKeyboard, true);
     });
-    restoreLockedScrollPosition();
-    scheduleLockedScrollRestore();
   }
 
   function unlockPageScroll() {
@@ -455,30 +521,13 @@
       return;
     }
 
-    restoreLockedScrollPosition();
     scrollLockActive = false;
-    document.documentElement.style.overflow = previousRootOverflow;
-    document.documentElement.style.overscrollBehavior = previousRootOverscroll;
-
-    if (document.body) {
-      document.body.style.overflow = previousBodyOverflow;
-      document.body.style.overscrollBehavior = previousBodyOverscroll;
-    }
 
     window.removeEventListener("wheel", preventBlockedScroll, true);
     window.removeEventListener("touchmove", preventBlockedScroll, true);
-    window.removeEventListener("scroll", handleBlockedScrollMove, true);
-    document.removeEventListener("scroll", handleBlockedScrollMove, true);
     KEYBOARD_EVENTS.forEach((eventName) => {
       window.removeEventListener(eventName, preventBlockedPageKeyboard, true);
     });
-    restoreLockedScrollPosition({ force: true });
-    lockedElementScrollPositions.clear();
-
-    if (scrollRestoreFrame) {
-      window.cancelAnimationFrame(scrollRestoreFrame);
-      scrollRestoreFrame = 0;
-    }
   }
 
   function preventBlockedScroll(event) {
@@ -488,76 +537,6 @@
 
     event.preventDefault();
     event.stopPropagation();
-    scheduleLockedScrollRestore();
-  }
-
-  function handleBlockedScrollMove() {
-    if (!overlayHost || restoringScrollPosition) {
-      return;
-    }
-
-    scheduleLockedScrollRestore();
-  }
-
-  function captureLockedScrollPosition() {
-    lockedScrollX = window.scrollX || window.pageXOffset || 0;
-    lockedScrollY = window.scrollY || window.pageYOffset || 0;
-    lockedElementScrollPositions.clear();
-
-    document.querySelectorAll("*").forEach((element) => {
-      if (!(element instanceof HTMLElement) || element === overlayHost || overlayHost?.contains(element)) {
-        return;
-      }
-
-      if (element.scrollTop !== 0 || element.scrollLeft !== 0) {
-        lockedElementScrollPositions.set(element, {
-          left: element.scrollLeft,
-          top: element.scrollTop
-        });
-      }
-    });
-  }
-
-  function scheduleLockedScrollRestore() {
-    if (scrollRestoreFrame || !scrollLockActive) {
-      return;
-    }
-
-    scrollRestoreFrame = window.requestAnimationFrame(() => {
-      scrollRestoreFrame = 0;
-      restoreLockedScrollPosition();
-    });
-  }
-
-  function restoreLockedScrollPosition({ force = false } = {}) {
-    if ((!scrollLockActive && !force) || restoringScrollPosition) {
-      return;
-    }
-
-    restoringScrollPosition = true;
-
-    try {
-      if ((window.scrollX || window.pageXOffset || 0) !== lockedScrollX || (window.scrollY || window.pageYOffset || 0) !== lockedScrollY) {
-        window.scrollTo(lockedScrollX, lockedScrollY);
-      }
-
-      lockedElementScrollPositions.forEach((position, element) => {
-        if (!document.contains(element)) {
-          lockedElementScrollPositions.delete(element);
-          return;
-        }
-
-        if (element.scrollLeft !== position.left) {
-          element.scrollLeft = position.left;
-        }
-
-        if (element.scrollTop !== position.top) {
-          element.scrollTop = position.top;
-        }
-      });
-    } finally {
-      restoringScrollPosition = false;
-    }
   }
 
   function stopOverlayKeyboardPropagation(event) {
@@ -575,7 +554,6 @@
 
     if (event.type === "keydown" && SCROLL_KEYS.has(event.key)) {
       event.preventDefault();
-      scheduleLockedScrollRestore();
     }
 
     event.stopPropagation();

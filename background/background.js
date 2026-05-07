@@ -11,6 +11,7 @@ const SETTINGS_KEY = "websiteTrackerSettings";
 const POMODORO_KEY = "scheduleBlockerPomodoro";
 const POMODORO_HISTORY_KEY = "scheduleBlockerPomodoroHistory";
 const POMODORO_ALARM = "schedule-blocker-pomodoro";
+const BLOCK_STATE_UPDATED_MESSAGE = "focus-tracker-block-state-updated";
 const MAX_POMODORO_HISTORY_DAYS = 90;
 const MAX_POMODORO_HISTORY_ITEMS = 500;
 const MAX_USAGE_HISTORY_DAYS = 30;
@@ -100,7 +101,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "save-schedule") {
     accrueScreenUsage()
       .then(() => saveSchedule(message.schedule))
-      .then((schedule) => Promise.all([refreshRules(), loadPublicSettings()]).then(([state, settings]) => ({ schedule, state, settings })))
+      .then(async (schedule) => {
+        const [state, settings] = await Promise.all([
+          refreshRulesAndNotify("schedule"),
+          loadPublicSettings()
+        ]);
+
+        return { schedule, state, settings };
+      })
       .then((data) => sendResponse({ ok: true, ...data }))
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
 
@@ -109,7 +117,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "save-settings") {
     saveSettings(message.settings)
-      .then((settings) => sendResponse({ ok: true, settings }))
+      .then(async (settings) => {
+        let state = null;
+
+        try {
+          state = await refreshRulesAndNotify("settings");
+        } catch (_error) {
+        }
+
+        return { settings, state };
+      })
+      .then((data) => sendResponse({ ok: true, ...data }))
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
 
     return true;
@@ -117,7 +135,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "refresh-rules") {
     accrueScreenUsage()
-      .then(() => refreshRules())
+      .then(() => refreshRulesAndNotify("refresh"))
       .then((state) => sendResponse({ ok: true, state }))
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
 
@@ -157,7 +175,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "add-extra-time") {
     addExtraTime(message.domain, message.minutes, message.pin, _sender?.tab?.id)
-      .then(() => refreshRules())
+      .then(() => refreshRulesAndNotify("extra-time"))
       .then(() => getSiteStatus(message.domain))
       .then((status) => {
         const targetUrl = getResumeTargetUrl(message.targetUrl, message.domain);
@@ -175,7 +193,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "cut-off-site") {
     cutOffSite(message.domain)
-      .then(() => refreshRules())
+      .then(() => refreshRulesAndNotify("extra-time"))
       .then(() => getSiteStatus(message.domain))
       .then((status) => sendResponse({ ok: true, status }))
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
@@ -232,6 +250,18 @@ async function tick({ requireCurrentMatch = true } = {}) {
     await enforceActiveTabBlock(state);
   } catch {
   }
+}
+
+async function refreshRulesAndNotify(reason = "state") {
+  const state = await refreshRules();
+
+  try {
+    await enforceActiveTabBlock(state);
+  } catch (_error) {
+  }
+
+  await broadcastBlockStateUpdated(reason);
+  return state;
 }
 
 async function refreshRules() {
@@ -446,6 +476,7 @@ async function startPomodoro({ duration = 30, mode = "standard", whitelist = [] 
     await saveState(state);
   }
 
+  await broadcastBlockStateUpdated("pomodoro");
   return { pomodoro, state };
 }
 
@@ -478,6 +509,7 @@ async function stopPomodoro({ completed = false } = {}) {
   } catch (_error) {
   }
 
+  await broadcastBlockStateUpdated("pomodoro");
   return { pomodoro, state };
 }
 
@@ -804,6 +836,7 @@ function normalizeSiteForStorage(site) {
 
   return {
     domain: uniqueDomains[0],
+    enabled: site.enabled !== false && site.disabled !== true,
     blockMode: normalizeBlockMode(site.blockMode, site.intervals),
     exceptions: normalizeExceptionDomains(site.exceptions ?? site.allowlist ?? site.allowList ?? site.allowedDomains, uniqueDomains),
     intervals: normalizeIntervalsForStorage(site.intervals),
@@ -891,7 +924,7 @@ function getNormalizedScheduleSites(schedule) {
 
   return sites
     .map((site) => normalizeSite(site))
-    .filter((site) => site.domains.length > 0);
+    .filter((site) => site.enabled && site.domains.length > 0);
 }
 
 function toActiveSite(site, settings = {}) {
@@ -914,6 +947,7 @@ function normalizeSite(site) {
   return {
     name: site.name || domains[0] || "Unnamed site",
     domain: domains[0] || "",
+    enabled: site.enabled !== false && site.disabled !== true,
     domains: Array.from(new Set(domains)),
     blockMode: normalizeBlockMode(site.blockMode, intervals),
     exceptions: normalizeExceptionDomains(site.exceptions ?? site.allowlist ?? site.allowList ?? site.allowedDomains, domains),
@@ -1398,6 +1432,38 @@ async function hideStatePreservingBlock(tabId) {
   }
 }
 
+async function broadcastBlockStateUpdated(reason = "state") {
+  const message = {
+    type: BLOCK_STATE_UPDATED_MESSAGE,
+    reason,
+    updatedAt: Date.now()
+  };
+
+  try {
+    await chrome.runtime.sendMessage(message);
+  } catch (_error) {
+  }
+
+  let tabs = [];
+
+  try {
+    tabs = await chrome.tabs.query({});
+  } catch (_error) {
+    return;
+  }
+
+  await Promise.all(tabs.map(async (tab) => {
+    if (typeof tab?.id !== "number") {
+      return;
+    }
+
+    try {
+      await chrome.tabs.sendMessage(tab.id, message);
+    } catch (_error) {
+    }
+  }));
+}
+
 async function ensureStatePreservingContentScript(tabId) {
   try {
     const response = await chrome.tabs.sendMessage(tabId, { type: "focus-tracker-ping-state-blocker" });
@@ -1439,7 +1505,7 @@ function findSiteForHost(schedule, host) {
 
   return sites
     .map((site) => normalizeSite(site))
-    .find((site) => siteMatchesHost(site, host)) || null;
+    .find((site) => site.enabled && siteMatchesHost(site, host)) || null;
 }
 
 function domainMatches(host, domain) {
@@ -1839,7 +1905,7 @@ function getSiteUsageStates(schedule, now, usage, settings, pomodoro = normalize
 
   return sites
     .map((site) => normalizeSite(site))
-    .filter((site) => site.domain)
+    .filter((site) => site.enabled && site.domain)
     .map((site) => buildSiteUsageState(site, now, usage, settings, pomodoro));
 }
 
