@@ -79,11 +79,12 @@ button {
 }
 
 .pomodoro-stats-toggle {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  justify-content: center;
   gap: 8px;
   width: 100%;
+  text-align: left;
 }
 
 .stats-toggle-arrow {
