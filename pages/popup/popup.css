@@ -1818,10 +1818,28 @@ h2 {
 .setting-details {
   display: grid;
   gap: 8px;
-  border: 1px solid rgba(100, 116, 139, 0.16);
+}
+
+.setting-details {
+  border: 1px solid rgba(100, 116, 139, 0.24);
   border-radius: 8px;
-  background: #eef2f7;
+  background: #dbe1ea;
   padding: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+.setting-details .mode-option,
+.setting-details .interval-row,
+.setting-details .clock-control,
+.setting-details .slot-summary {
+  border-color: rgba(100, 116, 139, 0.18);
+  background: #edf1f5;
+}
+
+.setting-details .mode-option.is-selected,
+.setting-details .interval-row[data-expanded="true"] .slot-summary {
+  border-color: rgba(37, 99, 235, 0.42);
+  background: rgba(37, 99, 235, 0.11);
 }
 
 .setting-details[hidden],
@@ -2576,6 +2594,20 @@ button:focus-visible {
 
   .setting-details {
     background: #182230;
+  }
+
+  .setting-details .mode-option,
+  .setting-details .interval-row,
+  .setting-details .clock-control,
+  .setting-details .slot-summary {
+    border-color: rgba(247, 242, 232, 0.14);
+    background: #1f2937;
+  }
+
+  .setting-details .mode-option.is-selected,
+  .setting-details .interval-row[data-expanded="true"] .slot-summary {
+    border-color: rgba(96, 165, 250, 0.46);
+    background: rgba(96, 165, 250, 0.16);
   }
 
   .usage-site-detail {

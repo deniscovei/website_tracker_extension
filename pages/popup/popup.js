@@ -272,11 +272,11 @@ let pomodoroTickTimer = 0;
 let extraTimeTickTimer = 0;
 let pomodoroMutationStartedAt = 0;
 let pomodoroStatsVisible = false;
-let blockDetailsExpanded = true;
-let grayscaleDetailsExpanded = true;
-let redLightDetailsExpanded = true;
-let globalGrayscaleDetailsExpanded = true;
-let globalRedLightDetailsExpanded = true;
+let blockDetailsExpanded = false;
+let grayscaleDetailsExpanded = false;
+let redLightDetailsExpanded = false;
+let globalGrayscaleDetailsExpanded = false;
+let globalRedLightDetailsExpanded = false;
 let selectedPomodoroStatsDay = dateToDayKey(new Date());
 let pomodoroStatsData = null;
 let selectedUsageDay = dateToDayKey(new Date());
@@ -2352,9 +2352,21 @@ function readExceptionsForSave(domain) {
   return normalized;
 }
 
+function collapseEditorSettingDetails() {
+  blockDetailsExpanded = false;
+  grayscaleDetailsExpanded = false;
+  redLightDetailsExpanded = false;
+}
+
+function collapseGlobalSettingDetails() {
+  globalGrayscaleDetailsExpanded = false;
+  globalRedLightDetailsExpanded = false;
+}
+
 function openEditor(site) {
   clearFormError();
   clearExceptionWarning();
+  collapseEditorSettingDetails();
   scheduleTab?.setAttribute("aria-pressed", "true");
   usageTab?.setAttribute("aria-pressed", "false");
   siteDomain.value = site.domain || "";
@@ -2876,6 +2888,9 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
 function showList() {
   clearTimeout(editorAutosaveTimer);
   clearExceptionWarning();
+  collapseEditorSettingDetails();
+  collapseGlobalSettingDetails();
+  syncGlobalVisualEffectMenus();
   scheduleTab?.setAttribute("aria-pressed", "true");
   usageTab?.setAttribute("aria-pressed", "false");
   focusTab?.setAttribute("aria-pressed", "false");
@@ -2897,6 +2912,9 @@ async function showUsageView() {
   editingIndex = null;
   clearFormError();
   clearExceptionWarning();
+  collapseEditorSettingDetails();
+  collapseGlobalSettingDetails();
+  syncGlobalVisualEffectMenus();
   scheduleTab?.setAttribute("aria-pressed", "false");
   usageTab?.setAttribute("aria-pressed", "true");
   focusTab?.setAttribute("aria-pressed", "false");
@@ -2914,6 +2932,9 @@ function showFocusView() {
   editingIndex = null;
   clearFormError();
   clearExceptionWarning();
+  collapseEditorSettingDetails();
+  collapseGlobalSettingDetails();
+  syncGlobalVisualEffectMenus();
   scheduleTab?.setAttribute("aria-pressed", "false");
   usageTab?.setAttribute("aria-pressed", "false");
   focusTab?.setAttribute("aria-pressed", "true");
