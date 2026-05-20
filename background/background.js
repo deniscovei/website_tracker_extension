@@ -1691,12 +1691,13 @@ function setFocusTrackerVisualEffects(grayscaleEnabled, redLightEnabled, redLigh
   }
   if (redLightEnabled) {
     const intensity = Math.max(0, Math.min(100, Math.round(Number(redLightIntensity) || 0))) / 100;
-    const sepia = (0.65 * intensity).toFixed(3);
-    const saturate = (1 + 0.25 * intensity).toFixed(3);
-    const hueRotate = (-12 * intensity).toFixed(1);
-    const brightness = (1 - 0.06 * intensity).toFixed(3);
+    const sepia = (0.85 * intensity).toFixed(3);
+    const saturate = (1 + 1.6 * intensity).toFixed(3);
+    const hueRotate = (-32 * intensity).toFixed(1);
+    const brightness = (1 - 0.1 * intensity).toFixed(3);
+    const contrast = (1 + 0.04 * intensity).toFixed(3);
 
-    filters.push(`sepia(${sepia}) saturate(${saturate}) hue-rotate(${hueRotate}deg) brightness(${brightness})`);
+    filters.push(`sepia(${sepia}) saturate(${saturate}) hue-rotate(${hueRotate}deg) brightness(${brightness}) contrast(${contrast})`);
   }
 
   const filter = filters.join(" ").trim();

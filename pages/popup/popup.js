@@ -65,7 +65,6 @@ const redLightExpander = document.getElementById("red-light-expander");
 const redLightSiteOptions = document.getElementById("red-light-site-options");
 const redLightModeRadios = Array.from(document.querySelectorAll('input[name="red-light-mode"]'));
 const redLightIntensity = document.getElementById("red-light-intensity");
-const redLightIntensityValue = document.getElementById("red-light-intensity-value");
 const redLightSlotHeading = document.getElementById("red-light-slot-heading");
 const redLightIntervalList = document.getElementById("red-light-interval-list");
 const addRedLightInterval = document.getElementById("add-red-light-interval");
@@ -104,7 +103,6 @@ const globalRedLightModeRadios = Array.from(document.querySelectorAll('input[nam
 const globalRedLightAllWebsites = document.getElementById("global-red-light-all-websites");
 const globalRedLightAllWebsitesRow = document.getElementById("global-red-light-all-websites-row");
 const globalRedLightIntensity = document.getElementById("global-red-light-intensity");
-const globalRedLightIntensityValue = document.getElementById("global-red-light-intensity-value");
 const globalRedLightSlotHeading = document.getElementById("global-red-light-slot-heading");
 const globalRedLightIntervalList = document.getElementById("global-red-light-interval-list");
 const addGlobalRedLightInterval = document.getElementById("add-global-red-light-interval");
@@ -922,7 +920,7 @@ async function saveGlobalSettingsToggle() {
   if (globalRedLightAllWebsites) {
     globalRedLightAllWebsites.checked = nextRedLightApplyToAllWebsites;
   }
-  setNightLightIntensityControl(globalRedLightIntensity, globalRedLightIntensityValue, nextRedLightIntensityForAll);
+  setNightLightIntensityControl(globalRedLightIntensity, nextRedLightIntensityForAll);
   setModeRadios(globalGrayscaleModeRadios, nextGrayscaleMode);
   setModeRadios(globalRedLightModeRadios, nextRedLightMode);
 
@@ -998,7 +996,7 @@ async function saveGlobalSettingsToggle() {
     if (globalRedLightAllWebsites) {
       globalRedLightAllWebsites.checked = Boolean(previousSettings.redLightApplyToAllWebsites);
     }
-    setNightLightIntensityControl(globalRedLightIntensity, globalRedLightIntensityValue, previousSettings.redLightIntensityForAll);
+    setNightLightIntensityControl(globalRedLightIntensity, previousSettings.redLightIntensityForAll);
     setModeRadios(globalGrayscaleModeRadios, previousSettings.grayscaleForAllMode);
     setModeRadios(globalRedLightModeRadios, previousSettings.redLightForAllMode);
     renderGlobalEffectIntervals();
@@ -1195,7 +1193,7 @@ function renderGlobalSettings(message = "") {
     globalRedLightAllWebsites.checked = Boolean(settings.redLightApplyToAllWebsites);
   }
 
-  setNightLightIntensityControl(globalRedLightIntensity, globalRedLightIntensityValue, settings.redLightIntensityForAll);
+  setNightLightIntensityControl(globalRedLightIntensity, settings.redLightIntensityForAll);
 
   setModeRadios(globalRedLightModeRadios, settings.redLightForAllMode);
 
@@ -2526,7 +2524,7 @@ function openEditor(site) {
   if (redLightSite) {
     redLightSite.checked = Boolean(site.redLight);
   }
-  setNightLightIntensityControl(redLightIntensity, redLightIntensityValue, site.redLightIntensity);
+  setNightLightIntensityControl(redLightIntensity, site.redLightIntensity);
   setModeRadios(redLightModeRadios, normalizeEffectMode(site.redLightMode));
   requirePinExtra.checked = Boolean(site.requirePinForExtraTime);
   syncPinSetupView();
@@ -2629,25 +2627,17 @@ function getNightLightIntensity(input, fallback = DEFAULT_NIGHT_LIGHT_INTENSITY)
   return normalizeNightLightIntensity(input?.value, fallback);
 }
 
-function setNightLightIntensityControl(input, valueElement, value) {
+function setNightLightIntensityControl(input, value) {
   const normalized = normalizeNightLightIntensity(value);
 
   if (input) {
     input.value = String(normalized);
   }
-
-  if (valueElement) {
-    valueElement.textContent = String(normalized);
-  }
 }
 
 function syncNightLightIntensityControls() {
-  setNightLightIntensityControl(redLightIntensity, redLightIntensityValue, getNightLightIntensity(redLightIntensity));
-  setNightLightIntensityControl(
-    globalRedLightIntensity,
-    globalRedLightIntensityValue,
-    getNightLightIntensity(globalRedLightIntensity, settings.redLightIntensityForAll)
-  );
+  setNightLightIntensityControl(redLightIntensity, getNightLightIntensity(redLightIntensity));
+  setNightLightIntensityControl(globalRedLightIntensity, getNightLightIntensity(globalRedLightIntensity, settings.redLightIntensityForAll));
 }
 
 function syncGlobalVisualEffectMenus() {
@@ -5028,7 +5018,7 @@ function applyStoredGlobalSettings(storedSettings) {
     globalRedLightAllWebsites.checked = Boolean(settings.redLightApplyToAllWebsites);
   }
 
-  setNightLightIntensityControl(globalRedLightIntensity, globalRedLightIntensityValue, settings.redLightIntensityForAll);
+  setNightLightIntensityControl(globalRedLightIntensity, settings.redLightIntensityForAll);
 
   setModeRadios(globalRedLightModeRadios, settings.redLightForAllMode);
 
