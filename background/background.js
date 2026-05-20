@@ -17,6 +17,7 @@ const MAX_POMODORO_HISTORY_ITEMS = 500;
 const MAX_USAGE_HISTORY_DAYS = 30;
 const MAX_TRACKING_GAP_SECONDS = 2 * 60;
 const MAX_EXTRA_TIME_MINUTES = 240;
+const DEFAULT_NIGHT_LIGHT_INTENSITY = 55;
 const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 let extensionPopupOpenCount = 0;
 let cachedSchedule = null;
@@ -427,6 +428,9 @@ async function saveSettings(value = {}) {
   const redLightApplyToAllWebsites = hasOwn("redLightApplyToAllWebsites")
     ? Boolean(value.redLightApplyToAllWebsites)
     : Boolean(current.redLightApplyToAllWebsites);
+  const redLightIntensityForAll = hasOwn("redLightIntensityForAll")
+    ? normalizeNightLightIntensity(value.redLightIntensityForAll)
+    : normalizeNightLightIntensity(current.redLightIntensityForAll);
   const redLightForAllMode = hasOwn("redLightForAllMode")
     ? normalizeEffectMode(value.redLightForAllMode)
     : normalizeEffectMode(current.redLightForAllMode);
@@ -448,6 +452,7 @@ async function saveSettings(value = {}) {
     grayscaleIntervalsForAll,
     redLightForAll,
     redLightApplyToAllWebsites,
+    redLightIntensityForAll,
     redLightForAllMode,
     redLightIntervalsForAll,
     effectIntervalsForAll
@@ -795,6 +800,7 @@ function normalizeSettingsForStorage(value = {}) {
     grayscaleIntervalsForAll: normalizeIntervalsForStorage(value.grayscaleIntervalsForAll ?? value.effectIntervalsForAll),
     redLightForAll: Boolean(value.redLightForAll),
     redLightApplyToAllWebsites: Boolean(value.redLightApplyToAllWebsites),
+    redLightIntensityForAll: normalizeNightLightIntensity(value.redLightIntensityForAll),
     redLightForAllMode: normalizeEffectMode(value.redLightForAllMode),
     redLightIntervalsForAll: normalizeIntervalsForStorage(value.redLightIntervalsForAll ?? value.effectIntervalsForAll),
     effectIntervalsForAll: normalizeIntervalsForStorage(value.effectIntervalsForAll)
@@ -813,6 +819,7 @@ function publicSettings(settings) {
     grayscaleIntervalsForAll: normalizeIntervalsForStorage(settings.grayscaleIntervalsForAll || settings.effectIntervalsForAll),
     redLightForAll: Boolean(settings.redLightForAll),
     redLightApplyToAllWebsites: Boolean(settings.redLightApplyToAllWebsites),
+    redLightIntensityForAll: normalizeNightLightIntensity(settings.redLightIntensityForAll),
     redLightForAllMode: normalizeEffectMode(settings.redLightForAllMode),
     redLightIntervalsForAll: normalizeIntervalsForStorage(settings.redLightIntervalsForAll || settings.effectIntervalsForAll),
     effectIntervalsForAll: normalizeIntervalsForStorage(settings.effectIntervalsForAll),
@@ -921,6 +928,7 @@ function normalizeSiteForStorage(site) {
     grayscaleMode: normalizeEffectMode(site.grayscaleMode),
     grayscaleIntervals: normalizeIntervalsForStorage(site.grayscaleIntervals ?? site.effectIntervals),
     redLight: Boolean(site.redLight),
+    redLightIntensity: normalizeNightLightIntensity(site.redLightIntensity),
     redLightMode: normalizeEffectMode(site.redLightMode),
     redLightIntervals: normalizeIntervalsForStorage(site.redLightIntervals ?? site.effectIntervals),
     effectIntervals: normalizeIntervalsForStorage(site.effectIntervals),
@@ -1042,6 +1050,7 @@ function normalizeSite(site) {
     grayscaleMode: normalizeEffectMode(site.grayscaleMode),
     grayscaleIntervals: normalizeIntervalsForStorage(site.grayscaleIntervals ?? site.effectIntervals),
     redLight: Boolean(site.redLight),
+    redLightIntensity: normalizeNightLightIntensity(site.redLightIntensity),
     redLightMode: normalizeEffectMode(site.redLightMode),
     redLightIntervals: normalizeIntervalsForStorage(site.redLightIntervals ?? site.effectIntervals),
     effectIntervals: normalizeIntervalsForStorage(site.effectIntervals),
@@ -1071,6 +1080,18 @@ function normalizeBlockMode(mode, intervals = []) {
 
 function normalizeEffectMode(mode) {
   return mode === "slots" ? "slots" : "always";
+}
+
+function normalizeNightLightIntensity(value, fallback = DEFAULT_NIGHT_LIGHT_INTENSITY) {
+  const number = Number(value);
+  const fallbackNumber = Number(fallback);
+  const safeFallback = Number.isFinite(fallbackNumber) ? fallbackNumber : DEFAULT_NIGHT_LIGHT_INTENSITY;
+
+  if (!Number.isFinite(number)) {
+    return Math.max(0, Math.min(100, Math.round(safeFallback)));
+  }
+
+  return Math.max(0, Math.min(100, Math.round(number)));
 }
 
 function pickDomainValues(site) {
@@ -1579,8 +1600,11 @@ async function syncTabVisualEffects(tabId, host) {
     siteMode: site?.redLightMode,
     siteIntervals: site?.redLightIntervals || site?.effectIntervals
   });
+  const redLightIntensity = redLightGlobalApplies
+    ? settings.redLightIntensityForAll
+    : site?.redLightIntensity;
 
-  await setTabVisualEffects(tabId, { grayscale, redLight });
+  await setTabVisualEffects(tabId, { grayscale, redLight, redLightIntensity });
 }
 
 function createVisualEffectFallbackSite(host) {
@@ -1642,7 +1666,7 @@ function isEffectInSlot(intervals, site, now) {
   return activeIntervals.some((interval) => isIntervalActive(interval, now));
 }
 
-async function setTabVisualEffects(tabId, { grayscale = false, redLight = false } = {}) {
+async function setTabVisualEffects(tabId, { grayscale = false, redLight = false, redLightIntensity = DEFAULT_NIGHT_LIGHT_INTENSITY } = {}) {
   if (typeof tabId !== "number") {
     return;
   }
@@ -1651,13 +1675,13 @@ async function setTabVisualEffects(tabId, { grayscale = false, redLight = false 
     await chrome.scripting.executeScript({
       target: { tabId },
       func: setFocusTrackerVisualEffects,
-      args: [Boolean(grayscale), Boolean(redLight)]
+      args: [Boolean(grayscale), Boolean(redLight), normalizeNightLightIntensity(redLightIntensity)]
     });
   } catch (_error) {
   }
 }
 
-function setFocusTrackerVisualEffects(grayscaleEnabled, redLightEnabled) {
+function setFocusTrackerVisualEffects(grayscaleEnabled, redLightEnabled, redLightIntensity) {
   const styleId = "focus-tracker-visual-effects";
   const existing = document.getElementById(styleId);
 
@@ -1666,7 +1690,13 @@ function setFocusTrackerVisualEffects(grayscaleEnabled, redLightEnabled) {
     filters.push("grayscale(1)");
   }
   if (redLightEnabled) {
-    filters.push("sepia(1) saturate(5) hue-rotate(330deg) brightness(1.05)");
+    const intensity = Math.max(0, Math.min(100, Math.round(Number(redLightIntensity) || 0))) / 100;
+    const sepia = (0.65 * intensity).toFixed(3);
+    const saturate = (1 + 0.25 * intensity).toFixed(3);
+    const hueRotate = (-12 * intensity).toFixed(1);
+    const brightness = (1 - 0.06 * intensity).toFixed(3);
+
+    filters.push(`sepia(${sepia}) saturate(${saturate}) hue-rotate(${hueRotate}deg) brightness(${brightness})`);
   }
 
   const filter = filters.join(" ").trim();

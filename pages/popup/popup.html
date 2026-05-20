@@ -124,9 +124,9 @@
             <div class="setting-toggle-line">
               <label id="red-light-global-row" class="toggle-field setting-toggle" title="Show more settings">
                 <input id="global-red-light" type="checkbox">
-                <span>Red light</span>
+                <span>Night light</span>
               </label>
-              <button id="global-red-light-expander" class="setting-expander" type="button" aria-label="Hide red light settings" aria-expanded="true" hidden>▴</button>
+              <button id="global-red-light-expander" class="setting-expander" type="button" aria-label="Hide night light settings" aria-expanded="true" hidden>▴</button>
             </div>
             <div id="global-red-light-details" class="setting-details" hidden>
               <div id="global-red-light-options" class="mode-options">
@@ -134,27 +134,34 @@
                   <input type="radio" name="global-red-light-mode" value="always" checked>
                   <span>
                     <strong>Always</strong>
-                    <small>Apply red light whenever a matching website is open.</small>
+                    <small>Warm matching websites whenever they are open.</small>
                   </span>
                 </label>
                 <label class="mode-option">
                   <input type="radio" name="global-red-light-mode" value="slots">
                   <span>
                     <strong>Scheduled</strong>
-                    <small>Apply red light to matching websites only during selected times.</small>
+                    <small>Warm matching websites only during selected times.</small>
                   </span>
                 </label>
               </div>
               <div id="global-red-light-slot-heading" class="section-heading compact" hidden>
-                <h2>Red light schedule</h2>
+                <h2>Night light schedule</h2>
                 <button id="add-global-red-light-interval" class="secondary-button small" type="button">Add slot</button>
               </div>
               <div id="global-red-light-interval-list" class="interval-list" hidden></div>
+              <label class="intensity-control" for="global-red-light-intensity">
+                <span>
+                  <strong>Intensity</strong>
+                  <small><span id="global-red-light-intensity-value">55</span>% warm tone</small>
+                </span>
+                <input id="global-red-light-intensity" type="range" min="0" max="100" step="5" value="55">
+              </label>
               <label id="global-red-light-all-websites-row" class="toggle-field scope-toggle">
                 <input id="global-red-light-all-websites" type="checkbox">
                 <span>
                   <strong>Apply to all websites</strong>
-                  <small>When off, red light only applies to websites in your list.</small>
+                  <small>When off, night light only applies to websites in your list.</small>
                 </span>
               </label>
             </div>
@@ -279,9 +286,9 @@
               <div class="setting-toggle-line">
                 <label class="toggle-field setting-toggle" title="Show more settings">
                   <input id="red-light-site" type="checkbox">
-                  <span>Red light</span>
+                  <span>Night light</span>
                 </label>
-                <button id="red-light-expander" class="setting-expander" type="button" aria-label="Hide red light settings" aria-expanded="true" hidden>▴</button>
+                <button id="red-light-expander" class="setting-expander" type="button" aria-label="Hide night light settings" aria-expanded="true" hidden>▴</button>
               </div>
               <div id="red-light-details" class="setting-details" hidden>
                 <div id="red-light-site-options" class="mode-options">
@@ -289,24 +296,31 @@
                     <input type="radio" name="red-light-mode" value="always" checked>
                     <span>
                       <strong>Always</strong>
-                      <small>Apply red light whenever this website is open.</small>
+                      <small>Warm this website whenever it is open.</small>
                     </span>
                   </label>
                   <label class="mode-option">
                     <input type="radio" name="red-light-mode" value="slots">
                     <span>
                       <strong>Scheduled</strong>
-                      <small>Apply red light only during selected times.</small>
+                      <small>Warm this website only during selected times.</small>
                     </span>
                   </label>
                 </div>
                 <div id="red-light-slot-heading" class="section-heading compact" hidden>
-                  <h2>Red light schedule</h2>
+                  <h2>Night light schedule</h2>
                   <button id="add-red-light-interval" class="secondary-button small" type="button">Add slot</button>
                 </div>
                 <div id="red-light-interval-list" class="interval-list" hidden></div>
+                <label class="intensity-control" for="red-light-intensity">
+                  <span>
+                    <strong>Intensity</strong>
+                    <small><span id="red-light-intensity-value">55</span>% warm tone</small>
+                  </span>
+                  <input id="red-light-intensity" type="range" min="0" max="100" step="5" value="55">
+                </label>
               </div>
-              <p id="red-light-global-note" class="field-note" hidden>Global Red light is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
+              <p id="red-light-global-note" class="field-note" hidden>Global Night light is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
             </div>
           </section>
           <p id="form-error" class="form-error" aria-live="polite"></p>
