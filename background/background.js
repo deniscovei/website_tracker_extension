@@ -412,6 +412,9 @@ async function saveSettings(value = {}) {
   const grayscaleForAll = hasOwn("grayscaleForAll")
     ? Boolean(value.grayscaleForAll)
     : Boolean(current.grayscaleForAll);
+  const grayscaleApplyToAllWebsites = hasOwn("grayscaleApplyToAllWebsites")
+    ? Boolean(value.grayscaleApplyToAllWebsites)
+    : Boolean(current.grayscaleApplyToAllWebsites);
   const grayscaleForAllMode = hasOwn("grayscaleForAllMode")
     ? normalizeEffectMode(value.grayscaleForAllMode)
     : normalizeEffectMode(current.grayscaleForAllMode);
@@ -421,6 +424,9 @@ async function saveSettings(value = {}) {
   const redLightForAll = hasOwn("redLightForAll")
     ? Boolean(value.redLightForAll)
     : Boolean(current.redLightForAll);
+  const redLightApplyToAllWebsites = hasOwn("redLightApplyToAllWebsites")
+    ? Boolean(value.redLightApplyToAllWebsites)
+    : Boolean(current.redLightApplyToAllWebsites);
   const redLightForAllMode = hasOwn("redLightForAllMode")
     ? normalizeEffectMode(value.redLightForAllMode)
     : normalizeEffectMode(current.redLightForAllMode);
@@ -437,9 +443,11 @@ async function saveSettings(value = {}) {
     allowExtraTimeForAll,
     blockAllForAll,
     grayscaleForAll,
+    grayscaleApplyToAllWebsites,
     grayscaleForAllMode,
     grayscaleIntervalsForAll,
     redLightForAll,
+    redLightApplyToAllWebsites,
     redLightForAllMode,
     redLightIntervalsForAll,
     effectIntervalsForAll
@@ -782,9 +790,11 @@ function normalizeSettingsForStorage(value = {}) {
     allowExtraTimeForAll: Boolean(value.allowExtraTimeForAll),
     blockAllForAll: Boolean(value.blockAllForAll),
     grayscaleForAll: Boolean(value.grayscaleForAll),
+    grayscaleApplyToAllWebsites: Boolean(value.grayscaleApplyToAllWebsites),
     grayscaleForAllMode: normalizeEffectMode(value.grayscaleForAllMode),
     grayscaleIntervalsForAll: normalizeIntervalsForStorage(value.grayscaleIntervalsForAll ?? value.effectIntervalsForAll),
     redLightForAll: Boolean(value.redLightForAll),
+    redLightApplyToAllWebsites: Boolean(value.redLightApplyToAllWebsites),
     redLightForAllMode: normalizeEffectMode(value.redLightForAllMode),
     redLightIntervalsForAll: normalizeIntervalsForStorage(value.redLightIntervalsForAll ?? value.effectIntervalsForAll),
     effectIntervalsForAll: normalizeIntervalsForStorage(value.effectIntervalsForAll)
@@ -798,9 +808,11 @@ function publicSettings(settings) {
     allowExtraTimeForAll: Boolean(settings.allowExtraTimeForAll),
     blockAllForAll: Boolean(settings.blockAllForAll),
     grayscaleForAll: Boolean(settings.grayscaleForAll),
+    grayscaleApplyToAllWebsites: Boolean(settings.grayscaleApplyToAllWebsites),
     grayscaleForAllMode: normalizeEffectMode(settings.grayscaleForAllMode),
     grayscaleIntervalsForAll: normalizeIntervalsForStorage(settings.grayscaleIntervalsForAll || settings.effectIntervalsForAll),
     redLightForAll: Boolean(settings.redLightForAll),
+    redLightApplyToAllWebsites: Boolean(settings.redLightApplyToAllWebsites),
     redLightForAllMode: normalizeEffectMode(settings.redLightForAllMode),
     redLightIntervalsForAll: normalizeIntervalsForStorage(settings.redLightIntervalsForAll || settings.effectIntervalsForAll),
     effectIntervalsForAll: normalizeIntervalsForStorage(settings.effectIntervalsForAll),
@@ -1537,31 +1549,48 @@ async function syncTabVisualEffects(tabId, host) {
   }
 
   const site = findSiteForVisualEffects(schedule, normalizedHost);
+  const grayscaleGlobalApplies = Boolean(
+    settings.grayscaleForAll && (site || settings.grayscaleApplyToAllWebsites)
+  );
+  const redLightGlobalApplies = Boolean(
+    settings.redLightForAll && (site || settings.redLightApplyToAllWebsites)
+  );
 
-  if (!site) {
+  if (!site && !grayscaleGlobalApplies && !redLightGlobalApplies) {
     await setTabVisualEffects(tabId, { grayscale: false, redLight: false });
     return;
   }
 
   const now = getTimeParts(schedule.timezone);
-  const grayscale = isEffectActiveNow(site, settings, now, {
-    globalEnabled: settings.grayscaleForAll,
+  const effectSite = site || createVisualEffectFallbackSite(normalizedHost);
+  const grayscale = isEffectActiveNow(effectSite, settings, now, {
+    globalEnabled: grayscaleGlobalApplies,
     globalMode: settings.grayscaleForAllMode,
     globalIntervals: settings.grayscaleIntervalsForAll || settings.effectIntervalsForAll,
-    siteEnabled: site.grayscale,
-    siteMode: site.grayscaleMode,
-    siteIntervals: site.grayscaleIntervals || site.effectIntervals
+    siteEnabled: Boolean(site?.grayscale),
+    siteMode: site?.grayscaleMode,
+    siteIntervals: site?.grayscaleIntervals || site?.effectIntervals
   });
-  const redLight = isEffectActiveNow(site, settings, now, {
-    globalEnabled: settings.redLightForAll,
+  const redLight = isEffectActiveNow(effectSite, settings, now, {
+    globalEnabled: redLightGlobalApplies,
     globalMode: settings.redLightForAllMode,
     globalIntervals: settings.redLightIntervalsForAll || settings.effectIntervalsForAll,
-    siteEnabled: site.redLight,
-    siteMode: site.redLightMode,
-    siteIntervals: site.redLightIntervals || site.effectIntervals
+    siteEnabled: Boolean(site?.redLight),
+    siteMode: site?.redLightMode,
+    siteIntervals: site?.redLightIntervals || site?.effectIntervals
   });
 
   await setTabVisualEffects(tabId, { grayscale, redLight });
+}
+
+function createVisualEffectFallbackSite(host) {
+  return {
+    domain: host,
+    domains: [host],
+    exceptions: [],
+    intervals: [],
+    effectIntervals: []
+  };
 }
 
 async function syncAllTabVisualEffects() {

@@ -95,17 +95,24 @@
                   <input type="radio" name="global-grayscale-mode" value="always" checked>
                   <span>
                     <strong>Always</strong>
-                    <small>Apply grayscale to every listed website whenever it is open.</small>
+                    <small>Apply grayscale whenever a matching website is open.</small>
                   </span>
                 </label>
                 <label class="mode-option">
                   <input type="radio" name="global-grayscale-mode" value="slots">
                   <span>
                     <strong>Scheduled</strong>
-                    <small>Apply grayscale to every listed website only during selected times.</small>
+                    <small>Apply grayscale to matching websites only during selected times.</small>
                   </span>
                 </label>
               </div>
+              <label id="global-grayscale-all-websites-row" class="toggle-field scope-toggle">
+                <input id="global-grayscale-all-websites" type="checkbox">
+                <span>
+                  <strong>Apply to all websites</strong>
+                  <small>When off, grayscale only applies to websites in your list.</small>
+                </span>
+              </label>
               <div id="global-grayscale-slot-heading" class="section-heading compact" hidden>
                 <h2>Grayscale schedule</h2>
                 <button id="add-global-grayscale-interval" class="secondary-button small" type="button">Add slot</button>
@@ -127,17 +134,24 @@
                   <input type="radio" name="global-red-light-mode" value="always" checked>
                   <span>
                     <strong>Always</strong>
-                    <small>Apply red light to every listed website whenever it is open.</small>
+                    <small>Apply red light whenever a matching website is open.</small>
                   </span>
                 </label>
                 <label class="mode-option">
                   <input type="radio" name="global-red-light-mode" value="slots">
                   <span>
                     <strong>Scheduled</strong>
-                    <small>Apply red light to every listed website only during selected times.</small>
+                    <small>Apply red light to matching websites only during selected times.</small>
                   </span>
                 </label>
               </div>
+              <label id="global-red-light-all-websites-row" class="toggle-field scope-toggle">
+                <input id="global-red-light-all-websites" type="checkbox">
+                <span>
+                  <strong>Apply to all websites</strong>
+                  <small>When off, red light only applies to websites in your list.</small>
+                </span>
+              </label>
               <div id="global-red-light-slot-heading" class="section-heading compact" hidden>
                 <h2>Red light schedule</h2>
                 <button id="add-global-red-light-interval" class="secondary-button small" type="button">Add slot</button>

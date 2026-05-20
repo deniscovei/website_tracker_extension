@@ -86,6 +86,8 @@ const globalGrayscaleExpander = document.getElementById("global-grayscale-expand
 const globalGrayscaleRow = document.getElementById("grayscale-global-row");
 const globalGrayscaleOptions = document.getElementById("global-grayscale-options");
 const globalGrayscaleModeRadios = Array.from(document.querySelectorAll('input[name="global-grayscale-mode"]'));
+const globalGrayscaleAllWebsites = document.getElementById("global-grayscale-all-websites");
+const globalGrayscaleAllWebsitesRow = document.getElementById("global-grayscale-all-websites-row");
 const globalGrayscaleSlotHeading = document.getElementById("global-grayscale-slot-heading");
 const globalGrayscaleIntervalList = document.getElementById("global-grayscale-interval-list");
 const addGlobalGrayscaleInterval = document.getElementById("add-global-grayscale-interval");
@@ -95,6 +97,8 @@ const globalRedLightExpander = document.getElementById("global-red-light-expande
 const globalRedLightRow = document.getElementById("red-light-global-row");
 const globalRedLightOptions = document.getElementById("global-red-light-options");
 const globalRedLightModeRadios = Array.from(document.querySelectorAll('input[name="global-red-light-mode"]'));
+const globalRedLightAllWebsites = document.getElementById("global-red-light-all-websites");
+const globalRedLightAllWebsitesRow = document.getElementById("global-red-light-all-websites-row");
 const globalRedLightSlotHeading = document.getElementById("global-red-light-slot-heading");
 const globalRedLightIntervalList = document.getElementById("global-red-light-interval-list");
 const addGlobalRedLightInterval = document.getElementById("add-global-red-light-interval");
@@ -232,9 +236,11 @@ let settings = {
   requirePinForAllExtraTime: false,
   allowExtraTimeForAll: false,
   grayscaleForAll: false,
+  grayscaleApplyToAllWebsites: false,
   grayscaleForAllMode: "always",
   grayscaleIntervalsForAll: [],
   redLightForAll: false,
+  redLightApplyToAllWebsites: false,
   redLightForAllMode: "always",
   redLightIntervalsForAll: [],
   effectIntervalsForAll: [],
@@ -377,6 +383,10 @@ globalGrayscaleModeRadios.forEach((radio) => {
   });
 });
 
+globalGrayscaleAllWebsites?.addEventListener("change", () => {
+  void saveGlobalSettingsToggle();
+});
+
 globalRedLight?.addEventListener("change", () => {
   if (globalRedLight.checked) {
     globalRedLightDetailsExpanded = true;
@@ -390,6 +400,10 @@ globalRedLightModeRadios.forEach((radio) => {
     syncGlobalVisualEffectMenus();
     void saveGlobalSettingsToggle();
   });
+});
+
+globalRedLightAllWebsites?.addEventListener("change", () => {
+  void saveGlobalSettingsToggle();
 });
 
 pinCode?.addEventListener("input", () => {
@@ -818,8 +832,10 @@ async function saveGlobalSettingsToggle() {
   const nextAllowExtraTime = Boolean(globalExtraTime.checked);
   const nextBlockAll = Boolean(blockAll?.checked);
   const nextGrayscale = Boolean(globalGrayscale.checked);
+  const nextGrayscaleApplyToAllWebsites = Boolean(globalGrayscaleAllWebsites?.checked);
   const nextGrayscaleMode = getModeFromRadios(globalGrayscaleModeRadios, previousSettings.grayscaleForAllMode);
   const nextRedLight = Boolean(globalRedLight?.checked);
+  const nextRedLightApplyToAllWebsites = Boolean(globalRedLightAllWebsites?.checked);
   const nextRedLightMode = getModeFromRadios(globalRedLightModeRadios, previousSettings.redLightForAllMode);
   let nextGrayscaleIntervalsForAll = cloneIntervals(previousSettings.grayscaleIntervalsForAll || previousSettings.effectIntervalsForAll);
   let nextRedLightIntervalsForAll = cloneIntervals(previousSettings.redLightIntervalsForAll || previousSettings.effectIntervalsForAll);
@@ -850,9 +866,11 @@ async function saveGlobalSettingsToggle() {
     requirePinForAllExtraTime: nextRequirePin,
     allowExtraTimeForAll: nextAllowExtraTime,
     grayscaleForAll: nextGrayscale,
+    grayscaleApplyToAllWebsites: nextGrayscaleApplyToAllWebsites,
     grayscaleForAllMode: nextGrayscaleMode,
     grayscaleIntervalsForAll: nextGrayscaleIntervalsForAll,
     redLightForAll: nextRedLight,
+    redLightApplyToAllWebsites: nextRedLightApplyToAllWebsites,
     redLightForAllMode: nextRedLightMode,
     redLightIntervalsForAll: nextRedLightIntervalsForAll,
     effectIntervalsForAll: nextGrayscaleIntervalsForAll
@@ -865,8 +883,14 @@ async function saveGlobalSettingsToggle() {
   }
   globalExtraTime.checked = nextAllowExtraTime;
   globalGrayscale.checked = nextGrayscale;
+  if (globalGrayscaleAllWebsites) {
+    globalGrayscaleAllWebsites.checked = nextGrayscaleApplyToAllWebsites;
+  }
   if (globalRedLight) {
     globalRedLight.checked = nextRedLight;
+  }
+  if (globalRedLightAllWebsites) {
+    globalRedLightAllWebsites.checked = nextRedLightApplyToAllWebsites;
   }
   setModeRadios(globalGrayscaleModeRadios, nextGrayscaleMode);
   setModeRadios(globalRedLightModeRadios, nextRedLightMode);
@@ -885,9 +909,11 @@ async function saveGlobalSettingsToggle() {
         requirePinForAllExtraTime: nextRequirePin,
         allowExtraTimeForAll: nextAllowExtraTime,
         grayscaleForAll: nextGrayscale,
+        grayscaleApplyToAllWebsites: nextGrayscaleApplyToAllWebsites,
         grayscaleForAllMode: nextGrayscaleMode,
         grayscaleIntervalsForAll: nextGrayscaleIntervalsForAll,
         redLightForAll: nextRedLight,
+        redLightApplyToAllWebsites: nextRedLightApplyToAllWebsites,
         redLightForAllMode: nextRedLightMode,
         redLightIntervalsForAll: nextRedLightIntervalsForAll,
         effectIntervalsForAll: nextGrayscaleIntervalsForAll
@@ -931,8 +957,14 @@ async function saveGlobalSettingsToggle() {
     }
     globalExtraTime.checked = Boolean(previousSettings.allowExtraTimeForAll);
     globalGrayscale.checked = Boolean(previousSettings.grayscaleForAll);
+    if (globalGrayscaleAllWebsites) {
+      globalGrayscaleAllWebsites.checked = Boolean(previousSettings.grayscaleApplyToAllWebsites);
+    }
     if (globalRedLight) {
       globalRedLight.checked = Boolean(previousSettings.redLightForAll);
+    }
+    if (globalRedLightAllWebsites) {
+      globalRedLightAllWebsites.checked = Boolean(previousSettings.redLightApplyToAllWebsites);
     }
     setModeRadios(globalGrayscaleModeRadios, previousSettings.grayscaleForAllMode);
     setModeRadios(globalRedLightModeRadios, previousSettings.redLightForAllMode);
@@ -985,11 +1017,17 @@ async function persistPinSettings({
   if (globalGrayscale) {
     globalGrayscale.disabled = true;
   }
+  if (globalGrayscaleAllWebsites) {
+    globalGrayscaleAllWebsites.disabled = true;
+  }
   globalGrayscaleModeRadios.forEach((radio) => {
     radio.disabled = true;
   });
   if (globalRedLight) {
     globalRedLight.disabled = true;
+  }
+  if (globalRedLightAllWebsites) {
+    globalRedLightAllWebsites.disabled = true;
   }
   globalRedLightModeRadios.forEach((radio) => {
     radio.disabled = true;
@@ -1009,9 +1047,11 @@ async function persistPinSettings({
         blockAllForAll: Boolean(blockAll?.checked),
         allowExtraTimeForAll: Boolean(globalExtraTime?.checked),
         grayscaleForAll: Boolean(globalGrayscale?.checked),
+        grayscaleApplyToAllWebsites: Boolean(globalGrayscaleAllWebsites?.checked),
         grayscaleForAllMode: getModeFromRadios(globalGrayscaleModeRadios, settings.grayscaleForAllMode),
         grayscaleIntervalsForAll: cloneIntervals(settings.grayscaleIntervalsForAll || settings.effectIntervalsForAll),
         redLightForAll: Boolean(globalRedLight?.checked),
+        redLightApplyToAllWebsites: Boolean(globalRedLightAllWebsites?.checked),
         redLightForAllMode: getModeFromRadios(globalRedLightModeRadios, settings.redLightForAllMode),
         redLightIntervalsForAll: cloneIntervals(settings.redLightIntervalsForAll || settings.effectIntervalsForAll)
       }
@@ -1104,10 +1144,18 @@ function renderGlobalSettings(message = "") {
     globalGrayscale.checked = Boolean(settings.grayscaleForAll);
   }
 
+  if (globalGrayscaleAllWebsites) {
+    globalGrayscaleAllWebsites.checked = Boolean(settings.grayscaleApplyToAllWebsites);
+  }
+
   setModeRadios(globalGrayscaleModeRadios, settings.grayscaleForAllMode);
 
   if (globalRedLight) {
     globalRedLight.checked = Boolean(settings.redLightForAll);
+  }
+
+  if (globalRedLightAllWebsites) {
+    globalRedLightAllWebsites.checked = Boolean(settings.redLightApplyToAllWebsites);
   }
 
   setModeRadios(globalRedLightModeRadios, settings.redLightForAllMode);
@@ -1187,23 +1235,33 @@ function syncGlobalSettingsView() {
     globalGrayscale.disabled = controlsBusy;
   }
 
+  if (globalGrayscaleAllWebsites) {
+    globalGrayscaleAllWebsites.disabled = controlsBusy;
+  }
+
   globalGrayscaleModeRadios.forEach((radio) => {
-    radio.disabled = false;
+    radio.disabled = controlsBusy;
   });
 
   if (globalRedLight) {
     globalRedLight.disabled = controlsBusy;
   }
 
+  if (globalRedLightAllWebsites) {
+    globalRedLightAllWebsites.disabled = controlsBusy;
+  }
+
   globalRedLightModeRadios.forEach((radio) => {
-    radio.disabled = false;
+    radio.disabled = controlsBusy;
   });
 
   pinGlobalRow?.classList.toggle("is-disabled", !hasPin || controlsBusy);
   globalExtraTimeRow?.classList.toggle("is-disabled", controlsBusy);
   blockAllRow?.classList.toggle("is-disabled", controlsBusy);
   globalGrayscaleRow?.classList.toggle("is-disabled", controlsBusy);
+  globalGrayscaleAllWebsitesRow?.classList.toggle("is-disabled", controlsBusy);
   globalRedLightRow?.classList.toggle("is-disabled", controlsBusy);
+  globalRedLightAllWebsitesRow?.classList.toggle("is-disabled", controlsBusy);
 
   syncGlobalVisualEffectMenus();
 }
@@ -1236,12 +1294,16 @@ function syncEditorGlobalOverrideView(siteOverride = null) {
 
   if (grayscaleGlobalNote) {
     grayscaleGlobalNote.hidden = !grayscaleEnforced;
-    grayscaleGlobalNote.textContent = "Global Grayscale websites is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
+    grayscaleGlobalNote.textContent = settings.grayscaleApplyToAllWebsites
+      ? "Global Grayscale is on for all websites. You can still toggle this website setting, but the global setting controls the current effect until it is turned off."
+      : "Global Grayscale websites is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
   }
 
   if (redLightGlobalNote) {
     redLightGlobalNote.hidden = !redLightEnforced;
-    redLightGlobalNote.textContent = "Global Red light is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
+    redLightGlobalNote.textContent = settings.redLightApplyToAllWebsites
+      ? "Global Red light is on for all websites. You can still toggle this website setting, but the global setting controls the current effect until it is turned off."
+      : "Global Red light is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
   }
 
   requirePinExtraRow?.classList.toggle("is-disabled", pinControlDisabled);
@@ -1282,8 +1344,8 @@ function updateGlobalSettingsStatus() {
     settings.requirePinForAllExtraTime ? "PIN" : "",
     settings.blockAllForAll ? "block" : "",
     settings.allowExtraTimeForAll ? "extra time" : "",
-    settings.grayscaleForAll ? "grayscale" : "",
-    settings.redLightForAll ? "red light" : ""
+    settings.grayscaleForAll ? `grayscale${settings.grayscaleApplyToAllWebsites ? " everywhere" : ""}` : "",
+    settings.redLightForAll ? `red light${settings.redLightApplyToAllWebsites ? " everywhere" : ""}` : ""
   ].filter(Boolean);
 
   globalSettingsStatus.classList.remove("error");
@@ -4721,6 +4783,7 @@ function normalizeSettings(value) {
     requirePinForAllExtraTime: Boolean(value?.requirePinForAllExtraTime),
     allowExtraTimeForAll: Boolean(value?.allowExtraTimeForAll),
     grayscaleForAll: Boolean(value?.grayscaleForAll),
+    grayscaleApplyToAllWebsites: Boolean(value?.grayscaleApplyToAllWebsites),
     grayscaleForAllMode: normalizeEffectMode(value?.grayscaleForAllMode),
     grayscaleIntervalsForAll: Array.isArray(value?.grayscaleIntervalsForAll)
       ? value.grayscaleIntervalsForAll.map(normalizeInterval)
@@ -4728,6 +4791,7 @@ function normalizeSettings(value) {
         ? value.effectIntervalsForAll.map(normalizeInterval)
         : [],
     redLightForAll: Boolean(value?.redLightForAll),
+    redLightApplyToAllWebsites: Boolean(value?.redLightApplyToAllWebsites),
     redLightForAllMode: normalizeEffectMode(value?.redLightForAllMode),
     redLightIntervalsForAll: Array.isArray(value?.redLightIntervalsForAll)
       ? value.redLightIntervalsForAll.map(normalizeInterval)
@@ -4754,6 +4818,10 @@ function applyStoredGlobalSettings(storedSettings) {
     settings.grayscaleForAll = Boolean(stored.grayscaleForAll);
   }
 
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "grayscaleApplyToAllWebsites")) {
+    settings.grayscaleApplyToAllWebsites = Boolean(stored.grayscaleApplyToAllWebsites);
+  }
+
   if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "grayscaleForAllMode")) {
     settings.grayscaleForAllMode = normalizeEffectMode(stored.grayscaleForAllMode);
   }
@@ -4766,6 +4834,10 @@ function applyStoredGlobalSettings(storedSettings) {
 
   if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "redLightForAll")) {
     settings.redLightForAll = Boolean(stored.redLightForAll);
+  }
+
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "redLightApplyToAllWebsites")) {
+    settings.redLightApplyToAllWebsites = Boolean(stored.redLightApplyToAllWebsites);
   }
 
   if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "redLightForAllMode")) {
@@ -4796,10 +4868,18 @@ function applyStoredGlobalSettings(storedSettings) {
     globalGrayscale.checked = Boolean(settings.grayscaleForAll);
   }
 
+  if (globalGrayscaleAllWebsites) {
+    globalGrayscaleAllWebsites.checked = Boolean(settings.grayscaleApplyToAllWebsites);
+  }
+
   setModeRadios(globalGrayscaleModeRadios, settings.grayscaleForAllMode);
 
   if (globalRedLight) {
     globalRedLight.checked = Boolean(settings.redLightForAll);
+  }
+
+  if (globalRedLightAllWebsites) {
+    globalRedLightAllWebsites.checked = Boolean(settings.redLightApplyToAllWebsites);
   }
 
   setModeRadios(globalRedLightModeRadios, settings.redLightForAllMode);

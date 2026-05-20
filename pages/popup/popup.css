@@ -1829,11 +1829,36 @@ h2 {
 }
 
 .setting-details .mode-option,
+.setting-details .scope-toggle,
 .setting-details .interval-row,
 .setting-details .clock-control,
 .setting-details .slot-summary {
   border-color: rgba(100, 116, 139, 0.18);
   background: #edf1f5;
+}
+
+.setting-details .scope-toggle {
+  border: 1px solid rgba(100, 116, 139, 0.18);
+  border-radius: 8px;
+  padding: 9px;
+}
+
+.scope-toggle span {
+  display: grid;
+  gap: 3px;
+}
+
+.scope-toggle strong {
+  color: #111827;
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.scope-toggle small {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .setting-details .mode-option.is-selected,
@@ -2597,6 +2622,7 @@ button:focus-visible {
   }
 
   .setting-details .mode-option,
+  .setting-details .scope-toggle,
   .setting-details .interval-row,
   .setting-details .clock-control,
   .setting-details .slot-summary {
@@ -2669,6 +2695,7 @@ button:focus-visible {
   .hour-label,
   .usage-pie-button strong,
   .mode-option small,
+  .scope-toggle small,
   .pomodoro-mode small,
   .pomodoro-active p,
   .category-detail-column span:last-child,
@@ -2682,7 +2709,8 @@ button:focus-visible {
     color: #dbeafe;
   }
 
-  .mode-option strong {
+  .mode-option strong,
+  .scope-toggle strong {
     color: #f7f2e8;
   }
 
