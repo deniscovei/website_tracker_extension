@@ -274,6 +274,7 @@ let globalSettingsSaveQueued = false;
 let editorAutosaveTimer = 0;
 let editorAutosaveInFlight = false;
 let editorAutosaveQueued = false;
+let editorRenderToken = 0;
 let pomodoroTickTimer = 0;
 let extraTimeTickTimer = 0;
 let pomodoroMutationStartedAt = 0;
@@ -672,7 +673,7 @@ addGlobalRedLightInterval?.addEventListener("click", () => {
 });
 
 deleteSite?.addEventListener("click", async () => {
-  clearTimeout(editorAutosaveTimer);
+  resetEditorAutosaveState();
 
   if (editingIndex === null) {
     showList();
@@ -2425,10 +2426,18 @@ function collapseGlobalSettingDetails() {
   globalRedLightDetailsExpanded = false;
 }
 
+function resetEditorAutosaveState() {
+  editorRenderToken += 1;
+  clearTimeout(editorAutosaveTimer);
+  editorAutosaveTimer = 0;
+  editorAutosaveQueued = false;
+}
+
 function openEditor(site) {
   clearFormError();
   clearExceptionWarning();
   collapseEditorSettingDetails();
+  resetEditorAutosaveState();
   scheduleTab?.setAttribute("aria-pressed", "true");
   usageTab?.setAttribute("aria-pressed", "false");
   siteDomain.value = site.domain || "";
@@ -2465,7 +2474,6 @@ function openEditor(site) {
     { expanded: editingIndex === null }
   );
   intervalList.replaceChildren();
-  clearTimeout(editorAutosaveTimer);
 
   const blockMode = normalizeBlockMode(site.blockMode, site.intervals);
   const intervals = Array.isArray(site.intervals) && site.intervals.length > 0
@@ -2771,6 +2779,7 @@ function queueEditorAutosave({ immediate = false } = {}) {
 
   clearTimeout(editorAutosaveTimer);
   editorAutosaveTimer = window.setTimeout(() => {
+    editorAutosaveTimer = 0;
     void autosaveEditor();
   }, immediate ? 0 : 350);
 }
@@ -2876,6 +2885,7 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
   clearFormError();
 
   let site;
+  const saveToken = editorRenderToken;
 
   try {
     site = readSiteForm();
@@ -2909,6 +2919,10 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
 
   try {
     await persistSchedule();
+    if (saveToken !== editorRenderToken) {
+      return;
+    }
+
     deleteSite.hidden = editingIndex === null;
     clearFormError();
 
@@ -2922,6 +2936,10 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
       return;
     }
   } catch (error) {
+    if (saveToken !== editorRenderToken) {
+      return;
+    }
+
     if (previousIndex === null) {
       schedule.sites.pop();
       editingIndex = null;
@@ -2933,6 +2951,14 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
     setFormError(cleanError(error));
   } finally {
     editorAutosaveInFlight = false;
+
+    if (saveToken !== editorRenderToken) {
+      if (editorAutosaveQueued) {
+        editorAutosaveQueued = false;
+        void autosaveEditor();
+      }
+      return;
+    }
 
     if (saveSite) {
       saveSite.hidden = editingIndex !== null;
@@ -2948,7 +2974,7 @@ async function autosaveEditor({ fromSubmit = false } = {}) {
 }
 
 function showList() {
-  clearTimeout(editorAutosaveTimer);
+  resetEditorAutosaveState();
   clearExceptionWarning();
   collapseEditorSettingDetails();
   collapseGlobalSettingDetails();
@@ -2970,7 +2996,7 @@ function showScheduleView() {
 }
 
 async function showUsageView() {
-  clearTimeout(editorAutosaveTimer);
+  resetEditorAutosaveState();
   editingIndex = null;
   clearFormError();
   clearExceptionWarning();
@@ -2990,7 +3016,7 @@ async function showUsageView() {
 }
 
 function showFocusView() {
-  clearTimeout(editorAutosaveTimer);
+  resetEditorAutosaveState();
   editingIndex = null;
   clearFormError();
   clearExceptionWarning();

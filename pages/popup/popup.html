@@ -106,6 +106,11 @@
                   </span>
                 </label>
               </div>
+              <div id="global-grayscale-slot-heading" class="section-heading compact" hidden>
+                <h2>Grayscale schedule</h2>
+                <button id="add-global-grayscale-interval" class="secondary-button small" type="button">Add slot</button>
+              </div>
+              <div id="global-grayscale-interval-list" class="interval-list" hidden></div>
               <label id="global-grayscale-all-websites-row" class="toggle-field scope-toggle">
                 <input id="global-grayscale-all-websites" type="checkbox">
                 <span>
@@ -113,11 +118,6 @@
                   <small>When off, grayscale only applies to websites in your list.</small>
                 </span>
               </label>
-              <div id="global-grayscale-slot-heading" class="section-heading compact" hidden>
-                <h2>Grayscale schedule</h2>
-                <button id="add-global-grayscale-interval" class="secondary-button small" type="button">Add slot</button>
-              </div>
-              <div id="global-grayscale-interval-list" class="interval-list" hidden></div>
             </div>
           </div>
           <div class="setting-control">
@@ -145,6 +145,11 @@
                   </span>
                 </label>
               </div>
+              <div id="global-red-light-slot-heading" class="section-heading compact" hidden>
+                <h2>Red light schedule</h2>
+                <button id="add-global-red-light-interval" class="secondary-button small" type="button">Add slot</button>
+              </div>
+              <div id="global-red-light-interval-list" class="interval-list" hidden></div>
               <label id="global-red-light-all-websites-row" class="toggle-field scope-toggle">
                 <input id="global-red-light-all-websites" type="checkbox">
                 <span>
@@ -152,11 +157,6 @@
                   <small>When off, red light only applies to websites in your list.</small>
                 </span>
               </label>
-              <div id="global-red-light-slot-heading" class="section-heading compact" hidden>
-                <h2>Red light schedule</h2>
-                <button id="add-global-red-light-interval" class="secondary-button small" type="button">Add slot</button>
-              </div>
-              <div id="global-red-light-interval-list" class="interval-list" hidden></div>
             </div>
           </div>
         </section>
@@ -212,6 +212,13 @@
                 </label>
               </div>
 
+              <div id="slot-heading" class="section-heading compact">
+                <h2>Blocked schedule</h2>
+                <button id="add-interval" class="secondary-button small" type="button">Add slot</button>
+              </div>
+
+              <div id="interval-list" class="interval-list"></div>
+
               <div class="allowance-summary">
                 <h2 id="allowance-title">Daily allowance</h2>
                 <p>Usable time while this website is blocked.</p>
@@ -230,13 +237,6 @@
                 <span>Allow extra time</span>
               </label>
               <p id="extra-time-global-note" class="field-note" hidden>Global Allow extra time is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
-
-              <div id="slot-heading" class="section-heading compact">
-                <h2>Blocked schedule</h2>
-                <button id="add-interval" class="secondary-button small" type="button">Add slot</button>
-              </div>
-
-              <div id="interval-list" class="interval-list"></div>
             </div>
           </section>
 
