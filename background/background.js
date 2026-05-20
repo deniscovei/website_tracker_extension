@@ -19,6 +19,8 @@ const MAX_TRACKING_GAP_SECONDS = 2 * 60;
 const MAX_EXTRA_TIME_MINUTES = 240;
 const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 let extensionPopupOpenCount = 0;
+let cachedSchedule = null;
+let cachedSettings = null;
 
 const DAY_ALIASES = new Map([
   ["sun", 0],
@@ -239,6 +241,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 async function initialize() {
   await chrome.alarms.create(REFRESH_ALARM, { periodInMinutes: REFRESH_MINUTES });
   await restorePomodoroAlarm();
+  await cleanupStatePreservingBlocks();
   await refreshRules();
 }
 
@@ -260,6 +263,11 @@ async function refreshRulesAndNotify(reason = "state") {
   } catch (_error) {
   }
 
+  try {
+    await syncAllTabVisualEffects();
+  } catch (_error) {
+  }
+
   await broadcastBlockStateUpdated(reason);
   return state;
 }
@@ -272,9 +280,13 @@ async function refreshRules() {
       loadSettings(),
       loadPomodoroState()
     ]);
+
+    cachedSchedule = schedule;
+    cachedSettings = settings;
+
     const now = getTimeParts(schedule.timezone);
     const activeSites = pomodoro.active && pomodoro.mode === "standard"
-      ? getPomodoroStandardSites(schedule)
+      ? getPomodoroStandardSites(schedule, settings)
       : pomodoro.active && pomodoro.mode === "strict"
         ? []
         : getActiveSites(schedule, now, usage, settings);
@@ -298,6 +310,9 @@ async function refreshRules() {
     await updateBadge(pomodoro.active ? "F" : activeSites.length);
     return state;
   } catch (error) {
+    cachedSchedule = null;
+    cachedSettings = null;
+
     let fallbackPomodoro = normalizePomodoroState();
 
     try {
@@ -391,11 +406,43 @@ async function saveSettings(value = {}) {
   const allowExtraTimeForAll = hasOwn("allowExtraTimeForAll")
     ? Boolean(value.allowExtraTimeForAll)
     : Boolean(current.allowExtraTimeForAll);
+  const blockAllForAll = hasOwn("blockAllForAll")
+    ? Boolean(value.blockAllForAll)
+    : Boolean(current.blockAllForAll);
+  const grayscaleForAll = hasOwn("grayscaleForAll")
+    ? Boolean(value.grayscaleForAll)
+    : Boolean(current.grayscaleForAll);
+  const grayscaleForAllMode = hasOwn("grayscaleForAllMode")
+    ? normalizeEffectMode(value.grayscaleForAllMode)
+    : normalizeEffectMode(current.grayscaleForAllMode);
+  const grayscaleIntervalsForAll = hasOwn("grayscaleIntervalsForAll")
+    ? normalizeIntervalsForStorage(value.grayscaleIntervalsForAll)
+    : normalizeIntervalsForStorage(current.grayscaleIntervalsForAll || current.effectIntervalsForAll);
+  const redLightForAll = hasOwn("redLightForAll")
+    ? Boolean(value.redLightForAll)
+    : Boolean(current.redLightForAll);
+  const redLightForAllMode = hasOwn("redLightForAllMode")
+    ? normalizeEffectMode(value.redLightForAllMode)
+    : normalizeEffectMode(current.redLightForAllMode);
+  const redLightIntervalsForAll = hasOwn("redLightIntervalsForAll")
+    ? normalizeIntervalsForStorage(value.redLightIntervalsForAll)
+    : normalizeIntervalsForStorage(current.redLightIntervalsForAll || current.effectIntervalsForAll);
+  const effectIntervalsForAll = hasOwn("effectIntervalsForAll")
+    ? normalizeIntervalsForStorage(value.effectIntervalsForAll)
+    : normalizeIntervalsForStorage(current.effectIntervalsForAll);
   const next = normalizeSettingsForStorage({
     pinHash,
     pinValue,
     requirePinForAllExtraTime,
-    allowExtraTimeForAll
+    allowExtraTimeForAll,
+    blockAllForAll,
+    grayscaleForAll,
+    grayscaleForAllMode,
+    grayscaleIntervalsForAll,
+    redLightForAll,
+    redLightForAllMode,
+    redLightIntervalsForAll,
+    effectIntervalsForAll
   });
 
   await chrome.storage.local.set({ [SETTINGS_KEY]: next });
@@ -732,7 +779,15 @@ function normalizeSettingsForStorage(value = {}) {
     pinHash,
     pinValue: pinHash ? pinValue : "",
     requirePinForAllExtraTime: Boolean(value.requirePinForAllExtraTime),
-    allowExtraTimeForAll: Boolean(value.allowExtraTimeForAll)
+    allowExtraTimeForAll: Boolean(value.allowExtraTimeForAll),
+    blockAllForAll: Boolean(value.blockAllForAll),
+    grayscaleForAll: Boolean(value.grayscaleForAll),
+    grayscaleForAllMode: normalizeEffectMode(value.grayscaleForAllMode),
+    grayscaleIntervalsForAll: normalizeIntervalsForStorage(value.grayscaleIntervalsForAll ?? value.effectIntervalsForAll),
+    redLightForAll: Boolean(value.redLightForAll),
+    redLightForAllMode: normalizeEffectMode(value.redLightForAllMode),
+    redLightIntervalsForAll: normalizeIntervalsForStorage(value.redLightIntervalsForAll ?? value.effectIntervalsForAll),
+    effectIntervalsForAll: normalizeIntervalsForStorage(value.effectIntervalsForAll)
   };
 }
 
@@ -741,6 +796,14 @@ function publicSettings(settings) {
     hasPin: Boolean(settings.pinHash),
     requirePinForAllExtraTime: Boolean(settings.pinHash && settings.requirePinForAllExtraTime),
     allowExtraTimeForAll: Boolean(settings.allowExtraTimeForAll),
+    blockAllForAll: Boolean(settings.blockAllForAll),
+    grayscaleForAll: Boolean(settings.grayscaleForAll),
+    grayscaleForAllMode: normalizeEffectMode(settings.grayscaleForAllMode),
+    grayscaleIntervalsForAll: normalizeIntervalsForStorage(settings.grayscaleIntervalsForAll || settings.effectIntervalsForAll),
+    redLightForAll: Boolean(settings.redLightForAll),
+    redLightForAllMode: normalizeEffectMode(settings.redLightForAllMode),
+    redLightIntervalsForAll: normalizeIntervalsForStorage(settings.redLightIntervalsForAll || settings.effectIntervalsForAll),
+    effectIntervalsForAll: normalizeIntervalsForStorage(settings.effectIntervalsForAll),
     pinValue: settings.pinHash ? settings.pinValue : ""
   };
 }
@@ -842,6 +905,13 @@ function normalizeSiteForStorage(site) {
     intervals: normalizeIntervalsForStorage(site.intervals),
     dailyAllowanceMinutes: normalizeDailyAllowance(site.dailyAllowanceMinutes ?? site.allowanceMinutes),
     allowExtraTime: Boolean(site.allowExtraTime),
+    grayscale: Boolean(site.grayscale),
+    grayscaleMode: normalizeEffectMode(site.grayscaleMode),
+    grayscaleIntervals: normalizeIntervalsForStorage(site.grayscaleIntervals ?? site.effectIntervals),
+    redLight: Boolean(site.redLight),
+    redLightMode: normalizeEffectMode(site.redLightMode),
+    redLightIntervals: normalizeIntervalsForStorage(site.redLightIntervals ?? site.effectIntervals),
+    effectIntervals: normalizeIntervalsForStorage(site.effectIntervals),
     requirePinForExtraTime: Boolean(site.requirePinForExtraTime)
   };
 }
@@ -903,28 +973,30 @@ function minutesToClock(totalMinutes) {
 }
 
 function getActiveSites(schedule, now, usage, settings = {}) {
-  return getNormalizedScheduleSites(schedule)
+  return getNormalizedScheduleSites(schedule, settings)
     .filter((site) => shouldBlockSite(site, now, usage))
     .map((site) => toActiveSite(site, settings));
 }
 
-function getPomodoroStandardSites(schedule) {
-  return getNormalizedScheduleSites(schedule).map((site) => toActiveSite({
+function getPomodoroStandardSites(schedule, settings = {}) {
+  return getNormalizedScheduleSites(schedule, settings).map((site) => toActiveSite({
     ...site,
     allowExtraTime: false
   }));
 }
 
-function getNormalizedScheduleSites(schedule) {
+function getNormalizedScheduleSites(schedule, settings = {}) {
   const sites = Array.isArray(schedule.sites)
     ? schedule.sites
     : Array.isArray(schedule.websites)
       ? schedule.websites
       : [];
+  const blockAllForAll = Boolean(settings.blockAllForAll);
 
   return sites
     .map((site) => normalizeSite(site))
-    .filter((site) => site.enabled && site.domains.length > 0);
+    .map((site) => applyGlobalBlockOverride(site, settings))
+    .filter((site) => (site.enabled || blockAllForAll) && site.domains.length > 0);
 }
 
 function toActiveSite(site, settings = {}) {
@@ -954,7 +1026,26 @@ function normalizeSite(site) {
     intervals,
     dailyAllowanceMinutes: normalizeDailyAllowance(site.dailyAllowanceMinutes ?? site.allowanceMinutes),
     allowExtraTime: Boolean(site.allowExtraTime),
+    grayscale: Boolean(site.grayscale),
+    grayscaleMode: normalizeEffectMode(site.grayscaleMode),
+    grayscaleIntervals: normalizeIntervalsForStorage(site.grayscaleIntervals ?? site.effectIntervals),
+    redLight: Boolean(site.redLight),
+    redLightMode: normalizeEffectMode(site.redLightMode),
+    redLightIntervals: normalizeIntervalsForStorage(site.redLightIntervals ?? site.effectIntervals),
+    effectIntervals: normalizeIntervalsForStorage(site.effectIntervals),
     requirePinForExtraTime: Boolean(site.requirePinForExtraTime)
+  };
+}
+
+function applyGlobalBlockOverride(site, settings = {}) {
+  if (!settings?.blockAllForAll) {
+    return site;
+  }
+
+  return {
+    ...site,
+    enabled: true,
+    blockMode: "always"
   };
 }
 
@@ -964,6 +1055,10 @@ function normalizeBlockMode(mode, intervals = []) {
   }
 
   return isLegacyAllDayIntervals(intervals) ? "always" : "slots";
+}
+
+function normalizeEffectMode(mode) {
+  return mode === "slots" ? "slots" : "always";
 }
 
 function pickDomainValues(site) {
@@ -1216,10 +1311,11 @@ function dayMatches(days, day) {
 }
 
 async function accrueActiveUsage({ trackCurrent = true, requireCurrentMatch = true } = {}) {
-  const [schedule, usage, trackingResult] = await Promise.all([
+  const [schedule, usage, trackingResult, settings] = await Promise.all([
     loadSchedule(),
     getUsage(),
-    chrome.storage.local.get(TRACKING_KEY)
+    chrome.storage.local.get(TRACKING_KEY),
+    loadSettings()
   ]);
   const now = getTimeParts(schedule.timezone);
   const today = getDateKey();
@@ -1228,7 +1324,7 @@ async function accrueActiveUsage({ trackCurrent = true, requireCurrentMatch = tr
   let changedUsage = false;
 
   if (previous?.date === today && previous?.domain && Number.isFinite(previous.lastTick)) {
-    const previousSite = findSiteForHost(schedule, previous.domain);
+    const previousSite = findSiteForHost(schedule, previous.domain, settings);
 
     if (
       previousSite &&
@@ -1276,7 +1372,7 @@ async function accrueActiveUsage({ trackCurrent = true, requireCurrentMatch = tr
     return;
   }
 
-  const activeInfo = await getActiveTrackedInfo(schedule, now, usage);
+  const activeInfo = await getActiveTrackedInfo(schedule, now, usage, settings);
 
   if (!activeInfo) {
     await chrome.storage.local.remove(TRACKING_KEY);
@@ -1336,7 +1432,7 @@ async function accrueScreenUsage() {
   });
 }
 
-async function getActiveTrackedInfo(schedule, now, usage) {
+async function getActiveTrackedInfo(schedule, now, usage, settings = {}) {
   const tab = await getActiveHttpTab();
 
   if (!tab) {
@@ -1344,7 +1440,7 @@ async function getActiveTrackedInfo(schedule, now, usage) {
   }
 
   const host = getHostname(tab.url);
-  const site = findSiteForHost(schedule, host);
+  const site = findSiteForHost(schedule, host, settings);
 
   if (!site || !isSiteInBlockedSlot(site, now)) {
     return null;
@@ -1383,9 +1479,11 @@ async function enforceActiveTabBlock(state) {
 
   if (state.pomodoro?.active && state.pomodoro.mode === "strict") {
     if (!isStrictPomodoroAllowed(host, state.pomodoro)) {
-      await chrome.tabs.update(tab.id, { url: getPomodoroBlockedPageUrl() });
+      await cleanupStatePreservingBlock(tab.id);
+      await chrome.tabs.update(tab.id, { url: getPomodoroBlockedPageUrl(tab.url) });
     } else {
-      await hideStatePreservingBlock(tab.id);
+      await cleanupStatePreservingBlock(tab.id);
+      await syncTabVisualEffects(tab.id, host);
     }
 
     return;
@@ -1397,39 +1495,169 @@ async function enforceActiveTabBlock(state) {
   });
 
   if (!blockedSite) {
-    await hideStatePreservingBlock(tab.id);
+    await cleanupStatePreservingBlock(tab.id);
+    await syncTabVisualEffects(tab.id, host);
     return;
   }
 
   const blockedDomain = blockedSite.domain || blockedSite.domains?.[0] || host;
-  const showedOverlay = await showStatePreservingBlock(tab.id, blockedDomain);
-
-  if (!showedOverlay) {
-    await chrome.tabs.update(tab.id, { url: getBlockedPageUrl(blockedDomain, tab.url) });
-  }
+  await cleanupStatePreservingBlock(tab.id);
+  await chrome.tabs.update(tab.id, { url: getBlockedPageUrl(blockedDomain, tab.url) });
 }
 
-async function showStatePreservingBlock(tabId, domain) {
+async function syncTabVisualEffects(tabId, host) {
+  if (typeof tabId !== "number") {
+    return;
+  }
+
+  const normalizedHost = normalizeDomain(host);
+
+  let schedule = cachedSchedule;
+  let settings = cachedSettings;
+
+  if (!schedule) {
+    try {
+      schedule = await loadSchedule();
+    } catch (_error) {
+      schedule = null;
+    }
+  }
+
+  if (!settings) {
+    try {
+      settings = await loadSettings();
+    } catch (_error) {
+      settings = null;
+    }
+  }
+
+  if (!normalizedHost || !schedule || !settings) {
+    await setTabVisualEffects(tabId, { grayscale: false, redLight: false });
+    return;
+  }
+
+  const site = findSiteForVisualEffects(schedule, normalizedHost);
+
+  if (!site) {
+    await setTabVisualEffects(tabId, { grayscale: false, redLight: false });
+    return;
+  }
+
+  const now = getTimeParts(schedule.timezone);
+  const grayscale = isEffectActiveNow(site, settings, now, {
+    globalEnabled: settings.grayscaleForAll,
+    globalMode: settings.grayscaleForAllMode,
+    globalIntervals: settings.grayscaleIntervalsForAll || settings.effectIntervalsForAll,
+    siteEnabled: site.grayscale,
+    siteMode: site.grayscaleMode,
+    siteIntervals: site.grayscaleIntervals || site.effectIntervals
+  });
+  const redLight = isEffectActiveNow(site, settings, now, {
+    globalEnabled: settings.redLightForAll,
+    globalMode: settings.redLightForAllMode,
+    globalIntervals: settings.redLightIntervalsForAll || settings.effectIntervalsForAll,
+    siteEnabled: site.redLight,
+    siteMode: site.redLightMode,
+    siteIntervals: site.redLightIntervals || site.effectIntervals
+  });
+
+  await setTabVisualEffects(tabId, { grayscale, redLight });
+}
+
+async function syncAllTabVisualEffects() {
+  let tabs = [];
+
   try {
-    const status = await getSiteStatus(domain);
-
-    await ensureStatePreservingContentScript(tabId);
-    const response = await chrome.tabs.sendMessage(tabId, {
-      type: "focus-tracker-show-state-blocker",
-      status
-    });
-
-    return Boolean(response?.ok);
+    tabs = await chrome.tabs.query({});
   } catch (_error) {
+    return;
+  }
+
+  await Promise.all(tabs.map(async (tab) => {
+    if (typeof tab?.id !== "number" || !/^https?:\/\//.test(tab.url || "")) {
+      return;
+    }
+
+    await syncTabVisualEffects(tab.id, getHostname(tab.url));
+  }));
+}
+
+function isEffectActiveNow(site, settings, now, {
+  globalEnabled = false,
+  globalMode = "always",
+  globalIntervals = [],
+  siteEnabled = false,
+  siteMode = "always",
+  siteIntervals = []
+} = {}) {
+  if (Boolean(globalEnabled)) {
+    const mode = normalizeEffectMode(globalMode);
+    return mode === "always" || (mode === "slots" && isEffectInSlot(globalIntervals, site, now));
+  }
+
+  if (!Boolean(siteEnabled)) {
     return false;
   }
+
+  const mode = normalizeEffectMode(siteMode);
+  return mode === "always" || (mode === "slots" && isEffectInSlot(siteIntervals, site, now));
 }
 
-async function hideStatePreservingBlock(tabId) {
+function isEffectInSlot(intervals, site, now) {
+  const customIntervals = normalizeIntervalsForStorage(intervals);
+  const fallbackIntervals = normalizeIntervalsForStorage(site?.effectIntervals).length > 0
+    ? normalizeIntervalsForStorage(site.effectIntervals)
+    : normalizeIntervalsForStorage(site?.intervals);
+  const activeIntervals = customIntervals.length > 0 ? customIntervals : fallbackIntervals;
+
+  return activeIntervals.some((interval) => isIntervalActive(interval, now));
+}
+
+async function setTabVisualEffects(tabId, { grayscale = false, redLight = false } = {}) {
+  if (typeof tabId !== "number") {
+    return;
+  }
+
   try {
-    await chrome.tabs.sendMessage(tabId, { type: "focus-tracker-hide-state-blocker" });
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: setFocusTrackerVisualEffects,
+      args: [Boolean(grayscale), Boolean(redLight)]
+    });
   } catch (_error) {
   }
+}
+
+function setFocusTrackerVisualEffects(grayscaleEnabled, redLightEnabled) {
+  const styleId = "focus-tracker-visual-effects";
+  const existing = document.getElementById(styleId);
+
+  const filters = [];
+  if (grayscaleEnabled) {
+    filters.push("grayscale(1)");
+  }
+  if (redLightEnabled) {
+    filters.push("sepia(1) saturate(5) hue-rotate(330deg) brightness(1.05)");
+  }
+
+  const filter = filters.join(" ").trim();
+
+  if (!filter) {
+    existing?.remove();
+    return;
+  }
+
+  const css = `html{filter:${filter}!important;-webkit-filter:${filter}!important;}`;
+
+  if (existing) {
+    existing.textContent = css;
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.id = styleId;
+  style.textContent = css;
+  (document.head || document.documentElement).appendChild(style);
 }
 
 async function broadcastBlockStateUpdated(reason = "state") {
@@ -1464,19 +1692,54 @@ async function broadcastBlockStateUpdated(reason = "state") {
   }));
 }
 
-async function ensureStatePreservingContentScript(tabId) {
-  try {
-    const response = await chrome.tabs.sendMessage(tabId, { type: "focus-tracker-ping-state-blocker" });
+async function cleanupStatePreservingBlocks() {
+  let tabs = [];
 
-    if (response?.ok) {
+  try {
+    tabs = await chrome.tabs.query({});
+  } catch (_error) {
+    return;
+  }
+
+  await Promise.all(tabs.map(async (tab) => {
+    if (typeof tab?.id !== "number" || !/^https?:\/\//.test(tab.url || "")) {
       return;
     }
+
+    await cleanupStatePreservingBlock(tab.id);
+  }));
+}
+
+async function cleanupStatePreservingBlock(tabId) {
+  if (typeof tabId !== "number") {
+    return;
+  }
+
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "focus-tracker-hide-state-blocker" });
   } catch (_error) {
   }
 
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    files: ["shared/block-panel-ui.js", "content/state-preserving-block.js"]
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: removeStatePreservingBlockArtifacts
+    });
+  } catch (_error) {
+  }
+}
+
+function removeStatePreservingBlockArtifacts() {
+  const overlayId = "focus-tracker-state-preserving-block";
+  const overlayMarker = "focus-tracker-state-preserving-block";
+  const overlay = document.getElementById(overlayId);
+
+  if (overlay) {
+    overlay.remove();
+  }
+
+  document.querySelectorAll(`[data-focus-tracker-overlay="${overlayMarker}"]`).forEach((element) => {
+    element.remove();
   });
 }
 
@@ -1496,7 +1759,21 @@ async function getActiveHttpTab() {
   return tab;
 }
 
-function findSiteForHost(schedule, host) {
+function findSiteForHost(schedule, host, settings = {}) {
+  if (!host) {
+    return null;
+  }
+
+  const sites = Array.isArray(schedule.sites) ? schedule.sites : [];
+  const blockAllForAll = Boolean(settings?.blockAllForAll);
+
+  return sites
+    .map((site) => normalizeSite(site))
+    .map((site) => applyGlobalBlockOverride(site, settings))
+    .find((site) => (site.enabled || blockAllForAll) && siteMatchesHost(site, host)) || null;
+}
+
+function findSiteForVisualEffects(schedule, host) {
   if (!host) {
     return null;
   }
@@ -1505,7 +1782,7 @@ function findSiteForHost(schedule, host) {
 
   return sites
     .map((site) => normalizeSite(site))
-    .find((site) => site.enabled && siteMatchesHost(site, host)) || null;
+    .find((site) => siteMatchesHost(site, host)) || null;
 }
 
 function domainMatches(host, domain) {
@@ -1524,7 +1801,7 @@ async function getSiteStatus(domain) {
   const normalizedDomain = normalizeDomain(domain);
   const [schedule, usage, settings, pomodoro] = await Promise.all([loadSchedule(), getUsage(), loadSettings(), loadPomodoroState()]);
   const now = getTimeParts(schedule.timezone);
-  const site = findSiteForHost(schedule, normalizedDomain);
+  const site = findSiteForHost(schedule, normalizedDomain, settings);
 
   if (!site) {
     return {
@@ -1540,7 +1817,7 @@ async function getSiteStatus(domain) {
 async function addExtraTime(domain, minutes, pin = "", tabId = null) {
   const normalizedDomain = normalizeDomain(domain);
   const [schedule, usage, settings, pomodoro] = await Promise.all([loadSchedule(), getUsage(), loadSettings(), loadPomodoroState()]);
-  const site = findSiteForHost(schedule, normalizedDomain);
+  const site = findSiteForHost(schedule, normalizedDomain, settings);
 
   if (pomodoro.active) {
     throw new Error("Focus session active.");
@@ -1577,8 +1854,8 @@ async function addExtraTime(domain, minutes, pin = "", tabId = null) {
 
 async function cutOffSite(domain) {
   const normalizedDomain = normalizeDomain(domain);
-  const [schedule, usage] = await Promise.all([loadSchedule(), getUsage()]);
-  const site = findSiteForHost(schedule, normalizedDomain);
+  const [schedule, usage, settings] = await Promise.all([loadSchedule(), getUsage(), loadSettings()]);
+  const site = findSiteForHost(schedule, normalizedDomain, settings);
 
   if (!site) {
     return;
@@ -1902,10 +2179,12 @@ function getExtraRemainingSeconds(entry, now = Date.now()) {
 
 function getSiteUsageStates(schedule, now, usage, settings, pomodoro = normalizePomodoroState()) {
   const sites = Array.isArray(schedule.sites) ? schedule.sites : [];
+  const blockAllForAll = Boolean(settings?.blockAllForAll);
 
   return sites
     .map((site) => normalizeSite(site))
-    .filter((site) => site.enabled && site.domain)
+    .map((site) => applyGlobalBlockOverride(site, settings))
+    .filter((site) => (site.enabled || blockAllForAll) && site.domain)
     .map((site) => buildSiteUsageState(site, now, usage, settings, pomodoro));
 }
 
@@ -2049,8 +2328,15 @@ function getBlockedPageUrl(domain, targetUrl = "") {
   return chrome.runtime.getURL(`${BLOCKED_PAGE.slice(1)}?${params.toString()}`);
 }
 
-function getPomodoroBlockedPageUrl() {
-  return chrome.runtime.getURL(`${BLOCKED_PAGE.slice(1)}?pomodoro=1`);
+function getPomodoroBlockedPageUrl(targetUrl = "") {
+  const params = new URLSearchParams({ pomodoro: "1" });
+  const target = normalizeHttpUrl(targetUrl);
+
+  if (target) {
+    params.set("target", target);
+  }
+
+  return chrome.runtime.getURL(`${BLOCKED_PAGE.slice(1)}?${params.toString()}`);
 }
 
 function getResumeTargetUrl(targetUrl, fallbackDomain) {

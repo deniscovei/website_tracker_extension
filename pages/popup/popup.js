@@ -42,8 +42,29 @@ const addException = document.getElementById("add-exception");
 const exceptionWarning = document.getElementById("exception-warning");
 const exceptionList = document.getElementById("exception-list");
 const blockModeRadios = Array.from(document.querySelectorAll('input[name="block-mode"]'));
+const blockEnabled = document.getElementById("block-enabled");
+const blockDetails = document.getElementById("block-details");
+const blockExpander = document.getElementById("block-expander");
+const blockModeOptions = document.getElementById("block-mode-options");
+const blockGlobalNote = document.getElementById("block-global-note");
 const dailyAllowance = document.getElementById("daily-allowance");
 const allowExtraTime = document.getElementById("allow-extra-time");
+const grayscaleSite = document.getElementById("grayscale-site");
+const grayscaleDetails = document.getElementById("grayscale-details");
+const grayscaleExpander = document.getElementById("grayscale-expander");
+const grayscaleSiteOptions = document.getElementById("grayscale-site-options");
+const grayscaleModeRadios = Array.from(document.querySelectorAll('input[name="grayscale-mode"]'));
+const grayscaleSlotHeading = document.getElementById("grayscale-slot-heading");
+const grayscaleIntervalList = document.getElementById("grayscale-interval-list");
+const addGrayscaleInterval = document.getElementById("add-grayscale-interval");
+const redLightSite = document.getElementById("red-light-site");
+const redLightDetails = document.getElementById("red-light-details");
+const redLightExpander = document.getElementById("red-light-expander");
+const redLightSiteOptions = document.getElementById("red-light-site-options");
+const redLightModeRadios = Array.from(document.querySelectorAll('input[name="red-light-mode"]'));
+const redLightSlotHeading = document.getElementById("red-light-slot-heading");
+const redLightIntervalList = document.getElementById("red-light-interval-list");
+const addRedLightInterval = document.getElementById("add-red-light-interval");
 const requirePinExtra = document.getElementById("require-pin-extra");
 const requirePinExtraRow = document.getElementById("require-pin-extra-row");
 const slotHeading = document.getElementById("slot-heading");
@@ -53,13 +74,35 @@ const deleteSite = document.getElementById("delete-site");
 const saveSite = document.getElementById("save-site");
 const editorBack = document.getElementById("editor-back");
 const formError = document.getElementById("form-error");
+const blockAll = document.getElementById("block-all");
+const blockAllRow = document.getElementById("block-all-global-row");
 const pinGlobal = document.getElementById("pin-global");
 const pinGlobalRow = document.getElementById("pin-global-row");
 const globalExtraTime = document.getElementById("global-extra-time");
 const globalExtraTimeRow = document.getElementById("extra-time-global-row");
+const globalGrayscale = document.getElementById("global-grayscale");
+const globalGrayscaleDetails = document.getElementById("global-grayscale-details");
+const globalGrayscaleExpander = document.getElementById("global-grayscale-expander");
+const globalGrayscaleRow = document.getElementById("grayscale-global-row");
+const globalGrayscaleOptions = document.getElementById("global-grayscale-options");
+const globalGrayscaleModeRadios = Array.from(document.querySelectorAll('input[name="global-grayscale-mode"]'));
+const globalGrayscaleSlotHeading = document.getElementById("global-grayscale-slot-heading");
+const globalGrayscaleIntervalList = document.getElementById("global-grayscale-interval-list");
+const addGlobalGrayscaleInterval = document.getElementById("add-global-grayscale-interval");
+const globalRedLight = document.getElementById("global-red-light");
+const globalRedLightDetails = document.getElementById("global-red-light-details");
+const globalRedLightExpander = document.getElementById("global-red-light-expander");
+const globalRedLightRow = document.getElementById("red-light-global-row");
+const globalRedLightOptions = document.getElementById("global-red-light-options");
+const globalRedLightModeRadios = Array.from(document.querySelectorAll('input[name="global-red-light-mode"]'));
+const globalRedLightSlotHeading = document.getElementById("global-red-light-slot-heading");
+const globalRedLightIntervalList = document.getElementById("global-red-light-interval-list");
+const addGlobalRedLightInterval = document.getElementById("add-global-red-light-interval");
 const globalSettingsStatus = document.getElementById("global-settings-status");
 const extraTimeGlobalNote = document.getElementById("extra-time-global-note");
 const pinGlobalNote = document.getElementById("pin-global-note");
+const grayscaleGlobalNote = document.getElementById("grayscale-global-note");
+const redLightGlobalNote = document.getElementById("red-light-global-note");
 const createPin = document.getElementById("create-pin");
 const changePin = document.getElementById("change-pin");
 const pinEditor = document.getElementById("pin-editor");
@@ -185,8 +228,16 @@ let schedule = {
 let state = null;
 let settings = {
   hasPin: false,
+  blockAllForAll: false,
   requirePinForAllExtraTime: false,
   allowExtraTimeForAll: false,
+  grayscaleForAll: false,
+  grayscaleForAllMode: "always",
+  grayscaleIntervalsForAll: [],
+  redLightForAll: false,
+  redLightForAllMode: "always",
+  redLightIntervalsForAll: [],
+  effectIntervalsForAll: [],
   pinValue: ""
 };
 let pomodoro = {
@@ -213,6 +264,7 @@ let popupPinVisible = false;
 let pinEditorOpen = false;
 let pinSaveInFlight = false;
 let globalSettingsSaveInFlight = false;
+let globalSettingsSaveQueued = false;
 let editorAutosaveTimer = 0;
 let editorAutosaveInFlight = false;
 let editorAutosaveQueued = false;
@@ -220,6 +272,11 @@ let pomodoroTickTimer = 0;
 let extraTimeTickTimer = 0;
 let pomodoroMutationStartedAt = 0;
 let pomodoroStatsVisible = false;
+let blockDetailsExpanded = true;
+let grayscaleDetailsExpanded = true;
+let redLightDetailsExpanded = true;
+let globalGrayscaleDetailsExpanded = true;
+let globalRedLightDetailsExpanded = true;
 let selectedPomodoroStatsDay = dateToDayKey(new Date());
 let pomodoroStatsData = null;
 let selectedUsageDay = dateToDayKey(new Date());
@@ -252,6 +309,31 @@ blockModeRadios.forEach((radio) => {
   });
 });
 
+blockEnabled?.addEventListener("change", () => {
+  if (blockEnabled.checked) {
+    blockDetailsExpanded = true;
+  }
+  syncBlockingModeView();
+  clearFormError();
+  queueEditorAutosave({ immediate: true });
+});
+
+grayscaleModeRadios.forEach((radio) => {
+  radio.addEventListener("change", () => {
+    clearFormError();
+    syncSiteVisualEffectMenus();
+    queueEditorAutosave({ immediate: true });
+  });
+});
+
+redLightModeRadios.forEach((radio) => {
+  radio.addEventListener("change", () => {
+    clearFormError();
+    syncSiteVisualEffectMenus();
+    queueEditorAutosave({ immediate: true });
+  });
+});
+
 prevWeek?.addEventListener("click", () => {
   shiftUsageWeek(-1);
 });
@@ -272,8 +354,42 @@ pinGlobal?.addEventListener("change", () => {
   void saveGlobalSettingsToggle();
 });
 
+blockAll?.addEventListener("change", () => {
+  void saveGlobalSettingsToggle();
+});
+
 globalExtraTime?.addEventListener("change", () => {
   void saveGlobalSettingsToggle();
+});
+
+globalGrayscale?.addEventListener("change", () => {
+  if (globalGrayscale.checked) {
+    globalGrayscaleDetailsExpanded = true;
+  }
+  syncGlobalVisualEffectMenus();
+  void saveGlobalSettingsToggle();
+});
+
+globalGrayscaleModeRadios.forEach((radio) => {
+  radio.addEventListener("change", () => {
+    syncGlobalVisualEffectMenus();
+    void saveGlobalSettingsToggle();
+  });
+});
+
+globalRedLight?.addEventListener("change", () => {
+  if (globalRedLight.checked) {
+    globalRedLightDetailsExpanded = true;
+  }
+  syncGlobalVisualEffectMenus();
+  void saveGlobalSettingsToggle();
+});
+
+globalRedLightModeRadios.forEach((radio) => {
+  radio.addEventListener("change", () => {
+    syncGlobalVisualEffectMenus();
+    void saveGlobalSettingsToggle();
+  });
 });
 
 pinCode?.addEventListener("input", () => {
@@ -358,6 +474,24 @@ dailyAllowance?.addEventListener("input", () => {
 
 allowExtraTime?.addEventListener("change", () => {
   clearFormError();
+  queueEditorAutosave({ immediate: true });
+});
+
+grayscaleSite?.addEventListener("change", () => {
+  if (grayscaleSite.checked) {
+    grayscaleDetailsExpanded = true;
+  }
+  clearFormError();
+  syncSiteVisualEffectMenus();
+  queueEditorAutosave({ immediate: true });
+});
+
+redLightSite?.addEventListener("change", () => {
+  if (redLightSite.checked) {
+    redLightDetailsExpanded = true;
+  }
+  clearFormError();
+  syncSiteVisualEffectMenus();
   queueEditorAutosave({ immediate: true });
 });
 
@@ -484,6 +618,12 @@ newSite?.addEventListener("click", () => {
     exceptions: [],
     dailyAllowanceMinutes: 0,
     allowExtraTime: false,
+    grayscale: false,
+    grayscaleMode: "always",
+    grayscaleIntervals: [],
+    redLight: false,
+    redLightMode: "always",
+    redLightIntervals: [],
     requirePinForExtraTime: false,
     intervals: [{ ...DEFAULT_INTERVAL }]
   });
@@ -493,8 +633,28 @@ back?.addEventListener("click", showList);
 editorBack?.addEventListener("click", showList);
 
 addInterval?.addEventListener("click", () => {
-  appendInterval({ ...DEFAULT_INTERVAL }, { expanded: true });
+  appendInterval(intervalList, { ...DEFAULT_INTERVAL }, { expanded: true, onChange: queueEditorAutosave });
   queueEditorAutosave({ immediate: true });
+});
+
+addGrayscaleInterval?.addEventListener("click", () => {
+  appendInterval(grayscaleIntervalList, { ...DEFAULT_INTERVAL }, { expanded: true, onChange: queueEditorAutosave });
+  queueEditorAutosave({ immediate: true });
+});
+
+addRedLightInterval?.addEventListener("click", () => {
+  appendInterval(redLightIntervalList, { ...DEFAULT_INTERVAL }, { expanded: true, onChange: queueEditorAutosave });
+  queueEditorAutosave({ immediate: true });
+});
+
+addGlobalGrayscaleInterval?.addEventListener("click", () => {
+  appendInterval(globalGrayscaleIntervalList, { ...DEFAULT_INTERVAL }, { expanded: true, onChange: queueGlobalEffectAutosave });
+  queueGlobalEffectAutosave({ immediate: true });
+});
+
+addGlobalRedLightInterval?.addEventListener("click", () => {
+  appendInterval(globalRedLightIntervalList, { ...DEFAULT_INTERVAL }, { expanded: true, onChange: queueGlobalEffectAutosave });
+  queueGlobalEffectAutosave({ immediate: true });
 });
 
 deleteSite?.addEventListener("click", async () => {
@@ -525,33 +685,48 @@ siteForm?.addEventListener("submit", async (event) => {
 });
 
 intervalList?.addEventListener("click", (event) => {
-  const target = event.target;
+  handleIntervalListClick(event, { onChange: queueEditorAutosave });
+});
 
-  if (!(target instanceof HTMLElement)) {
-    return;
-  }
+grayscaleIntervalList?.addEventListener("click", (event) => {
+  handleIntervalListClick(event, { onChange: queueEditorAutosave });
+});
 
-  const removeButton = target.closest("[data-remove-interval]");
-  if (removeButton) {
-    removeButton.closest(".interval-row")?.remove();
-    queueEditorAutosave({ immediate: true });
-    return;
-  }
+redLightIntervalList?.addEventListener("click", (event) => {
+  handleIntervalListClick(event, { onChange: queueEditorAutosave });
+});
 
-  const toggleButton = target.closest("[data-toggle-slot]");
-  if (toggleButton) {
-    const row = toggleButton.closest(".interval-row");
-    setSlotExpanded(row, row.dataset.expanded !== "true");
-    return;
-  }
+globalGrayscaleIntervalList?.addEventListener("click", (event) => {
+  handleIntervalListClick(event, { onChange: queueGlobalEffectAutosave });
+});
 
-  const dayButton = target.closest("[data-day]");
-  if (dayButton) {
-    const isPressed = dayButton.getAttribute("aria-pressed") === "true";
-    dayButton.setAttribute("aria-pressed", String(!isPressed));
-    updateSlotSummary(dayButton.closest(".interval-row"));
-    queueEditorAutosave({ immediate: true });
-  }
+globalRedLightIntervalList?.addEventListener("click", (event) => {
+  handleIntervalListClick(event, { onChange: queueGlobalEffectAutosave });
+});
+
+blockExpander?.addEventListener("click", () => {
+  blockDetailsExpanded = !blockDetailsExpanded;
+  syncBlockingModeView();
+});
+
+grayscaleExpander?.addEventListener("click", () => {
+  grayscaleDetailsExpanded = !grayscaleDetailsExpanded;
+  syncSiteVisualEffectMenus();
+});
+
+redLightExpander?.addEventListener("click", () => {
+  redLightDetailsExpanded = !redLightDetailsExpanded;
+  syncSiteVisualEffectMenus();
+});
+
+globalGrayscaleExpander?.addEventListener("click", () => {
+  globalGrayscaleDetailsExpanded = !globalGrayscaleDetailsExpanded;
+  syncGlobalVisualEffectMenus();
+});
+
+globalRedLightExpander?.addEventListener("click", () => {
+  globalRedLightDetailsExpanded = !globalRedLightDetailsExpanded;
+  syncGlobalVisualEffectMenus();
 });
 
 void loadData();
@@ -629,22 +804,72 @@ async function savePinValue() {
 }
 
 async function saveGlobalSettingsToggle() {
-  if (!pinGlobal || !globalExtraTime || globalSettingsSaveInFlight) {
+  if (!globalExtraTime || !globalGrayscale) {
+    return;
+  }
+
+  if (globalSettingsSaveInFlight) {
+    globalSettingsSaveQueued = true;
     return;
   }
 
   const previousSettings = { ...settings };
-  const nextRequirePin = Boolean(settings.hasPin && pinGlobal.checked);
+  const nextRequirePin = Boolean(settings.hasPin && pinGlobal?.checked);
   const nextAllowExtraTime = Boolean(globalExtraTime.checked);
+  const nextBlockAll = Boolean(blockAll?.checked);
+  const nextGrayscale = Boolean(globalGrayscale.checked);
+  const nextGrayscaleMode = getModeFromRadios(globalGrayscaleModeRadios, previousSettings.grayscaleForAllMode);
+  const nextRedLight = Boolean(globalRedLight?.checked);
+  const nextRedLightMode = getModeFromRadios(globalRedLightModeRadios, previousSettings.redLightForAllMode);
+  let nextGrayscaleIntervalsForAll = cloneIntervals(previousSettings.grayscaleIntervalsForAll || previousSettings.effectIntervalsForAll);
+  let nextRedLightIntervalsForAll = cloneIntervals(previousSettings.redLightIntervalsForAll || previousSettings.effectIntervalsForAll);
+
+  try {
+    nextGrayscaleIntervalsForAll = readEffectIntervalsForSave(globalGrayscaleIntervalList, {
+      enabled: nextGrayscale,
+      mode: nextGrayscaleMode,
+      fallback: previousSettings.grayscaleIntervalsForAll || previousSettings.effectIntervalsForAll,
+      label: "grayscale"
+    });
+    nextRedLightIntervalsForAll = readEffectIntervalsForSave(globalRedLightIntervalList, {
+      enabled: nextRedLight,
+      mode: nextRedLightMode,
+      fallback: previousSettings.redLightIntervalsForAll || previousSettings.effectIntervalsForAll,
+      label: "red light"
+    });
+  } catch (error) {
+    setSettingsStatus("global", cleanError(error), { error: true });
+    syncGlobalSettingsView();
+    return;
+  }
 
   globalSettingsSaveInFlight = true;
   settings = {
     ...settings,
+    blockAllForAll: nextBlockAll,
     requirePinForAllExtraTime: nextRequirePin,
-    allowExtraTimeForAll: nextAllowExtraTime
+    allowExtraTimeForAll: nextAllowExtraTime,
+    grayscaleForAll: nextGrayscale,
+    grayscaleForAllMode: nextGrayscaleMode,
+    grayscaleIntervalsForAll: nextGrayscaleIntervalsForAll,
+    redLightForAll: nextRedLight,
+    redLightForAllMode: nextRedLightMode,
+    redLightIntervalsForAll: nextRedLightIntervalsForAll,
+    effectIntervalsForAll: nextGrayscaleIntervalsForAll
   };
-  pinGlobal.checked = nextRequirePin;
+  if (pinGlobal) {
+    pinGlobal.checked = nextRequirePin;
+  }
+  if (blockAll) {
+    blockAll.checked = nextBlockAll;
+  }
   globalExtraTime.checked = nextAllowExtraTime;
+  globalGrayscale.checked = nextGrayscale;
+  if (globalRedLight) {
+    globalRedLight.checked = nextRedLight;
+  }
+  setModeRadios(globalGrayscaleModeRadios, nextGrayscaleMode);
+  setModeRadios(globalRedLightModeRadios, nextRedLightMode);
 
   setSettingsStatus("global", "Saving...");
   syncGlobalSettingsView();
@@ -656,8 +881,16 @@ async function saveGlobalSettingsToggle() {
     const response = await chrome.runtime.sendMessage({
       type: "save-settings",
       settings: {
+        blockAllForAll: nextBlockAll,
         requirePinForAllExtraTime: nextRequirePin,
-        allowExtraTimeForAll: nextAllowExtraTime
+        allowExtraTimeForAll: nextAllowExtraTime,
+        grayscaleForAll: nextGrayscale,
+        grayscaleForAllMode: nextGrayscaleMode,
+        grayscaleIntervalsForAll: nextGrayscaleIntervalsForAll,
+        redLightForAll: nextRedLight,
+        redLightForAllMode: nextRedLightMode,
+        redLightIntervalsForAll: nextRedLightIntervalsForAll,
+        effectIntervalsForAll: nextGrayscaleIntervalsForAll
       }
     });
 
@@ -667,9 +900,12 @@ async function saveGlobalSettingsToggle() {
 
     settings = normalizeSettings(response.settings || settings);
     state = response.state || state;
-    renderGlobalSettings("Global settings saved.");
-    updatePinDraftStatus();
-    syncEditorGlobalOverrideView();
+
+    if (!globalSettingsSaveQueued && !globalEffectAutosaveQueued && !globalEffectAutosaveTimer) {
+      renderGlobalSettings("Global settings saved.");
+      updatePinDraftStatus();
+      syncEditorGlobalOverrideView();
+    }
 
     if (!response.state) {
       try {
@@ -687,8 +923,20 @@ async function saveGlobalSettingsToggle() {
     renderSiteList();
   } catch (error) {
     settings = previousSettings;
-    pinGlobal.checked = Boolean(previousSettings.requirePinForAllExtraTime);
+    if (pinGlobal) {
+      pinGlobal.checked = Boolean(previousSettings.requirePinForAllExtraTime);
+    }
+    if (blockAll) {
+      blockAll.checked = Boolean(previousSettings.blockAllForAll);
+    }
     globalExtraTime.checked = Boolean(previousSettings.allowExtraTimeForAll);
+    globalGrayscale.checked = Boolean(previousSettings.grayscaleForAll);
+    if (globalRedLight) {
+      globalRedLight.checked = Boolean(previousSettings.redLightForAll);
+    }
+    setModeRadios(globalGrayscaleModeRadios, previousSettings.grayscaleForAllMode);
+    setModeRadios(globalRedLightModeRadios, previousSettings.redLightForAllMode);
+    renderGlobalEffectIntervals();
     setSettingsStatus("global", cleanError(error), { error: true });
     updatePinDraftStatus();
     syncEditorGlobalOverrideView();
@@ -696,6 +944,14 @@ async function saveGlobalSettingsToggle() {
   } finally {
     globalSettingsSaveInFlight = false;
     syncGlobalSettingsView();
+
+    if (globalSettingsSaveQueued) {
+      globalSettingsSaveQueued = false;
+      void saveGlobalSettingsToggle();
+    } else if (globalEffectAutosaveQueued) {
+      globalEffectAutosaveQueued = false;
+      queueGlobalEffectAutosave({ immediate: true });
+    }
   }
 }
 
@@ -720,9 +976,24 @@ async function persistPinSettings({
   }
 
   pinGlobal.disabled = true;
+  if (blockAll) {
+    blockAll.disabled = true;
+  }
   if (globalExtraTime) {
     globalExtraTime.disabled = true;
   }
+  if (globalGrayscale) {
+    globalGrayscale.disabled = true;
+  }
+  globalGrayscaleModeRadios.forEach((radio) => {
+    radio.disabled = true;
+  });
+  if (globalRedLight) {
+    globalRedLight.disabled = true;
+  }
+  globalRedLightModeRadios.forEach((radio) => {
+    radio.disabled = true;
+  });
   pinCode.disabled = true;
   togglePinVisibility.disabled = true;
   if (savePin) {
@@ -735,7 +1006,14 @@ async function persistPinSettings({
       settings: {
         ...(pin ? { pin } : {}),
         requirePinForAllExtraTime: Boolean(pinGlobal.checked),
-        allowExtraTimeForAll: Boolean(globalExtraTime?.checked)
+        blockAllForAll: Boolean(blockAll?.checked),
+        allowExtraTimeForAll: Boolean(globalExtraTime?.checked),
+        grayscaleForAll: Boolean(globalGrayscale?.checked),
+        grayscaleForAllMode: getModeFromRadios(globalGrayscaleModeRadios, settings.grayscaleForAllMode),
+        grayscaleIntervalsForAll: cloneIntervals(settings.grayscaleIntervalsForAll || settings.effectIntervalsForAll),
+        redLightForAll: Boolean(globalRedLight?.checked),
+        redLightForAllMode: getModeFromRadios(globalRedLightModeRadios, settings.redLightForAllMode),
+        redLightIntervalsForAll: cloneIntervals(settings.redLightIntervalsForAll || settings.effectIntervalsForAll)
       }
     });
 
@@ -814,9 +1092,28 @@ function renderGlobalSettings(message = "") {
     pinGlobal.checked = Boolean(settings.requirePinForAllExtraTime);
   }
 
+  if (blockAll) {
+    blockAll.checked = Boolean(settings.blockAllForAll);
+  }
+
   if (globalExtraTime) {
     globalExtraTime.checked = Boolean(settings.allowExtraTimeForAll);
   }
+
+  if (globalGrayscale) {
+    globalGrayscale.checked = Boolean(settings.grayscaleForAll);
+  }
+
+  setModeRadios(globalGrayscaleModeRadios, settings.grayscaleForAllMode);
+
+  if (globalRedLight) {
+    globalRedLight.checked = Boolean(settings.redLightForAll);
+  }
+
+  setModeRadios(globalRedLightModeRadios, settings.redLightForAllMode);
+
+  renderGlobalEffectIntervals();
+  syncGlobalVisualEffectMenus();
 
   syncGlobalSettingsView();
 
@@ -826,6 +1123,11 @@ function renderGlobalSettings(message = "") {
   }
 
   updateGlobalSettingsStatus();
+}
+
+function renderGlobalEffectIntervals() {
+  renderIntervalList(globalGrayscaleIntervalList, settings.grayscaleIntervalsForAll || settings.effectIntervalsForAll, queueGlobalEffectAutosave);
+  renderIntervalList(globalRedLightIntervalList, settings.redLightIntervalsForAll || settings.effectIntervalsForAll, queueGlobalEffectAutosave);
 }
 
 function syncPinSetupView() {
@@ -877,12 +1179,40 @@ function syncGlobalSettingsView() {
     globalExtraTime.disabled = controlsBusy;
   }
 
+  if (blockAll) {
+    blockAll.disabled = controlsBusy;
+  }
+
+  if (globalGrayscale) {
+    globalGrayscale.disabled = controlsBusy;
+  }
+
+  globalGrayscaleModeRadios.forEach((radio) => {
+    radio.disabled = false;
+  });
+
+  if (globalRedLight) {
+    globalRedLight.disabled = controlsBusy;
+  }
+
+  globalRedLightModeRadios.forEach((radio) => {
+    radio.disabled = false;
+  });
+
   pinGlobalRow?.classList.toggle("is-disabled", !hasPin || controlsBusy);
   globalExtraTimeRow?.classList.toggle("is-disabled", controlsBusy);
+  blockAllRow?.classList.toggle("is-disabled", controlsBusy);
+  globalGrayscaleRow?.classList.toggle("is-disabled", controlsBusy);
+  globalRedLightRow?.classList.toggle("is-disabled", controlsBusy);
+
+  syncGlobalVisualEffectMenus();
 }
 
 function syncEditorGlobalOverrideView(siteOverride = null) {
+  const blockEnforced = Boolean(settings.blockAllForAll);
   const extraTimeEnforced = Boolean(settings.allowExtraTimeForAll);
+  const grayscaleEnforced = Boolean(settings.grayscaleForAll);
+  const redLightEnforced = Boolean(settings.redLightForAll);
   const pinEnforced = Boolean(settings.hasPin && settings.requirePinForAllExtraTime);
   const pinControlDisabled = !settings.hasPin;
 
@@ -899,6 +1229,21 @@ function syncEditorGlobalOverrideView(siteOverride = null) {
     extraTimeGlobalNote.textContent = "Global Allow extra time is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
   }
 
+  if (blockGlobalNote) {
+    blockGlobalNote.hidden = !blockEnforced;
+    blockGlobalNote.textContent = "Global Block all websites in list is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
+  }
+
+  if (grayscaleGlobalNote) {
+    grayscaleGlobalNote.hidden = !grayscaleEnforced;
+    grayscaleGlobalNote.textContent = "Global Grayscale websites is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
+  }
+
+  if (redLightGlobalNote) {
+    redLightGlobalNote.hidden = !redLightEnforced;
+    redLightGlobalNote.textContent = "Global Red light is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
+  }
+
   requirePinExtraRow?.classList.toggle("is-disabled", pinControlDisabled);
 
   if (requirePinExtra) {
@@ -913,6 +1258,8 @@ function syncEditorGlobalOverrideView(siteOverride = null) {
     pinGlobalNote.hidden = !pinEnforced;
     pinGlobalNote.textContent = "Global PIN requirement is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
   }
+
+  syncBlockingModeView();
 }
 
 function setSettingsStatus(target, message, { error = false } = {}) {
@@ -933,7 +1280,10 @@ function updateGlobalSettingsStatus() {
 
   const enabled = [
     settings.requirePinForAllExtraTime ? "PIN" : "",
-    settings.allowExtraTimeForAll ? "extra time" : ""
+    settings.blockAllForAll ? "block" : "",
+    settings.allowExtraTimeForAll ? "extra time" : "",
+    settings.grayscaleForAll ? "grayscale" : "",
+    settings.redLightForAll ? "red light" : ""
   ].filter(Boolean);
 
   globalSettingsStatus.classList.remove("error");
@@ -1389,7 +1739,19 @@ function syncPomodoroStatsVisibility() {
   }
 
   pomodoroStatsPanel.hidden = !pomodoroStatsVisible;
-  pomodoroStatsToggle.textContent = pomodoroStatsVisible ? "Hide statistics" : "Show statistics";
+  const label = pomodoroStatsToggle.querySelector("[data-stats-toggle-label]");
+  const arrow = pomodoroStatsToggle.querySelector(".stats-toggle-arrow");
+
+  if (label) {
+    label.textContent = pomodoroStatsVisible ? "Hide statistics" : "Show statistics";
+  } else {
+    pomodoroStatsToggle.textContent = pomodoroStatsVisible ? "Hide statistics" : "Show statistics";
+  }
+
+  if (arrow) {
+    arrow.textContent = pomodoroStatsVisible ? "▴" : "▾";
+  }
+
   pomodoroStatsToggle.setAttribute("aria-expanded", String(pomodoroStatsVisible));
 
   if (pomodoroStatsDate && !pomodoroStatsDate.value) {
@@ -1587,6 +1949,7 @@ function renderSiteList() {
   siteList.append(
     ...schedule.sites.map((site, index) => {
       const enabled = isSiteEnabled(site);
+      const blockingEnabled = enabled || Boolean(settings.blockAllForAll);
       const item = document.createElement("li");
       const button = document.createElement("button");
       const controls = document.createElement("div");
@@ -1641,7 +2004,7 @@ function renderSiteList() {
 
       button.append(title, meta);
 
-      if (enabled && isBlockedNow(site)) {
+      if (blockingEnabled && isBlockedNow(site)) {
         const badge = document.createElement("span");
         badge.className = "active-badge";
         badge.textContent = "Blocked";
@@ -1661,7 +2024,7 @@ function renderSiteList() {
       const dailyRemainingSeconds = getDailyAllowanceRemainingSeconds(site, usage);
       const extraRemainingSeconds = getExtraRemainingSecondsForUsage(usage);
 
-      if (enabled && (dailyRemainingSeconds !== null || extraRemainingSeconds > 0)) {
+      if (blockingEnabled && (dailyRemainingSeconds !== null || extraRemainingSeconds > 0)) {
         const actions = document.createElement("div");
 
         actions.className = "site-row-actions";
@@ -1723,14 +2086,16 @@ function renderSiteList() {
 
 function createDeleteIcon() {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  const lid = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  const body = document.createElementNS("http://www.w3.org/2000/svg", "path");
 
   svg.setAttribute("viewBox", "0 0 16 16");
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("focusable", "false");
-  path.setAttribute("d", "M4.2 3.2 8 7l3.8-3.8 1 1L9 8l3.8 3.8-1 1L8 9l-3.8 3.8-1-1L7 8 3.2 4.2z");
+  lid.setAttribute("d", "M2.8 4.3h10.4M6.2 4.3V3.2h3.6v1.1");
+  body.setAttribute("d", "M4.4 5.9 5 12.7c.1.7.6 1.1 1.3 1.1h3.4c.7 0 1.2-.4 1.3-1.1l.6-6.8M6.9 7.5v4.1M9.1 7.5v4.1");
 
-  svg.append(path);
+  svg.append(lid, body);
   return svg;
 }
 
@@ -1999,9 +2364,32 @@ function openEditor(site) {
   renderExceptionList(site.exceptions || []);
   dailyAllowance.value = String(site.dailyAllowanceMinutes || 0);
   allowExtraTime.checked = Boolean(site.allowExtraTime);
+  if (blockEnabled) {
+    blockEnabled.checked = isSiteEnabled(site);
+  }
+  if (grayscaleSite) {
+    grayscaleSite.checked = Boolean(site.grayscale);
+  }
+  setModeRadios(grayscaleModeRadios, normalizeEffectMode(site.grayscaleMode));
+  if (redLightSite) {
+    redLightSite.checked = Boolean(site.redLight);
+  }
+  setModeRadios(redLightModeRadios, normalizeEffectMode(site.redLightMode));
   requirePinExtra.checked = Boolean(site.requirePinForExtraTime);
   syncPinSetupView();
   syncEditorGlobalOverrideView(site);
+  renderIntervalList(
+    grayscaleIntervalList,
+    site.grayscaleIntervals || site.effectIntervals,
+    queueEditorAutosave,
+    { expanded: editingIndex === null }
+  );
+  renderIntervalList(
+    redLightIntervalList,
+    site.redLightIntervals || site.effectIntervals,
+    queueEditorAutosave,
+    { expanded: editingIndex === null }
+  );
   intervalList.replaceChildren();
   clearTimeout(editorAutosaveTimer);
 
@@ -2012,9 +2400,10 @@ function openEditor(site) {
 
   setBlockMode(blockMode);
   intervals.forEach((interval) => {
-    appendInterval(interval, { expanded: editingIndex === null });
+    appendInterval(intervalList, interval, { expanded: editingIndex === null, onChange: queueEditorAutosave });
   });
 
+  syncSiteVisualEffectMenus();
   syncBlockingModeView();
 
   listView.hidden = true;
@@ -2046,7 +2435,221 @@ function setBlockMode(mode) {
   });
 }
 
+function normalizeEffectMode(mode) {
+  return mode === "slots" ? "slots" : "always";
+}
+
+function setModeRadios(radios, mode) {
+  const normalized = normalizeEffectMode(mode);
+  let selected = false;
+
+  radios.forEach((radio) => {
+    radio.checked = radio.value === normalized;
+    selected ||= radio.checked;
+  });
+
+  if (!selected && radios.length > 0) {
+    radios[0].checked = true;
+  }
+
+  radios.forEach((radio) => {
+    radio.closest(".mode-option")?.classList.toggle("is-selected", radio.checked);
+  });
+}
+
+function getModeFromRadios(radios, fallback = "always") {
+  return normalizeEffectMode(radios.find((radio) => radio.checked)?.value || fallback);
+}
+
+function syncGlobalVisualEffectMenus() {
+  syncSettingDetails(globalGrayscale, globalGrayscaleDetails, globalGrayscaleExpander, globalGrayscaleDetailsExpanded, "grayscale");
+  globalGrayscaleModeRadios.forEach((radio) => {
+    radio.closest(".mode-option")?.classList.toggle("is-selected", radio.checked);
+  });
+
+  syncSettingDetails(globalRedLight, globalRedLightDetails, globalRedLightExpander, globalRedLightDetailsExpanded, "red light");
+  globalRedLightModeRadios.forEach((radio) => {
+    radio.closest(".mode-option")?.classList.toggle("is-selected", radio.checked);
+  });
+
+  syncGlobalEffectIntervalsView();
+}
+
+function syncSiteVisualEffectMenus() {
+  syncSettingDetails(grayscaleSite, grayscaleDetails, grayscaleExpander, grayscaleDetailsExpanded, "grayscale");
+  grayscaleModeRadios.forEach((radio) => {
+    radio.closest(".mode-option")?.classList.toggle("is-selected", radio.checked);
+  });
+
+  syncSettingDetails(redLightSite, redLightDetails, redLightExpander, redLightDetailsExpanded, "red light");
+  redLightModeRadios.forEach((radio) => {
+    radio.closest(".mode-option")?.classList.toggle("is-selected", radio.checked);
+  });
+
+  syncSiteEffectIntervalsView();
+}
+
+function syncSettingDetails(toggle, details, expander, expanded, label, forceEnabled = null) {
+  const enabled = forceEnabled === null ? Boolean(toggle?.checked) : Boolean(forceEnabled);
+  const showDetails = enabled && expanded;
+
+  if (details) {
+    details.hidden = !showDetails;
+  }
+
+  if (expander) {
+    expander.hidden = !enabled;
+    expander.textContent = expanded ? "▴" : "▾";
+    expander.setAttribute("aria-expanded", String(showDetails));
+    expander.setAttribute("aria-label", `${expanded ? "Hide" : "Show"} ${label} settings`);
+  }
+}
+
+function syncSiteEffectIntervalsView() {
+  syncEffectIntervalView({
+    toggle: grayscaleSite,
+    radios: grayscaleModeRadios,
+    heading: grayscaleSlotHeading,
+    list: grayscaleIntervalList,
+    addButton: addGrayscaleInterval,
+    fallbackList: intervalList,
+    onChange: queueEditorAutosave
+  });
+  syncEffectIntervalView({
+    toggle: redLightSite,
+    radios: redLightModeRadios,
+    heading: redLightSlotHeading,
+    list: redLightIntervalList,
+    addButton: addRedLightInterval,
+    fallbackList: intervalList,
+    onChange: queueEditorAutosave
+  });
+}
+
+function syncGlobalEffectIntervalsView() {
+  syncEffectIntervalView({
+    toggle: globalGrayscale,
+    radios: globalGrayscaleModeRadios,
+    heading: globalGrayscaleSlotHeading,
+    list: globalGrayscaleIntervalList,
+    addButton: addGlobalGrayscaleInterval,
+    fallbackList: globalRedLightIntervalList,
+    onChange: queueGlobalEffectAutosave
+  });
+  syncEffectIntervalView({
+    toggle: globalRedLight,
+    radios: globalRedLightModeRadios,
+    heading: globalRedLightSlotHeading,
+    list: globalRedLightIntervalList,
+    addButton: addGlobalRedLightInterval,
+    fallbackList: globalGrayscaleIntervalList,
+    onChange: queueGlobalEffectAutosave
+  });
+}
+
+function syncEffectIntervalView({ toggle, radios, heading, list, addButton, fallbackList, onChange }) {
+  if (!heading || !list || !addButton) {
+    return;
+  }
+
+  const needsSlots = Boolean(toggle?.checked) && getModeFromRadios(radios) === "slots";
+
+  heading.hidden = !needsSlots;
+  list.hidden = !needsSlots;
+  addButton.disabled = !needsSlots;
+
+  if (!needsSlots) {
+    return;
+  }
+
+  if (list.children.length === 0) {
+    const fallback = getIntervalsFromListOrDefault(fallbackList);
+
+    fallback.forEach((interval, index) => {
+      appendInterval(list, interval, { expanded: index === 0, onChange });
+    });
+  }
+}
+
+function getIntervalsFromListOrDefault(listElement) {
+  if (!listElement) {
+    return [{ ...DEFAULT_INTERVAL }];
+  }
+
+  try {
+    const intervals = readIntervalsFrom(listElement);
+    return intervals.length > 0 ? intervals : [{ ...DEFAULT_INTERVAL }];
+  } catch (_error) {
+    return [{ ...DEFAULT_INTERVAL }];
+  }
+}
+
+function renderIntervalList(listElement, intervals, onChange = queueEditorAutosave, { expanded = false } = {}) {
+  if (!listElement) {
+    return;
+  }
+
+  listElement.replaceChildren();
+  cloneIntervals(intervals).forEach((interval) => {
+    appendInterval(listElement, interval, { expanded, onChange });
+  });
+}
+
+function cloneIntervals(intervals) {
+  if (!Array.isArray(intervals)) {
+    return [];
+  }
+
+  return intervals.map((interval) => {
+    const normalized = normalizeInterval(interval);
+
+    return {
+      start: normalized.start,
+      end: normalized.end,
+      ...(normalized.days ? { days: [...normalized.days] } : {})
+    };
+  });
+}
+
+function readEffectIntervalsForSave(listElement, { enabled, mode, fallback = [], label = "effect" } = {}) {
+  if (!listElement) {
+    return cloneIntervals(fallback);
+  }
+
+  if (!enabled || mode !== "slots") {
+    try {
+      return readIntervalsFrom(listElement);
+    } catch (_error) {
+      return cloneIntervals(fallback);
+    }
+  }
+
+  const intervals = readIntervalsFrom(listElement);
+
+  if (intervals.length === 0) {
+    throw new Error(`Add at least one scheduled ${label} slot.`);
+  }
+
+  return intervals;
+}
+
 function syncBlockingModeView() {
+  const isBlocked = blockEnabled ? blockEnabled.checked : true;
+  const isEffectiveBlocked = isBlocked || Boolean(settings.blockAllForAll);
+
+  syncSettingDetails(blockEnabled, blockDetails, blockExpander, blockDetailsExpanded, "blocking", isEffectiveBlocked);
+
+  if (blockModeOptions) {
+    blockModeOptions.hidden = !isEffectiveBlocked;
+  }
+
+  if (!isEffectiveBlocked) {
+    slotHeading.hidden = true;
+    intervalList.hidden = true;
+    addInterval.disabled = true;
+    return;
+  }
+
   const isAlwaysBlocked = getBlockMode() === "always";
   blockModeRadios.forEach((radio) => {
     radio.closest(".mode-option")?.classList.toggle("is-selected", radio.checked);
@@ -2056,7 +2659,7 @@ function syncBlockingModeView() {
   addInterval.disabled = isAlwaysBlocked;
 
   if (!isAlwaysBlocked && intervalList.children.length === 0) {
-    appendInterval({ ...DEFAULT_INTERVAL }, { expanded: true });
+    appendInterval(intervalList, { ...DEFAULT_INTERVAL }, { expanded: true, onChange: queueEditorAutosave });
   }
 }
 
@@ -2096,6 +2699,90 @@ function queueEditorAutosave({ immediate = false } = {}) {
   editorAutosaveTimer = window.setTimeout(() => {
     void autosaveEditor();
   }, immediate ? 0 : 350);
+}
+
+let globalEffectAutosaveTimer = 0;
+let globalEffectAutosaveInFlight = false;
+let globalEffectAutosaveQueued = false;
+
+function queueGlobalEffectAutosave({ immediate = false } = {}) {
+  if (!globalGrayscaleIntervalList && !globalRedLightIntervalList) {
+    return;
+  }
+
+  clearTimeout(globalEffectAutosaveTimer);
+  globalEffectAutosaveTimer = window.setTimeout(() => {
+    globalEffectAutosaveTimer = 0;
+    void saveGlobalEffectIntervals();
+  }, immediate ? 0 : 350);
+}
+
+async function saveGlobalEffectIntervals() {
+  if (!globalGrayscaleIntervalList && !globalRedLightIntervalList) {
+    return;
+  }
+
+  if (globalSettingsSaveInFlight || globalSettingsSaveQueued) {
+    globalEffectAutosaveQueued = true;
+    return;
+  }
+
+  if (globalEffectAutosaveInFlight) {
+    globalEffectAutosaveQueued = true;
+    return;
+  }
+
+  let grayscaleIntervalsForAll = [];
+  let redLightIntervalsForAll = [];
+
+  try {
+    grayscaleIntervalsForAll = readEffectIntervalsForSave(globalGrayscaleIntervalList, {
+      enabled: Boolean(globalGrayscale?.checked),
+      mode: getModeFromRadios(globalGrayscaleModeRadios, settings.grayscaleForAllMode),
+      fallback: settings.grayscaleIntervalsForAll || settings.effectIntervalsForAll,
+      label: "grayscale"
+    });
+    redLightIntervalsForAll = readEffectIntervalsForSave(globalRedLightIntervalList, {
+      enabled: Boolean(globalRedLight?.checked),
+      mode: getModeFromRadios(globalRedLightModeRadios, settings.redLightForAllMode),
+      fallback: settings.redLightIntervalsForAll || settings.effectIntervalsForAll,
+      label: "red light"
+    });
+  } catch (error) {
+    setSettingsStatus("global", cleanError(error), { error: true });
+    return;
+  }
+
+  globalEffectAutosaveInFlight = true;
+  setSettingsStatus("global", "Saving...");
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "save-settings",
+      settings: {
+        grayscaleIntervalsForAll,
+        redLightIntervalsForAll,
+        effectIntervalsForAll: grayscaleIntervalsForAll
+      }
+    });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not save effect schedule.");
+    }
+
+    settings = normalizeSettings(response.settings || settings);
+    state = response.state || state;
+    setSettingsStatus("global", "Effect schedule saved.");
+  } catch (error) {
+    setSettingsStatus("global", cleanError(error), { error: true });
+  } finally {
+    globalEffectAutosaveInFlight = false;
+
+    if (globalEffectAutosaveQueued) {
+      globalEffectAutosaveQueued = false;
+      queueGlobalEffectAutosave({ immediate: true });
+    }
+  }
 }
 
 async function autosaveEditor({ fromSubmit = false } = {}) {
@@ -3015,7 +3702,17 @@ function updatePieHighlight() {
   });
 
   usageSites.querySelectorAll("[data-site-domain]").forEach((row) => {
-    row.classList.toggle("is-highlighted", row.dataset.siteDomain === activeDomain);
+    const isActive = row.dataset.siteDomain === activeDomain;
+    const isSelected = row.dataset.siteDomain === selectedPieDomain;
+    const detail = row.querySelector(".usage-site-detail");
+
+    row.classList.toggle("is-highlighted", isActive);
+    row.classList.toggle("is-selected", isSelected);
+    row.setAttribute("aria-expanded", String(isSelected));
+
+    if (detail) {
+      detail.hidden = !isSelected;
+    }
   });
 }
 
@@ -3129,12 +3826,14 @@ function renderUsageSites(sites, totalSeconds, emptyMessage = "No website usage 
       const duration = document.createElement("strong");
       const progress = document.createElement("span");
       const fill = document.createElement("span");
+      const detail = createUsageSiteTimeline(site);
       const percent = totalSeconds > 0 ? site.screenSeconds / totalSeconds * 100 : 0;
 
       item.className = "usage-site-row";
       item.dataset.siteDomain = site.domain;
       item.tabIndex = 0;
       item.setAttribute("role", "button");
+      item.setAttribute("aria-expanded", String(selectedPieDomain === site.domain));
       item.setAttribute("aria-label", `${site.domain}: ${formatDuration(site.screenSeconds)}`);
       item.addEventListener("mouseenter", () => {
         highlightedPieDomain = site.domain;
@@ -3144,7 +3843,11 @@ function renderUsageSites(sites, totalSeconds, emptyMessage = "No website usage 
         highlightedPieDomain = "";
         updatePieHighlight();
       });
-      item.addEventListener("click", () => {
+      item.addEventListener("click", (event) => {
+        if (event.target instanceof HTMLElement && event.target.closest(".usage-site-detail")) {
+          return;
+        }
+
         selectedCategory = "";
         highlightedCategory = "";
         selectedHour = null;
@@ -3172,10 +3875,52 @@ function renderUsageSites(sites, totalSeconds, emptyMessage = "No website usage 
 
       top.append(domain, duration);
       progress.append(fill);
-      item.append(top, progress);
+      detail.hidden = selectedPieDomain !== site.domain;
+      item.append(top, progress, detail);
       return item;
     })
   );
+
+  updatePieHighlight();
+}
+
+function createUsageSiteTimeline(site) {
+  const detail = document.createElement("section");
+  const heading = document.createElement("div");
+  const title = document.createElement("span");
+  const meta = document.createElement("strong");
+  const bars = document.createElement("div");
+  const hourly = normalizeHourlySeconds(site.hourlySeconds);
+  const maxSeconds = Math.max(1, ...hourly);
+  const peakSeconds = Math.max(0, ...hourly);
+  const peakHour = hourly.indexOf(peakSeconds);
+
+  detail.className = "usage-site-detail";
+  heading.className = "usage-site-detail-heading";
+  title.textContent = "Usage by hour";
+  meta.textContent = peakSeconds > 0
+    ? `Peak ${formatHour(peakHour)}`
+    : "No hourly activity";
+  bars.className = "usage-site-hours";
+  bars.setAttribute("aria-label", `${site.domain} hourly usage`);
+
+  hourly.forEach((seconds, hour) => {
+    const column = document.createElement("span");
+    const bar = document.createElement("span");
+    const label = document.createElement("span");
+    const height = seconds > 0 ? Math.max(6, seconds / maxSeconds * 100) : 0;
+
+    column.className = "usage-site-hour";
+    column.title = `${formatHour(hour)}: ${formatDuration(seconds)}`;
+    bar.style.height = `${height}%`;
+    label.textContent = hour % 6 === 0 ? String(hour) : "";
+    column.append(bar, label);
+    bars.append(column);
+  });
+
+  heading.append(title, meta);
+  detail.append(heading, bars);
+  return detail;
 }
 
 function createEmptyUsageRow(message) {
@@ -3381,7 +4126,11 @@ function formatHour(hour) {
   return `${String(hour).padStart(2, "0")}:00`;
 }
 
-function appendInterval(interval, { expanded = false } = {}) {
+function appendInterval(listElement, interval, { expanded = false, onChange = queueEditorAutosave } = {}) {
+  if (!listElement) {
+    return;
+  }
+
   const row = document.createElement("section");
   const header = document.createElement("div");
   const toggle = document.createElement("button");
@@ -3390,8 +4139,8 @@ function appendInterval(interval, { expanded = false } = {}) {
   const remove = document.createElement("button");
   const editor = document.createElement("div");
   const timeGrid = document.createElement("div");
-  const startField = createClockControl("Start", "start", interval.start || DEFAULT_INTERVAL.start);
-  const endField = createClockControl("End", "end", interval.end || DEFAULT_INTERVAL.end);
+  const startField = createClockControl("Start", "start", interval.start || DEFAULT_INTERVAL.start, { onChange });
+  const endField = createClockControl("End", "end", interval.end || DEFAULT_INTERVAL.end, { onChange });
   const dayGroup = document.createElement("div");
   const selectedDays = normalizeDays(interval.days);
 
@@ -3433,11 +4182,11 @@ function appendInterval(interval, { expanded = false } = {}) {
   timeGrid.append(startField, endField);
   editor.append(timeGrid, dayGroup);
   row.append(header, editor);
-  intervalList.append(row);
+  listElement.append(row);
   updateSlotSummary(row);
 }
 
-function createClockControl(labelText, field, value) {
+function createClockControl(labelText, field, value, { onChange = queueEditorAutosave } = {}) {
   const control = document.createElement("div");
   const header = document.createElement("div");
   const label = document.createElement("span");
@@ -3498,13 +4247,14 @@ function createClockControl(labelText, field, value) {
 
   header.append(label, display);
   control.append(header, input, face, periodToggle);
-  attachClockControl(control);
+  attachClockControl(control, { onChange });
   return control;
 }
 
-function attachClockControl(control) {
+function attachClockControl(control, { onChange = queueEditorAutosave } = {}) {
   const face = control.querySelector("[data-clock-face]");
   const input = control.querySelector("[data-field]");
+  const queueSave = typeof onChange === "function" ? onChange : queueEditorAutosave;
 
   setClockMinutes(control, timeToMinutes(input.value));
 
@@ -3512,13 +4262,13 @@ function attachClockControl(control) {
     event.preventDefault();
     face.setPointerCapture(event.pointerId);
     setClockFromPointer(control, event);
-    queueEditorAutosave();
+    queueSave();
   });
 
   face.addEventListener("pointermove", (event) => {
     if (face.hasPointerCapture(event.pointerId)) {
       setClockFromPointer(control, event);
-      queueEditorAutosave();
+      queueSave();
     }
   });
 
@@ -3531,7 +4281,7 @@ function attachClockControl(control) {
 
     event.preventDefault();
     setClockMinutes(control, getClockMinutes(control) + step);
-    queueEditorAutosave();
+    queueSave();
   });
 
   control.querySelectorAll("[data-period]").forEach((button) => {
@@ -3539,22 +4289,22 @@ function attachClockControl(control) {
       const current = getClockMinutes(control);
       const period = Number(button.dataset.period || "0");
       setClockMinutes(control, period + (current % 720));
-      queueEditorAutosave({ immediate: true });
+      queueSave({ immediate: true });
     });
   });
 
   control.querySelector("[data-time-display]").addEventListener("change", () => {
-    commitManualTime(control);
+    commitManualTime(control, queueSave);
   });
 
   control.querySelector("[data-time-display]").addEventListener("blur", () => {
-    commitManualTime(control);
+    commitManualTime(control, queueSave);
   });
 
   control.querySelector("[data-time-display]").addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      commitManualTime(control);
+      commitManualTime(control, queueSave);
       event.currentTarget.blur();
     }
   });
@@ -3598,7 +4348,7 @@ function setClockMinutes(control, minutes) {
   updateSlotSummary(control.closest(".interval-row"));
 }
 
-function commitManualTime(control) {
+function commitManualTime(control, queueSave) {
   const display = control.querySelector("[data-time-display]");
   const input = control.querySelector("[data-field]");
   const time = parseManualTime(display.value);
@@ -3609,7 +4359,9 @@ function commitManualTime(control) {
   }
 
   setClockMinutes(control, timeToMinutes(time));
-  queueEditorAutosave();
+  if (typeof queueSave === "function") {
+    queueSave();
+  }
 }
 
 function parseManualTime(value) {
@@ -3687,7 +4439,24 @@ function readSiteForm() {
   const domain = normalizeDomain(siteDomain.value);
   const blockMode = getBlockMode();
   const intervals = readIntervalsForSave(blockMode);
+  const grayscaleEnabled = Boolean(grayscaleSite?.checked);
+  const grayscaleMode = getModeFromRadios(grayscaleModeRadios);
+  const redLightEnabled = Boolean(redLightSite?.checked);
+  const redLightMode = getModeFromRadios(redLightModeRadios);
+  const grayscaleIntervals = readEffectIntervalsForSave(grayscaleIntervalList, {
+    enabled: grayscaleEnabled,
+    mode: grayscaleMode,
+    fallback: editingIndex === null ? [] : schedule.sites[editingIndex]?.grayscaleIntervals || schedule.sites[editingIndex]?.effectIntervals,
+    label: "grayscale"
+  });
+  const redLightIntervals = readEffectIntervalsForSave(redLightIntervalList, {
+    enabled: redLightEnabled,
+    mode: redLightMode,
+    fallback: editingIndex === null ? [] : schedule.sites[editingIndex]?.redLightIntervals || schedule.sites[editingIndex]?.effectIntervals,
+    label: "red light"
+  });
   const dailyAllowanceMinutes = normalizeAllowanceMinutes(dailyAllowance.value);
+  const enabled = Boolean(blockEnabled?.checked ?? (editingIndex === null ? true : isSiteEnabled(schedule.sites[editingIndex])));
 
   if (!domain) {
     throw new Error("Enter a website domain.");
@@ -3705,7 +4474,7 @@ function readSiteForm() {
     throw new Error("That website is already in the schedule.");
   }
 
-  if (blockMode === "slots" && intervals.length === 0) {
+  if (enabled && blockMode === "slots" && intervals.length === 0) {
     throw new Error("Add at least one time slot.");
   }
 
@@ -3713,14 +4482,52 @@ function readSiteForm() {
 
   return {
     domain,
-    enabled: editingIndex === null ? true : isSiteEnabled(schedule.sites[editingIndex]),
+    enabled,
     blockMode,
     exceptions,
     dailyAllowanceMinutes,
     allowExtraTime: Boolean(allowExtraTime?.checked),
+    grayscale: grayscaleEnabled,
+    grayscaleMode,
+    grayscaleIntervals,
+    redLight: redLightEnabled,
+    redLightMode,
+    redLightIntervals,
     requirePinForExtraTime: settings.hasPin ? Boolean(requirePinExtra?.checked) : false,
+    effectIntervals: grayscaleIntervals,
     intervals: intervals.length > 0 ? intervals : [{ ...DEFAULT_INTERVAL }]
   };
+}
+
+
+function handleIntervalListClick(event, { onChange = queueEditorAutosave } = {}) {
+  const target = event.target;
+
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+
+  const removeButton = target.closest("[data-remove-interval]");
+  if (removeButton) {
+    removeButton.closest(".interval-row")?.remove();
+    onChange({ immediate: true });
+    return;
+  }
+
+  const toggleButton = target.closest("[data-toggle-slot]");
+  if (toggleButton) {
+    const row = toggleButton.closest(".interval-row");
+    setSlotExpanded(row, row.dataset.expanded !== "true");
+    return;
+  }
+
+  const dayButton = target.closest("[data-day]");
+  if (dayButton) {
+    const isPressed = dayButton.getAttribute("aria-pressed") === "true";
+    dayButton.setAttribute("aria-pressed", String(!isPressed));
+    updateSlotSummary(dayButton.closest(".interval-row"));
+    onChange({ immediate: true });
+  }
 }
 
 function readIntervalsForSave(blockMode) {
@@ -3736,7 +4543,15 @@ function readIntervalsForSave(blockMode) {
 }
 
 function readIntervals() {
-  return Array.from(intervalList.querySelectorAll(".interval-row")).map((row) => {
+  return readIntervalsFrom(intervalList);
+}
+
+function readIntervalsFrom(listElement) {
+  if (!listElement) {
+    return [];
+  }
+
+  return Array.from(listElement.querySelectorAll(".interval-row")).map((row) => {
     const start = row.querySelector('[data-field="start"]')?.value;
     const end = row.querySelector('[data-field="end"]')?.value;
     const days = Array.from(row.querySelectorAll("[data-day]"))
@@ -3855,6 +4670,21 @@ function normalizeSchedule(value) {
           exceptions: normalizeExceptionList(site.exceptions ?? site.allowlist ?? site.allowList ?? site.allowedDomains, domain),
           dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
           allowExtraTime: Boolean(site.allowExtraTime),
+          grayscale: Boolean(site.grayscale),
+          grayscaleMode: normalizeEffectMode(site.grayscaleMode),
+          grayscaleIntervals: Array.isArray(site.grayscaleIntervals)
+            ? site.grayscaleIntervals.map(normalizeInterval)
+            : Array.isArray(site.effectIntervals)
+              ? site.effectIntervals.map(normalizeInterval)
+              : [],
+          redLight: Boolean(site.redLight),
+          redLightMode: normalizeEffectMode(site.redLightMode),
+          redLightIntervals: Array.isArray(site.redLightIntervals)
+            ? site.redLightIntervals.map(normalizeInterval)
+            : Array.isArray(site.effectIntervals)
+              ? site.effectIntervals.map(normalizeInterval)
+              : [],
+          effectIntervals: Array.isArray(site.effectIntervals) ? site.effectIntervals.map(normalizeInterval) : [],
           requirePinForExtraTime: Boolean(site.requirePinForExtraTime),
           intervals: Array.isArray(site.intervals) ? site.intervals.map(normalizeInterval) : []
         };
@@ -3866,8 +4696,24 @@ function normalizeSchedule(value) {
 function normalizeSettings(value) {
   return {
     hasPin: Boolean(value?.hasPin),
+    blockAllForAll: Boolean(value?.blockAllForAll),
     requirePinForAllExtraTime: Boolean(value?.requirePinForAllExtraTime),
     allowExtraTimeForAll: Boolean(value?.allowExtraTimeForAll),
+    grayscaleForAll: Boolean(value?.grayscaleForAll),
+    grayscaleForAllMode: normalizeEffectMode(value?.grayscaleForAllMode),
+    grayscaleIntervalsForAll: Array.isArray(value?.grayscaleIntervalsForAll)
+      ? value.grayscaleIntervalsForAll.map(normalizeInterval)
+      : Array.isArray(value?.effectIntervalsForAll)
+        ? value.effectIntervalsForAll.map(normalizeInterval)
+        : [],
+    redLightForAll: Boolean(value?.redLightForAll),
+    redLightForAllMode: normalizeEffectMode(value?.redLightForAllMode),
+    redLightIntervalsForAll: Array.isArray(value?.redLightIntervalsForAll)
+      ? value.redLightIntervalsForAll.map(normalizeInterval)
+      : Array.isArray(value?.effectIntervalsForAll)
+        ? value.effectIntervalsForAll.map(normalizeInterval)
+        : [],
+    effectIntervalsForAll: Array.isArray(value?.effectIntervalsForAll) ? value.effectIntervalsForAll.map(normalizeInterval) : [],
     pinValue: sanitizePinValue(value?.pinValue)
   };
 }
@@ -3875,13 +4721,69 @@ function normalizeSettings(value) {
 function applyStoredGlobalSettings(storedSettings) {
   const stored = storedSettings?.[SETTINGS_KEY];
 
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "blockAllForAll")) {
+    settings.blockAllForAll = Boolean(stored.blockAllForAll);
+  }
+
   if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "allowExtraTimeForAll")) {
     settings.allowExtraTimeForAll = Boolean(stored.allowExtraTimeForAll);
+  }
+
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "grayscaleForAll")) {
+    settings.grayscaleForAll = Boolean(stored.grayscaleForAll);
+  }
+
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "grayscaleForAllMode")) {
+    settings.grayscaleForAllMode = normalizeEffectMode(stored.grayscaleForAllMode);
+  }
+
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "grayscaleIntervalsForAll")) {
+    settings.grayscaleIntervalsForAll = Array.isArray(stored.grayscaleIntervalsForAll)
+      ? stored.grayscaleIntervalsForAll.map(normalizeInterval)
+      : [];
+  }
+
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "redLightForAll")) {
+    settings.redLightForAll = Boolean(stored.redLightForAll);
+  }
+
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "redLightForAllMode")) {
+    settings.redLightForAllMode = normalizeEffectMode(stored.redLightForAllMode);
+  }
+
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "redLightIntervalsForAll")) {
+    settings.redLightIntervalsForAll = Array.isArray(stored.redLightIntervalsForAll)
+      ? stored.redLightIntervalsForAll.map(normalizeInterval)
+      : [];
+  }
+
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "effectIntervalsForAll")) {
+    settings.effectIntervalsForAll = Array.isArray(stored.effectIntervalsForAll)
+      ? stored.effectIntervalsForAll.map(normalizeInterval)
+      : [];
+  }
+
+  if (blockAll) {
+    blockAll.checked = Boolean(settings.blockAllForAll);
   }
 
   if (globalExtraTime) {
     globalExtraTime.checked = Boolean(settings.allowExtraTimeForAll);
   }
+
+  if (globalGrayscale) {
+    globalGrayscale.checked = Boolean(settings.grayscaleForAll);
+  }
+
+  setModeRadios(globalGrayscaleModeRadios, settings.grayscaleForAllMode);
+
+  if (globalRedLight) {
+    globalRedLight.checked = Boolean(settings.redLightForAll);
+  }
+
+  setModeRadios(globalRedLightModeRadios, settings.redLightForAllMode);
+
+  syncGlobalVisualEffectMenus();
 }
 
 function normalizePomodoro(value = {}) {
@@ -4084,6 +4986,13 @@ function cloneSite(site) {
     exceptions: normalizeExceptionList(site.exceptions, site.domain),
     dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
     allowExtraTime: Boolean(site.allowExtraTime),
+    grayscale: Boolean(site.grayscale),
+    grayscaleMode: normalizeEffectMode(site.grayscaleMode),
+    grayscaleIntervals: cloneIntervals(site.grayscaleIntervals || site.effectIntervals),
+    redLight: Boolean(site.redLight),
+    redLightMode: normalizeEffectMode(site.redLightMode),
+    redLightIntervals: cloneIntervals(site.redLightIntervals || site.effectIntervals),
+    effectIntervals: cloneIntervals(site.effectIntervals),
     requirePinForExtraTime: Boolean(site.requirePinForExtraTime),
     intervals: Array.isArray(site.intervals)
       ? site.intervals.map((interval) => ({
@@ -4095,12 +5004,14 @@ function cloneSite(site) {
 }
 
 function siteSummary(site, usage = null) {
-  if (!isSiteEnabled(site)) {
-    return "inactive";
+  const blockAllEnforced = Boolean(settings.blockAllForAll);
+
+  if (!isSiteEnabled(site) && !blockAllEnforced) {
+    return "blocking paused";
   }
 
   const count = site.intervals.length;
-  const slotText = normalizeBlockMode(site.blockMode, site.intervals) === "always"
+  const slotText = blockAllEnforced || normalizeBlockMode(site.blockMode, site.intervals) === "always"
     ? "always"
     : `during ${count} slot${count === 1 ? "" : "s"}`;
   const parts = [`blocked ${slotText}`];
@@ -4111,6 +5022,14 @@ function siteSummary(site, usage = null) {
 
   if (settings.allowExtraTimeForAll || site.allowExtraTime) {
     parts.push("extra time allowed");
+  }
+
+  if (settings.grayscaleForAll || site.grayscale) {
+    parts.push("grayscale");
+  }
+
+  if (settings.redLightForAll || site.redLight) {
+    parts.push("red light");
   }
 
   if (settings.hasPin && (site.requirePinForExtraTime || settings.requirePinForAllExtraTime)) {
@@ -4125,7 +5044,7 @@ function siteSummary(site, usage = null) {
 }
 
 function isBlockedNow(site) {
-  if (!isSiteEnabled(site)) {
+  if (!isSiteEnabled(site) && !settings.blockAllForAll) {
     return false;
   }
 

@@ -34,7 +34,6 @@
           <button id="new-site" class="primary-button" type="button">Add website</button>
         </div>
         <ul id="site-list" class="site-list"></ul>
-        <button id="refresh" class="secondary-button" type="button">Refresh rules</button>
 
         <div class="section-heading">
           <h2 id="pin-settings-title">PIN protection</h2>
@@ -70,6 +69,10 @@
         <section class="settings-panel global-settings-panel" aria-labelledby="global-settings-title">
           <p id="global-settings-status">Website overrides are off.</p>
           <p class="global-settings-warning">Turning these on overrides individual website settings.</p>
+          <label id="block-all-global-row" class="toggle-field">
+            <input id="block-all" type="checkbox">
+            <span>Block all websites in list</span>
+          </label>
           <label id="pin-global-row" class="toggle-field">
             <input id="pin-global" type="checkbox">
             <span>Require PIN for all websites</span>
@@ -78,6 +81,70 @@
             <input id="global-extra-time" type="checkbox">
             <span>Allow extra time</span>
           </label>
+          <div class="setting-control">
+            <div class="setting-toggle-line">
+              <label id="grayscale-global-row" class="toggle-field setting-toggle" title="Show more settings">
+                <input id="global-grayscale" type="checkbox">
+                <span>Grayscale websites</span>
+              </label>
+              <button id="global-grayscale-expander" class="setting-expander" type="button" aria-label="Hide grayscale settings" aria-expanded="true" hidden>▴</button>
+            </div>
+            <div id="global-grayscale-details" class="setting-details" hidden>
+              <div id="global-grayscale-options" class="mode-options">
+                <label class="mode-option">
+                  <input type="radio" name="global-grayscale-mode" value="always" checked>
+                  <span>
+                    <strong>Always</strong>
+                    <small>Apply grayscale to every listed website whenever it is open.</small>
+                  </span>
+                </label>
+                <label class="mode-option">
+                  <input type="radio" name="global-grayscale-mode" value="slots">
+                  <span>
+                    <strong>Scheduled</strong>
+                    <small>Apply grayscale to every listed website only during selected times.</small>
+                  </span>
+                </label>
+              </div>
+              <div id="global-grayscale-slot-heading" class="section-heading compact" hidden>
+                <h2>Grayscale schedule</h2>
+                <button id="add-global-grayscale-interval" class="secondary-button small" type="button">Add slot</button>
+              </div>
+              <div id="global-grayscale-interval-list" class="interval-list" hidden></div>
+            </div>
+          </div>
+          <div class="setting-control">
+            <div class="setting-toggle-line">
+              <label id="red-light-global-row" class="toggle-field setting-toggle" title="Show more settings">
+                <input id="global-red-light" type="checkbox">
+                <span>Red light</span>
+              </label>
+              <button id="global-red-light-expander" class="setting-expander" type="button" aria-label="Hide red light settings" aria-expanded="true" hidden>▴</button>
+            </div>
+            <div id="global-red-light-details" class="setting-details" hidden>
+              <div id="global-red-light-options" class="mode-options">
+                <label class="mode-option">
+                  <input type="radio" name="global-red-light-mode" value="always" checked>
+                  <span>
+                    <strong>Always</strong>
+                    <small>Apply red light to every listed website whenever it is open.</small>
+                  </span>
+                </label>
+                <label class="mode-option">
+                  <input type="radio" name="global-red-light-mode" value="slots">
+                  <span>
+                    <strong>Scheduled</strong>
+                    <small>Apply red light to every listed website only during selected times.</small>
+                  </span>
+                </label>
+              </div>
+              <div id="global-red-light-slot-heading" class="section-heading compact" hidden>
+                <h2>Red light schedule</h2>
+                <button id="add-global-red-light-interval" class="secondary-button small" type="button">Add slot</button>
+              </div>
+              <div id="global-red-light-interval-list" class="interval-list" hidden></div>
+            </div>
+          </div>
         </section>
       </section>
 
@@ -103,53 +170,131 @@
             <ul id="exception-list" class="exception-list"></ul>
           </section>
 
-          <section class="mode-panel" aria-labelledby="mode-title">
-            <h2 id="mode-title">Blocking mode</h2>
-            <div class="mode-options">
-              <label class="mode-option">
-                <input type="radio" name="block-mode" value="always">
-                <span>
-                  <strong>Always blocked</strong>
-                  <small>Keep it blocked unless allowance time remains.</small>
-                </span>
+          <section class="mode-panel blocking-settings-panel" aria-labelledby="mode-title">
+            <h2 id="mode-title">Blocking & access</h2>
+            <div class="setting-toggle-line">
+              <label class="toggle-field setting-toggle" title="Show more settings">
+                <input id="block-enabled" type="checkbox" checked>
+                <span>Block</span>
               </label>
-              <label class="mode-option">
-                <input type="radio" name="block-mode" value="slots" checked>
-                <span>
-                  <strong>Time slots</strong>
-                  <small>Choose which slots are blocked.</small>
-                </span>
+              <button id="block-expander" class="setting-expander" type="button" aria-label="Hide blocking settings" aria-expanded="true" hidden>▴</button>
+            </div>
+            <p id="block-global-note" class="field-note" hidden>Global Block all websites in list is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
+            <div id="block-details" class="setting-details" hidden>
+              <div id="block-mode-options" class="mode-options">
+                <label class="mode-option">
+                  <input type="radio" name="block-mode" value="always">
+                  <span>
+                    <strong>Always blocked</strong>
+                    <small>Keep it blocked unless allowance time remains.</small>
+                  </span>
+                </label>
+                <label class="mode-option">
+                  <input type="radio" name="block-mode" value="slots" checked>
+                  <span>
+                    <strong>Scheduled</strong>
+                    <small>Block only during selected times.</small>
+                  </span>
+                </label>
+              </div>
+
+              <div class="allowance-summary">
+                <h2 id="allowance-title">Daily allowance</h2>
+                <p>Usable time while this website is blocked.</p>
+              </div>
+              <label class="field allowance-field">
+                <span>Minutes</span>
+                <input id="daily-allowance" type="number" min="0" max="1440" step="1" value="0">
               </label>
+              <label id="require-pin-extra-row" class="toggle-field">
+                <input id="require-pin-extra" type="checkbox">
+                <span>Require PIN before adding time</span>
+              </label>
+              <p id="pin-global-note" class="field-note" hidden>Global PIN requirement is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
+              <label class="toggle-field">
+                <input id="allow-extra-time" type="checkbox">
+                <span>Allow extra time</span>
+              </label>
+              <p id="extra-time-global-note" class="field-note" hidden>Global Allow extra time is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
+
+              <div id="slot-heading" class="section-heading compact">
+                <h2>Blocked schedule</h2>
+                <button id="add-interval" class="secondary-button small" type="button">Add slot</button>
+              </div>
+
+              <div id="interval-list" class="interval-list"></div>
             </div>
           </section>
 
-          <section class="allowance-panel" aria-labelledby="allowance-title">
-            <div>
-              <h2 id="allowance-title">Daily allowance</h2>
-              <p>Usable time while this website is blocked.</p>
+          <section class="mode-panel visual-effects-panel" aria-labelledby="visual-effects-title">
+            <h2 id="visual-effects-title">Visual effects</h2>
+            <div class="setting-control">
+              <div class="setting-toggle-line">
+                <label class="toggle-field setting-toggle" title="Show more settings">
+                  <input id="grayscale-site" type="checkbox">
+                  <span>Grayscale</span>
+                </label>
+                <button id="grayscale-expander" class="setting-expander" type="button" aria-label="Hide grayscale settings" aria-expanded="true" hidden>▴</button>
+              </div>
+              <div id="grayscale-details" class="setting-details" hidden>
+                <div id="grayscale-site-options" class="mode-options">
+                  <label class="mode-option">
+                    <input type="radio" name="grayscale-mode" value="always" checked>
+                    <span>
+                      <strong>Always</strong>
+                      <small>Apply grayscale whenever this website is open.</small>
+                    </span>
+                  </label>
+                  <label class="mode-option">
+                    <input type="radio" name="grayscale-mode" value="slots">
+                    <span>
+                      <strong>Scheduled</strong>
+                      <small>Apply grayscale only during selected times.</small>
+                    </span>
+                  </label>
+                </div>
+                <div id="grayscale-slot-heading" class="section-heading compact" hidden>
+                  <h2>Grayscale schedule</h2>
+                  <button id="add-grayscale-interval" class="secondary-button small" type="button">Add slot</button>
+                </div>
+                <div id="grayscale-interval-list" class="interval-list" hidden></div>
+              </div>
+              <p id="grayscale-global-note" class="field-note" hidden>Global Grayscale websites is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
             </div>
-            <label class="field allowance-field">
-              <span>Minutes</span>
-              <input id="daily-allowance" type="number" min="0" max="1440" step="1" value="0">
-            </label>
-            <label id="require-pin-extra-row" class="toggle-field">
-              <input id="require-pin-extra" type="checkbox">
-              <span>Require PIN before adding time</span>
-            </label>
-            <p id="pin-global-note" class="field-note" hidden>Global PIN requirement is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
-            <label class="toggle-field">
-              <input id="allow-extra-time" type="checkbox">
-              <span>Allow extra time</span>
-            </label>
-            <p id="extra-time-global-note" class="field-note" hidden>Global Allow extra time is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
+            <div class="setting-control">
+              <div class="setting-toggle-line">
+                <label class="toggle-field setting-toggle" title="Show more settings">
+                  <input id="red-light-site" type="checkbox">
+                  <span>Red light</span>
+                </label>
+                <button id="red-light-expander" class="setting-expander" type="button" aria-label="Hide red light settings" aria-expanded="true" hidden>▴</button>
+              </div>
+              <div id="red-light-details" class="setting-details" hidden>
+                <div id="red-light-site-options" class="mode-options">
+                  <label class="mode-option">
+                    <input type="radio" name="red-light-mode" value="always" checked>
+                    <span>
+                      <strong>Always</strong>
+                      <small>Apply red light whenever this website is open.</small>
+                    </span>
+                  </label>
+                  <label class="mode-option">
+                    <input type="radio" name="red-light-mode" value="slots">
+                    <span>
+                      <strong>Scheduled</strong>
+                      <small>Apply red light only during selected times.</small>
+                    </span>
+                  </label>
+                </div>
+                <div id="red-light-slot-heading" class="section-heading compact" hidden>
+                  <h2>Red light schedule</h2>
+                  <button id="add-red-light-interval" class="secondary-button small" type="button">Add slot</button>
+                </div>
+                <div id="red-light-interval-list" class="interval-list" hidden></div>
+              </div>
+              <p id="red-light-global-note" class="field-note" hidden>Global Red light is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
+            </div>
           </section>
-
-          <div id="slot-heading" class="section-heading compact">
-            <h2>Blocked slots</h2>
-            <button id="add-interval" class="secondary-button small" type="button">Add slot</button>
-          </div>
-
-          <div id="interval-list" class="interval-list"></div>
           <p id="form-error" class="form-error" aria-live="polite"></p>
 
           <div class="form-actions">
@@ -314,7 +459,8 @@
         </section>
 
         <button id="pomodoro-stats-toggle" class="secondary-button small pomodoro-stats-toggle" type="button" aria-expanded="false">
-          Show statistics
+          <span data-stats-toggle-label>Show statistics</span>
+          <span class="stats-toggle-arrow" aria-hidden="true">▾</span>
         </button>
 
         <section id="pomodoro-stats-panel" class="pomodoro-stats-panel" aria-labelledby="pomodoro-stats-title" hidden>
