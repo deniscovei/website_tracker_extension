@@ -50,6 +50,7 @@ const blockExpander = document.getElementById("block-expander");
 const blockModeOptions = document.getElementById("block-mode-options");
 const blockGlobalNote = document.getElementById("block-global-note");
 const dailyAllowance = document.getElementById("daily-allowance");
+const limitWarningsSite = document.getElementById("limit-warnings-site");
 const allowExtraTime = document.getElementById("allow-extra-time");
 const grayscaleSite = document.getElementById("grayscale-site");
 const grayscaleDetails = document.getElementById("grayscale-details");
@@ -83,6 +84,8 @@ const pinGlobal = document.getElementById("pin-global");
 const pinGlobalRow = document.getElementById("pin-global-row");
 const globalExtraTime = document.getElementById("global-extra-time");
 const globalExtraTimeRow = document.getElementById("extra-time-global-row");
+const globalLimitWarnings = document.getElementById("global-limit-warnings");
+const globalLimitWarningsRow = document.getElementById("global-limit-warnings-row");
 const globalGrayscale = document.getElementById("global-grayscale");
 const globalGrayscaleDetails = document.getElementById("global-grayscale-details");
 const globalGrayscaleExpander = document.getElementById("global-grayscale-expander");
@@ -239,6 +242,7 @@ let settings = {
   blockAllForAll: false,
   requirePinForAllExtraTime: false,
   allowExtraTimeForAll: false,
+  limitWarnings: true,
   grayscaleForAll: false,
   grayscaleApplyToAllWebsites: false,
   grayscaleForAllMode: "always",
@@ -374,6 +378,10 @@ globalExtraTime?.addEventListener("change", () => {
   void saveGlobalSettingsToggle();
 });
 
+globalLimitWarnings?.addEventListener("change", () => {
+  void saveGlobalSettingsToggle();
+});
+
 globalGrayscale?.addEventListener("change", () => {
   if (globalGrayscale.checked) {
     globalGrayscaleDetailsExpanded = true;
@@ -499,6 +507,11 @@ exceptionList?.addEventListener("click", (event) => {
 dailyAllowance?.addEventListener("input", () => {
   clearFormError();
   queueEditorAutosave();
+});
+
+limitWarningsSite?.addEventListener("change", () => {
+  clearFormError();
+  queueEditorAutosave({ immediate: true });
 });
 
 allowExtraTime?.addEventListener("change", () => {
@@ -857,6 +870,7 @@ async function saveGlobalSettingsToggle() {
   const nextRequirePin = Boolean(settings.hasPin && pinGlobal?.checked);
   const nextAllowExtraTime = Boolean(globalExtraTime.checked);
   const nextBlockAll = Boolean(blockAll?.checked);
+  const nextLimitWarnings = globalLimitWarnings ? Boolean(globalLimitWarnings.checked) : previousSettings.limitWarnings !== false;
   const nextGrayscale = Boolean(globalGrayscale.checked);
   const nextGrayscaleApplyToAllWebsites = Boolean(globalGrayscaleAllWebsites?.checked);
   const nextGrayscaleMode = getModeFromRadios(globalGrayscaleModeRadios, previousSettings.grayscaleForAllMode);
@@ -892,6 +906,7 @@ async function saveGlobalSettingsToggle() {
     blockAllForAll: nextBlockAll,
     requirePinForAllExtraTime: nextRequirePin,
     allowExtraTimeForAll: nextAllowExtraTime,
+    limitWarnings: nextLimitWarnings,
     grayscaleForAll: nextGrayscale,
     grayscaleApplyToAllWebsites: nextGrayscaleApplyToAllWebsites,
     grayscaleForAllMode: nextGrayscaleMode,
@@ -910,6 +925,9 @@ async function saveGlobalSettingsToggle() {
     blockAll.checked = nextBlockAll;
   }
   globalExtraTime.checked = nextAllowExtraTime;
+  if (globalLimitWarnings) {
+    globalLimitWarnings.checked = nextLimitWarnings;
+  }
   globalGrayscale.checked = nextGrayscale;
   if (globalGrayscaleAllWebsites) {
     globalGrayscaleAllWebsites.checked = nextGrayscaleApplyToAllWebsites;
@@ -937,6 +955,7 @@ async function saveGlobalSettingsToggle() {
         blockAllForAll: nextBlockAll,
         requirePinForAllExtraTime: nextRequirePin,
         allowExtraTimeForAll: nextAllowExtraTime,
+        limitWarnings: nextLimitWarnings,
         grayscaleForAll: nextGrayscale,
         grayscaleApplyToAllWebsites: nextGrayscaleApplyToAllWebsites,
         grayscaleForAllMode: nextGrayscaleMode,
@@ -986,6 +1005,9 @@ async function saveGlobalSettingsToggle() {
       blockAll.checked = Boolean(previousSettings.blockAllForAll);
     }
     globalExtraTime.checked = Boolean(previousSettings.allowExtraTimeForAll);
+    if (globalLimitWarnings) {
+      globalLimitWarnings.checked = previousSettings.limitWarnings !== false;
+    }
     globalGrayscale.checked = Boolean(previousSettings.grayscaleForAll);
     if (globalGrayscaleAllWebsites) {
       globalGrayscaleAllWebsites.checked = Boolean(previousSettings.grayscaleApplyToAllWebsites);
@@ -1045,6 +1067,9 @@ async function persistPinSettings({
   if (globalExtraTime) {
     globalExtraTime.disabled = true;
   }
+  if (globalLimitWarnings) {
+    globalLimitWarnings.disabled = true;
+  }
   if (globalGrayscale) {
     globalGrayscale.disabled = true;
   }
@@ -1080,6 +1105,7 @@ async function persistPinSettings({
         requirePinForAllExtraTime: Boolean(pinGlobal.checked),
         blockAllForAll: Boolean(blockAll?.checked),
         allowExtraTimeForAll: Boolean(globalExtraTime?.checked),
+        limitWarnings: globalLimitWarnings ? Boolean(globalLimitWarnings.checked) : settings.limitWarnings !== false,
         grayscaleForAll: Boolean(globalGrayscale?.checked),
         grayscaleApplyToAllWebsites: Boolean(globalGrayscaleAllWebsites?.checked),
         grayscaleForAllMode: getModeFromRadios(globalGrayscaleModeRadios, settings.grayscaleForAllMode),
@@ -1175,6 +1201,10 @@ function renderGlobalSettings(message = "") {
     globalExtraTime.checked = Boolean(settings.allowExtraTimeForAll);
   }
 
+  if (globalLimitWarnings) {
+    globalLimitWarnings.checked = settings.limitWarnings !== false;
+  }
+
   if (globalGrayscale) {
     globalGrayscale.checked = Boolean(settings.grayscaleForAll);
   }
@@ -1264,6 +1294,10 @@ function syncGlobalSettingsView() {
     globalExtraTime.disabled = controlsBusy;
   }
 
+  if (globalLimitWarnings) {
+    globalLimitWarnings.disabled = controlsBusy;
+  }
+
   if (blockAll) {
     blockAll.disabled = controlsBusy;
   }
@@ -1298,6 +1332,7 @@ function syncGlobalSettingsView() {
 
   pinGlobalRow?.classList.toggle("is-disabled", !hasPin || controlsBusy);
   globalExtraTimeRow?.classList.toggle("is-disabled", controlsBusy);
+  globalLimitWarningsRow?.classList.toggle("is-disabled", controlsBusy);
   blockAllRow?.classList.toggle("is-disabled", controlsBusy);
   globalGrayscaleRow?.classList.toggle("is-disabled", controlsBusy);
   globalGrayscaleAllWebsitesRow?.classList.toggle("is-disabled", controlsBusy);
@@ -1388,11 +1423,18 @@ function updateGlobalSettingsStatus() {
     settings.grayscaleForAll ? `grayscale${settings.grayscaleApplyToAllWebsites ? " everywhere" : ""}` : "",
     settings.redLightForAll ? `night light${settings.redLightApplyToAllWebsites ? " everywhere" : ""}` : ""
   ].filter(Boolean);
+  const warningStatus = settings.limitWarnings === false ? "Limit warnings are off globally." : "";
 
   globalSettingsStatus.classList.remove("error");
-  globalSettingsStatus.textContent = enabled.length > 0
-    ? `Global ${enabled.join(" and ")} override${enabled.length === 1 ? " is" : "s are"} on.`
-    : "Website overrides are off.";
+  if (enabled.length > 0) {
+    globalSettingsStatus.textContent = [
+      `Global ${enabled.join(" and ")} override${enabled.length === 1 ? " is" : "s are"} on.`,
+      warningStatus
+    ].filter(Boolean).join(" ");
+    return;
+  }
+
+  globalSettingsStatus.textContent = warningStatus || "Website overrides are off.";
 }
 
 function updatePinDraftStatus() {
@@ -2513,6 +2555,9 @@ function openEditor(site) {
   }
   renderExceptionList(site.exceptions || []);
   dailyAllowance.value = String(site.dailyAllowanceMinutes || 0);
+  if (limitWarningsSite) {
+    limitWarningsSite.checked = site.limitWarnings !== false;
+  }
   allowExtraTime.checked = Boolean(site.allowExtraTime);
   if (blockEnabled) {
     blockEnabled.checked = isSiteEnabled(site);
@@ -4698,6 +4743,7 @@ function readSiteForm() {
     blockMode,
     exceptions,
     dailyAllowanceMinutes,
+    limitWarnings: limitWarningsSite ? Boolean(limitWarningsSite.checked) : true,
     allowExtraTime: Boolean(allowExtraTime?.checked),
     grayscale: grayscaleEnabled,
     grayscaleMode,
@@ -4882,6 +4928,7 @@ function normalizeSchedule(value) {
           blockMode: normalizeBlockMode(site.blockMode, site.intervals),
           exceptions: normalizeExceptionList(site.exceptions ?? site.allowlist ?? site.allowList ?? site.allowedDomains, domain),
           dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
+          limitWarnings: site.limitWarnings !== false,
           allowExtraTime: Boolean(site.allowExtraTime),
           grayscale: Boolean(site.grayscale),
           grayscaleMode: normalizeEffectMode(site.grayscaleMode),
@@ -4913,6 +4960,7 @@ function normalizeSettings(value) {
     blockAllForAll: Boolean(value?.blockAllForAll),
     requirePinForAllExtraTime: Boolean(value?.requirePinForAllExtraTime),
     allowExtraTimeForAll: Boolean(value?.allowExtraTimeForAll),
+    limitWarnings: value?.limitWarnings !== false,
     grayscaleForAll: Boolean(value?.grayscaleForAll),
     grayscaleApplyToAllWebsites: Boolean(value?.grayscaleApplyToAllWebsites),
     grayscaleForAllMode: normalizeEffectMode(value?.grayscaleForAllMode),
@@ -4944,6 +4992,10 @@ function applyStoredGlobalSettings(storedSettings) {
 
   if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "allowExtraTimeForAll")) {
     settings.allowExtraTimeForAll = Boolean(stored.allowExtraTimeForAll);
+  }
+
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "limitWarnings")) {
+    settings.limitWarnings = stored.limitWarnings !== false;
   }
 
   if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "grayscaleForAll")) {
@@ -4998,6 +5050,10 @@ function applyStoredGlobalSettings(storedSettings) {
 
   if (globalExtraTime) {
     globalExtraTime.checked = Boolean(settings.allowExtraTimeForAll);
+  }
+
+  if (globalLimitWarnings) {
+    globalLimitWarnings.checked = settings.limitWarnings !== false;
   }
 
   if (globalGrayscale) {
@@ -5224,6 +5280,7 @@ function cloneSite(site) {
     blockMode: normalizeBlockMode(site.blockMode, site.intervals),
     exceptions: normalizeExceptionList(site.exceptions, site.domain),
     dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
+    limitWarnings: site.limitWarnings !== false,
     allowExtraTime: Boolean(site.allowExtraTime),
     grayscale: Boolean(site.grayscale),
     grayscaleMode: normalizeEffectMode(site.grayscaleMode),

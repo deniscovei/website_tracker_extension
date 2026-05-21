@@ -17,6 +17,8 @@ const MAX_POMODORO_HISTORY_ITEMS = 500;
 const MAX_USAGE_HISTORY_DAYS = 30;
 const MAX_TRACKING_GAP_SECONDS = 2 * 60;
 const MAX_EXTRA_TIME_MINUTES = 240;
+const LIMIT_WARNING_YELLOW_SECONDS = 5 * 60;
+const LIMIT_WARNING_RED_SECONDS = 60;
 const DEFAULT_NIGHT_LIGHT_INTENSITY = 55;
 const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 let extensionPopupOpenCount = 0;
@@ -269,6 +271,11 @@ async function refreshRulesAndNotify(reason = "state") {
   } catch (_error) {
   }
 
+  try {
+    await syncAllTabLimitWarnings();
+  } catch (_error) {
+  }
+
   await broadcastBlockStateUpdated(reason);
   return state;
 }
@@ -407,6 +414,9 @@ async function saveSettings(value = {}) {
   const allowExtraTimeForAll = hasOwn("allowExtraTimeForAll")
     ? Boolean(value.allowExtraTimeForAll)
     : Boolean(current.allowExtraTimeForAll);
+  const limitWarnings = hasOwn("limitWarnings")
+    ? value.limitWarnings !== false
+    : current.limitWarnings !== false;
   const blockAllForAll = hasOwn("blockAllForAll")
     ? Boolean(value.blockAllForAll)
     : Boolean(current.blockAllForAll);
@@ -445,6 +455,7 @@ async function saveSettings(value = {}) {
     pinValue,
     requirePinForAllExtraTime,
     allowExtraTimeForAll,
+    limitWarnings,
     blockAllForAll,
     grayscaleForAll,
     grayscaleApplyToAllWebsites,
@@ -793,6 +804,7 @@ function normalizeSettingsForStorage(value = {}) {
     pinValue: pinHash ? pinValue : "",
     requirePinForAllExtraTime: Boolean(value.requirePinForAllExtraTime),
     allowExtraTimeForAll: Boolean(value.allowExtraTimeForAll),
+    limitWarnings: value.limitWarnings !== false,
     blockAllForAll: Boolean(value.blockAllForAll),
     grayscaleForAll: Boolean(value.grayscaleForAll),
     grayscaleApplyToAllWebsites: Boolean(value.grayscaleApplyToAllWebsites),
@@ -812,6 +824,7 @@ function publicSettings(settings) {
     hasPin: Boolean(settings.pinHash),
     requirePinForAllExtraTime: Boolean(settings.pinHash && settings.requirePinForAllExtraTime),
     allowExtraTimeForAll: Boolean(settings.allowExtraTimeForAll),
+    limitWarnings: settings.limitWarnings !== false,
     blockAllForAll: Boolean(settings.blockAllForAll),
     grayscaleForAll: Boolean(settings.grayscaleForAll),
     grayscaleApplyToAllWebsites: Boolean(settings.grayscaleApplyToAllWebsites),
@@ -923,6 +936,7 @@ function normalizeSiteForStorage(site) {
     exceptions: normalizeExceptionDomains(site.exceptions ?? site.allowlist ?? site.allowList ?? site.allowedDomains, uniqueDomains),
     intervals: normalizeIntervalsForStorage(site.intervals),
     dailyAllowanceMinutes: normalizeDailyAllowance(site.dailyAllowanceMinutes ?? site.allowanceMinutes),
+    limitWarnings: site.limitWarnings !== false,
     allowExtraTime: Boolean(site.allowExtraTime),
     grayscale: Boolean(site.grayscale),
     grayscaleMode: normalizeEffectMode(site.grayscaleMode),
@@ -1045,6 +1059,7 @@ function normalizeSite(site) {
     exceptions: normalizeExceptionDomains(site.exceptions ?? site.allowlist ?? site.allowList ?? site.allowedDomains, domains),
     intervals,
     dailyAllowanceMinutes: normalizeDailyAllowance(site.dailyAllowanceMinutes ?? site.allowanceMinutes),
+    limitWarnings: site.limitWarnings !== false,
     allowExtraTime: Boolean(site.allowExtraTime),
     grayscale: Boolean(site.grayscale),
     grayscaleMode: normalizeEffectMode(site.grayscaleMode),
@@ -1512,10 +1527,12 @@ async function enforceActiveTabBlock(state) {
 
   if (state.pomodoro?.active && state.pomodoro.mode === "strict") {
     if (!isStrictPomodoroAllowed(host, state.pomodoro)) {
+      await hideTabLimitWarning(tab.id);
       await cleanupStatePreservingBlock(tab.id);
       await chrome.tabs.update(tab.id, { url: getPomodoroBlockedPageUrl(tab.url) });
     } else {
       await cleanupStatePreservingBlock(tab.id);
+      await hideTabLimitWarning(tab.id);
       await syncTabVisualEffects(tab.id, host);
     }
 
@@ -1530,10 +1547,12 @@ async function enforceActiveTabBlock(state) {
   if (!blockedSite) {
     await cleanupStatePreservingBlock(tab.id);
     await syncTabVisualEffects(tab.id, host);
+    await syncTabLimitWarning(tab.id, host);
     return;
   }
 
   const blockedDomain = blockedSite.domain || blockedSite.domains?.[0] || host;
+  await hideTabLimitWarning(tab.id);
   const showedOverlay = await showStatePreservingBlock(tab.id, blockedDomain);
 
   if (!showedOverlay) {
@@ -1754,6 +1773,314 @@ function setFocusTrackerVisualEffects(grayscaleEnabled, redLightEnabled, redLigh
   style.id = styleId;
   style.textContent = css;
   (document.head || document.documentElement).appendChild(style);
+}
+
+async function syncTabLimitWarning(tabId, host) {
+  if (typeof tabId !== "number") {
+    return;
+  }
+
+  try {
+    const warning = await getLimitWarningForHost(host);
+    await setTabLimitWarning(tabId, warning);
+  } catch (_error) {
+    await hideTabLimitWarning(tabId);
+  }
+}
+
+async function syncAllTabLimitWarnings() {
+  let tabs = [];
+
+  try {
+    tabs = await chrome.tabs.query({});
+  } catch (_error) {
+    return;
+  }
+
+  await Promise.all(tabs.map(async (tab) => {
+    if (typeof tab?.id !== "number" || !/^https?:\/\//.test(tab.url || "")) {
+      return;
+    }
+
+    await syncTabLimitWarning(tab.id, getHostname(tab.url));
+  }));
+}
+
+async function getLimitWarningForHost(host) {
+  const normalizedHost = normalizeDomain(host);
+
+  if (!normalizedHost) {
+    return null;
+  }
+
+  const [schedule, usage, settings, pomodoro] = await Promise.all([
+    cachedSchedule || loadSchedule(),
+    getUsage(),
+    cachedSettings || loadSettings(),
+    loadPomodoroState()
+  ]);
+
+  if (pomodoro.active || settings.limitWarnings === false) {
+    return null;
+  }
+
+  const now = getTimeParts(schedule.timezone);
+  const site = findSiteForHost(schedule, normalizedHost, settings);
+
+  if (!site || site.limitWarnings === false || !isSiteInBlockedSlot(site, now)) {
+    return null;
+  }
+
+  if (shouldBlockSite(site, now, usage, normalizedHost)) {
+    return null;
+  }
+
+  const entry = getSiteUsageEntry(usage, site.domain);
+  const extraRemainingSeconds = getExtraRemainingSeconds(entry);
+  const hasExtraTime = extraRemainingSeconds > 0;
+
+  if (!hasExtraTime && normalizeDailyAllowance(site.dailyAllowanceMinutes) <= 0) {
+    return null;
+  }
+
+  const remainingSeconds = Math.ceil(hasExtraTime
+    ? extraRemainingSeconds
+    : getAllowanceRemainingSeconds(site, usage));
+
+  if (remainingSeconds <= 0 || remainingSeconds > LIMIT_WARNING_YELLOW_SECONDS) {
+    return null;
+  }
+
+  return {
+    domain: site.domain,
+    remainingSeconds,
+    severity: remainingSeconds <= LIMIT_WARNING_RED_SECONDS ? "danger" : "warning"
+  };
+}
+
+async function hideTabLimitWarning(tabId) {
+  await setTabLimitWarning(tabId, null);
+}
+
+async function setTabLimitWarning(tabId, warning) {
+  if (typeof tabId !== "number") {
+    return;
+  }
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: setFocusTrackerLimitWarning,
+      args: [warning]
+    });
+  } catch (_error) {
+  }
+}
+
+function setFocusTrackerLimitWarning(warning) {
+  const hostId = "focus-tracker-limit-warning";
+  const stateKey = "__focusTrackerLimitWarningState";
+  const existingState = globalThis[stateKey] || {};
+  const state = {
+    host: existingState.host || null,
+    shadow: existingState.shadow || null,
+    timer: existingState.timer || 0,
+    expiresAt: existingState.expiresAt || 0,
+    domain: existingState.domain || ""
+  };
+
+  function hide() {
+    if (state.timer) {
+      clearInterval(state.timer);
+    }
+
+    state.timer = 0;
+    state.host?.remove();
+    state.host = null;
+    state.shadow = null;
+    state.expiresAt = 0;
+    state.domain = "";
+    globalThis[stateKey] = state;
+  }
+
+  if (!warning || !Number.isFinite(Number(warning.remainingSeconds))) {
+    hide();
+    return;
+  }
+
+  const remainingSeconds = Math.max(0, Math.ceil(Number(warning.remainingSeconds)));
+
+  if (remainingSeconds <= 0) {
+    hide();
+    return;
+  }
+
+  state.expiresAt = Date.now() + remainingSeconds * 1000;
+  state.domain = String(warning.domain || "").trim();
+
+  ensureHost();
+  render();
+
+  if (state.timer) {
+    clearInterval(state.timer);
+  }
+
+  state.timer = setInterval(render, 1000);
+  globalThis[stateKey] = state;
+
+  function ensureHost() {
+    if (state.host?.isConnected && state.shadow) {
+      return;
+    }
+
+    const stale = document.getElementById(hostId);
+
+    if (stale) {
+      stale.remove();
+    }
+
+    const host = document.createElement("div");
+    host.id = hostId;
+    host.style.cssText = [
+      "position:fixed",
+      "right:18px",
+      "bottom:18px",
+      "z-index:2147483646",
+      "pointer-events:none"
+    ].join(";");
+    const root = host.attachShadow({ mode: "open" });
+
+    (document.body || document.documentElement).appendChild(host);
+    state.host = host;
+    state.shadow = root;
+  }
+
+  function render() {
+    const secondsLeft = Math.max(0, Math.ceil((state.expiresAt - Date.now()) / 1000));
+
+    if (secondsLeft <= 0) {
+      hide();
+      return;
+    }
+
+    ensureHost();
+
+    const severity = secondsLeft <= 60 ? "danger" : "warning";
+    const label = severity === "danger" ? "Under 1 minute left" : "Under 5 minutes left";
+    const domain = state.domain ? `<span class="domain">${escapeHtml(state.domain)}</span>` : "";
+
+    state.shadow.innerHTML = `
+      <style>
+        :host {
+          all: initial;
+          color-scheme: light;
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        *, *::before, *::after {
+          box-sizing: border-box;
+        }
+
+        .warning {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 7px 9px;
+          align-items: center;
+          min-width: 184px;
+          max-width: min(300px, calc(100vw - 32px));
+          border: 1px solid rgba(120, 53, 15, 0.22);
+          border-radius: 12px;
+          background: rgba(254, 243, 199, 0.96);
+          box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+          color: #78350f;
+          padding: 10px 12px;
+          pointer-events: none;
+          -webkit-backdrop-filter: blur(10px);
+          backdrop-filter: blur(10px);
+        }
+
+        .warning.danger {
+          border-color: rgba(127, 29, 29, 0.28);
+          background: rgba(220, 38, 38, 0.96);
+          color: #ffffff;
+        }
+
+        .dot {
+          width: 9px;
+          height: 9px;
+          border-radius: 999px;
+          background: #f59e0b;
+          box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.2);
+        }
+
+        .danger .dot {
+          background: #ffffff;
+          box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.2);
+        }
+
+        .copy {
+          display: grid;
+          gap: 2px;
+          min-width: 0;
+        }
+
+        strong {
+          font-size: 0.82rem;
+          font-weight: 950;
+          letter-spacing: 0;
+          line-height: 1.15;
+        }
+
+        span {
+          font-size: 0.72rem;
+          font-weight: 800;
+          line-height: 1.2;
+        }
+
+        .domain {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          opacity: 0.82;
+        }
+
+        @media (max-width: 520px) {
+          .warning {
+            min-width: 0;
+          }
+        }
+      </style>
+      <section class="warning ${severity}" role="status" aria-live="polite">
+        <span class="dot" aria-hidden="true"></span>
+        <span class="copy">
+          <strong>${label}</strong>
+          <span>${formatRemaining(secondsLeft)} before blocking</span>
+          ${domain}
+        </span>
+      </section>
+    `;
+  }
+
+  function formatRemaining(seconds) {
+    const safeSeconds = Math.max(0, Math.ceil(Number(seconds) || 0));
+
+    if (safeSeconds >= 60) {
+      const minutes = Math.floor(safeSeconds / 60);
+      const remainder = safeSeconds % 60;
+      return `${minutes}m ${String(remainder).padStart(2, "0")}s`;
+    }
+
+    return `${safeSeconds}s`;
+  }
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
 }
 
 async function broadcastBlockStateUpdated(reason = "state") {
