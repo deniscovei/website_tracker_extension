@@ -1886,10 +1886,12 @@ function setFocusTrackerLimitWarning(warning) {
     shadow: existingState.shadow || null,
     timer: existingState.timer || 0,
     expiresAt: existingState.expiresAt || 0,
-    domain: existingState.domain || ""
+    domain: existingState.domain || "",
+    dismissedDomain: existingState.dismissedDomain || "",
+    dismissedSeverity: existingState.dismissedSeverity || ""
   };
 
-  function hide() {
+  function removeHost() {
     if (state.timer) {
       clearInterval(state.timer);
     }
@@ -1901,6 +1903,12 @@ function setFocusTrackerLimitWarning(warning) {
     state.expiresAt = 0;
     state.domain = "";
     globalThis[stateKey] = state;
+  }
+
+  function hide() {
+    state.dismissedDomain = "";
+    state.dismissedSeverity = "";
+    removeHost();
   }
 
   if (!warning || !Number.isFinite(Number(warning.remainingSeconds))) {
@@ -1915,8 +1923,26 @@ function setFocusTrackerLimitWarning(warning) {
     return;
   }
 
+  const nextDomain = String(warning.domain || "").trim();
+  const nextSeverity = remainingSeconds <= 60 ? "danger" : "warning";
+
+  if (state.dismissedDomain && state.dismissedDomain !== nextDomain) {
+    state.dismissedDomain = "";
+    state.dismissedSeverity = "";
+  }
+
+  if (state.dismissedDomain === nextDomain && state.dismissedSeverity === nextSeverity) {
+    removeHost();
+    return;
+  }
+
+  if (nextSeverity === "danger" && state.dismissedSeverity === "warning") {
+    state.dismissedDomain = "";
+    state.dismissedSeverity = "";
+  }
+
   state.expiresAt = Date.now() + remainingSeconds * 1000;
-  state.domain = String(warning.domain || "").trim();
+  state.domain = nextDomain;
 
   ensureHost();
   render();
@@ -1943,9 +1969,11 @@ function setFocusTrackerLimitWarning(warning) {
     host.id = hostId;
     host.style.cssText = [
       "position:fixed",
-      "right:18px",
-      "bottom:18px",
+      "top:22px",
+      "left:50%",
+      "transform:translateX(-50%)",
       "z-index:2147483646",
+      "width:min(420px,calc(100vw - 32px))",
       "pointer-events:none"
     ].join(";");
     const root = host.attachShadow({ mode: "open" });
@@ -1983,18 +2011,17 @@ function setFocusTrackerLimitWarning(warning) {
 
         .warning {
           display: grid;
-          grid-template-columns: auto 1fr;
-          gap: 7px 9px;
+          grid-template-columns: auto 1fr auto;
+          gap: 8px 12px;
           align-items: center;
-          min-width: 184px;
-          max-width: min(300px, calc(100vw - 32px));
+          width: 100%;
           border: 1px solid rgba(120, 53, 15, 0.22);
-          border-radius: 12px;
+          border-radius: 14px;
           background: rgba(254, 243, 199, 0.96);
-          box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+          box-shadow: 0 18px 42px rgba(15, 23, 42, 0.22);
           color: #78350f;
-          padding: 10px 12px;
-          pointer-events: none;
+          padding: 14px 14px 14px 16px;
+          pointer-events: auto;
           -webkit-backdrop-filter: blur(10px);
           backdrop-filter: blur(10px);
         }
@@ -2006,33 +2033,33 @@ function setFocusTrackerLimitWarning(warning) {
         }
 
         .dot {
-          width: 9px;
-          height: 9px;
+          width: 12px;
+          height: 12px;
           border-radius: 999px;
           background: #f59e0b;
-          box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.2);
+          box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.2);
         }
 
         .danger .dot {
           background: #ffffff;
-          box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.2);
+          box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.2);
         }
 
         .copy {
           display: grid;
-          gap: 2px;
+          gap: 3px;
           min-width: 0;
         }
 
         strong {
-          font-size: 0.82rem;
+          font-size: 1rem;
           font-weight: 950;
           letter-spacing: 0;
           line-height: 1.15;
         }
 
         span {
-          font-size: 0.72rem;
+          font-size: 0.82rem;
           font-weight: 800;
           line-height: 1.2;
         }
@@ -2044,9 +2071,45 @@ function setFocusTrackerLimitWarning(warning) {
           opacity: 0.82;
         }
 
+        .close {
+          display: grid;
+          width: 28px;
+          height: 28px;
+          place-items: center;
+          border: 0;
+          border-radius: 999px;
+          background: rgba(120, 53, 15, 0.12);
+          color: currentColor;
+          cursor: pointer;
+          font: inherit;
+          font-size: 1rem;
+          font-weight: 950;
+          line-height: 1;
+          opacity: 0.82;
+          padding: 0;
+        }
+
+        .close:hover {
+          opacity: 1;
+          background: rgba(120, 53, 15, 0.18);
+        }
+
+        .danger .close {
+          background: rgba(255, 255, 255, 0.16);
+        }
+
+        .danger .close:hover {
+          background: rgba(255, 255, 255, 0.24);
+        }
+
         @media (max-width: 520px) {
           .warning {
-            min-width: 0;
+            border-radius: 12px;
+            padding: 12px;
+          }
+
+          strong {
+            font-size: 0.92rem;
           }
         }
       </style>
@@ -2057,8 +2120,15 @@ function setFocusTrackerLimitWarning(warning) {
           <span>${formatRemaining(secondsLeft)} before blocking</span>
           ${domain}
         </span>
+        <button class="close" type="button" aria-label="Dismiss limit warning" title="Dismiss limit warning">&times;</button>
       </section>
     `;
+
+    state.shadow.querySelector(".close")?.addEventListener("click", () => {
+      state.dismissedDomain = state.domain;
+      state.dismissedSeverity = severity;
+      removeHost();
+    });
   }
 
   function formatRemaining(seconds) {
