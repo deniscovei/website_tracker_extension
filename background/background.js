@@ -1534,8 +1534,44 @@ async function enforceActiveTabBlock(state) {
   }
 
   const blockedDomain = blockedSite.domain || blockedSite.domains?.[0] || host;
-  await cleanupStatePreservingBlock(tab.id);
-  await chrome.tabs.update(tab.id, { url: getBlockedPageUrl(blockedDomain, tab.url) });
+  const showedOverlay = await showStatePreservingBlock(tab.id, blockedDomain);
+
+  if (!showedOverlay) {
+    await cleanupStatePreservingBlock(tab.id);
+    await chrome.tabs.update(tab.id, { url: getBlockedPageUrl(blockedDomain, tab.url) });
+  }
+}
+
+async function showStatePreservingBlock(tabId, domain) {
+  try {
+    const status = await getSiteStatus(domain);
+
+    await ensureStatePreservingContentScript(tabId);
+    const response = await chrome.tabs.sendMessage(tabId, {
+      type: "focus-tracker-show-state-blocker",
+      status
+    });
+
+    return Boolean(response?.ok);
+  } catch (_error) {
+    return false;
+  }
+}
+
+async function ensureStatePreservingContentScript(tabId) {
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, { type: "focus-tracker-ping-state-blocker" });
+
+    if (response?.ok) {
+      return;
+    }
+  } catch (_error) {
+  }
+
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["shared/block-panel-ui.js", "content/state-preserving-block.js"]
+  });
 }
 
 async function syncTabVisualEffects(tabId, host) {
