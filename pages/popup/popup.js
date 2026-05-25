@@ -765,7 +765,7 @@ newSite?.addEventListener("click", () => {
     domain: "",
     enabled: true,
     overrideGlobalSettings: false,
-    blockMode: "slots",
+    blockMode: "always",
     exceptions: [],
     dailyAllowanceMinutes: 0,
     limitWarnings: true,
@@ -2812,7 +2812,7 @@ function openEditor(site) {
 }
 
 function getBlockMode() {
-  return blockModeRadios.find((radio) => radio.checked)?.value || "slots";
+  return blockModeRadios.find((radio) => radio.checked)?.value || "always";
 }
 
 function setBlockMode(mode) {

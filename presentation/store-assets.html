@@ -557,6 +557,7 @@
         border-radius: 28px;
         padding: 22px;
         background: #fffdf8;
+        overflow: hidden;
       }
 
       .analytics-head {
@@ -733,8 +734,8 @@
       }
 
       .overview-card {
-        min-height: 62px;
-        padding: 9px 10px;
+        min-height: 56px;
+        padding: 8px 10px;
         border-radius: 14px;
         background: #ffffff;
         border: 1px solid rgba(101, 113, 102, 0.14);
@@ -750,9 +751,9 @@
 
       .overview-card strong {
         display: block;
-        margin-top: 5px;
+        margin-top: 4px;
         color: var(--ink);
-        font-size: 18px;
+        font-size: 17px;
         font-weight: 950;
       }
 
@@ -767,7 +768,7 @@
       .usage-two-col {
         display: grid;
         grid-template-columns: 1.08fr 0.92fr;
-        gap: 14px;
+        gap: 10px;
       }
 
       .week-mini {
@@ -796,12 +797,12 @@
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 10px;
-        margin-bottom: 10px;
+        margin-bottom: 6px;
       }
 
       .week-stats-mock div,
       .total-card {
-        padding: 10px;
+        padding: 8px 10px;
         border-radius: 13px;
         background: #edf6f2;
       }
@@ -818,13 +819,13 @@
       .week-stats-mock strong,
       .total-card strong {
         display: block;
-        margin-top: 5px;
-        font-size: 21px;
+        margin-top: 4px;
+        font-size: 19px;
         font-weight: 950;
       }
 
       .hourly-card {
-        padding: 10px;
+        padding: 8px;
         border-radius: 18px;
         background: #fbfaf5;
         border: 1px solid rgba(101, 113, 102, 0.16);
@@ -835,8 +836,8 @@
         grid-template-columns: repeat(12, 1fr);
         align-items: end;
         gap: 5px;
-        height: 68px;
-        margin-top: 8px;
+        height: 44px;
+        margin-top: 6px;
       }
 
       .hour-bars span {
@@ -847,26 +848,26 @@
 
       .share-mock {
         display: grid;
-        grid-template-columns: 74px 1fr;
-        gap: 11px;
+        grid-template-columns: 54px 1fr;
+        gap: 8px;
         align-items: center;
-        padding: 10px;
+        padding: 7px 8px;
         border-radius: 18px;
         background: #ffffff;
         border: 1px solid rgba(101, 113, 102, 0.16);
       }
 
       .pie-mock {
-        width: 64px;
-        height: 64px;
+        width: 48px;
+        height: 48px;
         border-radius: 50%;
         background: conic-gradient(var(--teal) 0 38%, var(--blue) 38% 62%, var(--coral) 62% 82%, var(--gold) 82% 100%);
-        box-shadow: inset 0 0 0 14px #fffdf8;
+        box-shadow: inset 0 0 0 10px #fffdf8;
       }
 
       .website-list-mock {
         display: grid;
-        gap: 8px;
+        gap: 4px;
       }
 
       .website-usage-row {
@@ -874,7 +875,7 @@
         grid-template-columns: 1fr auto;
         gap: 12px;
         align-items: center;
-        font-size: 12px;
+        font-size: 10px;
         font-weight: 950;
       }
 
@@ -882,20 +883,20 @@
         position: relative;
         display: grid;
         place-items: center;
-        width: 224px;
-        height: 224px;
-        margin: 16px auto;
+        width: 174px;
+        height: 174px;
+        margin: 8px auto 12px;
         border-radius: 50%;
         background:
           radial-gradient(circle at center, #fffdf8 0 46%, transparent 47%),
           conic-gradient(var(--teal) 0 25%, #e7ece4 25% 100%);
-        border: 12px solid #f0f4ec;
+        border: 10px solid #f0f4ec;
         box-shadow: 0 20px 42px rgba(32, 37, 31, 0.12);
       }
 
       .clock-mock strong {
         display: block;
-        font-size: 54px;
+        font-size: 42px;
         font-weight: 950;
         line-height: 1;
         text-align: center;
@@ -904,7 +905,7 @@
       .clock-mock small {
         display: block;
         color: #657166;
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 950;
         text-align: center;
       }
@@ -912,18 +913,18 @@
       .clock-mock span {
         position: absolute;
         color: #657166;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 950;
       }
 
-      .clock-mock .mark-120 { top: 16px; left: 50%; transform: translateX(-50%); }
-      .clock-mock .mark-30 { right: 16px; top: 50%; transform: translateY(-50%); }
-      .clock-mock .mark-60 { bottom: 16px; left: 50%; transform: translateX(-50%); }
-      .clock-mock .mark-90 { left: 16px; top: 50%; transform: translateY(-50%); }
+      .clock-mock .mark-120 { top: 12px; left: 50%; transform: translateX(-50%); }
+      .clock-mock .mark-30 { right: 12px; top: 50%; transform: translateY(-50%); }
+      .clock-mock .mark-60 { bottom: 12px; left: 50%; transform: translateX(-50%); }
+      .clock-mock .mark-90 { left: 12px; top: 50%; transform: translateY(-50%); }
 
       .whitelist-field-mock {
-        margin-top: 13px;
-        padding: 12px;
+        margin-top: 10px;
+        padding: 9px 10px;
         border-radius: 14px;
         background: #fffdf8;
         border: 1px solid rgba(101, 113, 102, 0.18);
@@ -941,19 +942,19 @@
         display: block;
         margin-top: 6px;
         color: var(--ink);
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 900;
       }
 
       .stats-grid-mock {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        margin-top: 14px;
+        gap: 8px;
+        margin-top: 10px;
       }
 
       .stat-card-mock {
-        padding: 12px;
+        padding: 9px 10px;
         border-radius: 14px;
         background: #ffffff;
         border: 1px solid rgba(101, 113, 102, 0.15);
@@ -970,7 +971,7 @@
       .stat-card-mock strong {
         display: block;
         margin-top: 6px;
-        font-size: 20px;
+        font-size: 18px;
         font-weight: 950;
       }
 
@@ -978,8 +979,8 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        min-height: 38px;
-        margin-top: 9px;
+        min-height: 32px;
+        margin-top: 7px;
         padding: 0 12px;
         border-radius: 12px;
         background: #fffdf8;
@@ -997,6 +998,7 @@
         padding: 24px;
         border-radius: 28px;
         background: #fffdf8;
+        overflow: hidden;
       }
 
       .panel {
@@ -1004,6 +1006,11 @@
         background: #f9faf5;
         border: 1px solid rgba(101, 113, 102, 0.16);
         padding: 22px;
+        min-height: 0;
+      }
+
+      .focus-scene .panel {
+        padding: 18px;
       }
 
       .timer {
@@ -1183,8 +1190,8 @@
       .warning-cell:nth-child(9) i { right: 10px; bottom: 10px; }
 
       .filter-preview {
-        height: 284px;
-        margin-top: 20px;
+        height: 226px;
+        margin-top: 16px;
         border-radius: 22px;
         overflow: hidden;
         background:
@@ -1194,14 +1201,14 @@
 
       .filter-preview-inner {
         height: 100%;
-        padding: 26px;
+        padding: 24px;
         color: white;
         background: linear-gradient(90deg, rgba(18, 111, 102, 0.52), rgba(230, 98, 79, 0.42));
       }
 
       .filter-preview-inner strong {
         display: block;
-        font-size: 33px;
+        font-size: 30px;
         font-weight: 950;
         line-height: 1.06;
       }
@@ -1490,10 +1497,10 @@
                   <div><span>Today</span><strong>2h 14m</strong></div>
                   <div><span>Daily average</span><strong>45m</strong></div>
                 </div>
-                <div class="bars" style="height: 84px; margin-top: 8px">
+                <div class="bars" style="height: 70px; margin-top: 6px">
                   <div class="bar" style="height: 58px"><span>Mon</span></div>
                   <div class="bar" style="height: 38px"><span>Tue</span></div>
-                  <div class="bar" style="height: 76px"><span>Wed</span></div>
+                  <div class="bar" style="height: 66px"><span>Wed</span></div>
                   <div class="bar" style="height: 44px"><span>Thu</span></div>
                   <div class="bar" style="height: 64px"><span>Fri</span></div>
                   <div class="bar" style="height: 30px"><span>Sat</span></div>
@@ -1505,9 +1512,9 @@
                 <section class="hourly-card">
                   <div class="week-mini-head"><h3>Hourly usage</h3><span class="badge">9 PM peak</span></div>
                   <div class="hour-bars">
-                    <span style="height: 20px"></span><span style="height: 28px"></span><span style="height: 14px"></span><span style="height: 38px"></span>
-                    <span style="height: 32px"></span><span style="height: 58px"></span><span style="height: 45px"></span><span style="height: 25px"></span>
-                    <span style="height: 50px"></span><span style="height: 66px"></span><span style="height: 31px"></span><span style="height: 18px"></span>
+                    <span style="height: 16px"></span><span style="height: 22px"></span><span style="height: 12px"></span><span style="height: 28px"></span>
+                    <span style="height: 25px"></span><span style="height: 37px"></span><span style="height: 31px"></span><span style="height: 20px"></span>
+                    <span style="height: 34px"></span><span style="height: 42px"></span><span style="height: 24px"></span><span style="height: 15px"></span>
                   </div>
                 </section>
                 <section class="share-mock">
@@ -1538,7 +1545,7 @@
               <div class="mode-option"><strong>Strict</strong><span>Only whitelist stays open.</span></div>
             </div>
             <div class="whitelist-field-mock"><span>Whitelist domains</span><strong>docs.google.com, github.com, notion.so</strong></div>
-            <div class="button" style="margin-top: 14px">Start</div>
+            <div class="button" style="margin-top: 10px; min-height: 42px">Start</div>
           </section>
           <aside class="panel">
             <div class="analytics-head"><h2>Focus statistics</h2><div class="date-chip">Today</div></div>
@@ -1550,17 +1557,17 @@
             </div>
             <section class="week-mini" style="margin-top: 16px">
               <div class="week-mini-head"><h3>Last 7 days</h3><strong>5h 45m</strong></div>
-              <div class="bars" style="height: 96px; margin-top: 4px">
+              <div class="bars" style="height: 62px; margin-top: 2px">
                 <div class="bar" style="height: 44px"><span>Mon</span></div>
-                <div class="bar" style="height: 84px"><span>Tue</span></div>
+                <div class="bar" style="height: 58px"><span>Tue</span></div>
                 <div class="bar" style="height: 38px"><span>Wed</span></div>
-                <div class="bar" style="height: 72px"><span>Thu</span></div>
-                <div class="bar" style="height: 58px"><span>Fri</span></div>
+                <div class="bar" style="height: 54px"><span>Thu</span></div>
+                <div class="bar" style="height: 48px"><span>Fri</span></div>
                 <div class="bar" style="height: 30px"><span>Sat</span></div>
-                <div class="bar" style="height: 64px"><span>Sun</span></div>
+                <div class="bar" style="height: 52px"><span>Sun</span></div>
               </div>
             </section>
-            <section style="margin-top: 28px">
+            <section style="margin-top: 18px">
               <div class="week-mini-head"><h3>Sessions</h3><span class="badge">3</span></div>
               <div class="session-row-mock"><span>Strict focus</span><strong>30m</strong></div>
               <div class="session-row-mock"><span>Standard focus</span><strong>45m</strong></div>
