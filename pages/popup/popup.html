@@ -68,7 +68,7 @@
         </div>
         <section class="settings-panel global-settings-panel" aria-labelledby="global-settings-title">
           <p id="global-settings-status">Website overrides are off.</p>
-          <p class="global-settings-warning">Turning these on overrides individual website settings.</p>
+          <p class="global-settings-warning">Turning these on applies them globally unless a website overrides global settings.</p>
           <label id="block-all-global-row" class="toggle-field">
             <input id="block-all" type="checkbox">
             <span>Block all websites in list</span>
@@ -81,10 +81,44 @@
             <input id="global-extra-time" type="checkbox">
             <span>Allow extra time</span>
           </label>
-          <label id="global-limit-warnings-row" class="toggle-field">
-            <input id="global-limit-warnings" type="checkbox" checked>
-            <span>Show limit warnings</span>
-          </label>
+          <div class="setting-control">
+            <div class="setting-toggle-line">
+              <label id="global-limit-warnings-row" class="toggle-field setting-toggle" title="Show more settings">
+                <input id="global-limit-warnings" type="checkbox" checked>
+                <span>Show limit warnings</span>
+              </label>
+              <button id="global-limit-warnings-expander" class="setting-expander" type="button" aria-label="Hide warning settings" aria-expanded="true" hidden>▴</button>
+            </div>
+            <div id="global-limit-warnings-details" class="setting-details warning-setting-details" hidden>
+              <section class="warning-position-control" aria-labelledby="global-warning-position-title">
+                <strong id="global-warning-position-title">Warning position</strong>
+                <div class="warning-position-grid" role="radiogroup" aria-label="Global warning position">
+                  <label class="warning-position-option" data-position="top-left" title="Upper left"><input type="radio" name="global-limit-warning-position" value="top-left"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                  <label class="warning-position-option" data-position="top-center" title="Upper center"><input type="radio" name="global-limit-warning-position" value="top-center" checked><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                  <label class="warning-position-option" data-position="top-right" title="Upper right"><input type="radio" name="global-limit-warning-position" value="top-right"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                  <label class="warning-position-option" data-position="center-left" title="Middle left"><input type="radio" name="global-limit-warning-position" value="center-left"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                  <label class="warning-position-option" data-position="center" title="Middle"><input type="radio" name="global-limit-warning-position" value="center"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                  <label class="warning-position-option" data-position="center-right" title="Middle right"><input type="radio" name="global-limit-warning-position" value="center-right"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                  <label class="warning-position-option" data-position="bottom-left" title="Lower left"><input type="radio" name="global-limit-warning-position" value="bottom-left"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                  <label class="warning-position-option" data-position="bottom-center" title="Lower center"><input type="radio" name="global-limit-warning-position" value="bottom-center"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                  <label class="warning-position-option" data-position="bottom-right" title="Lower right"><input type="radio" name="global-limit-warning-position" value="bottom-right"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                </div>
+              </section>
+              <section class="warning-auto-dismiss-panel" aria-label="Global auto disappear warning">
+                <label id="global-limit-warning-auto-dismiss-row" class="toggle-field warning-auto-dismiss-toggle">
+                  <input id="global-limit-warning-auto-dismiss" type="checkbox">
+                  <span>
+                    <strong>Auto disappear</strong>
+                    <small>Hide warning popups automatically.</small>
+                  </span>
+                </label>
+                <label id="global-limit-warning-auto-dismiss-seconds-row" class="field warning-seconds-field">
+                  <span>Seconds</span>
+                  <input id="global-limit-warning-auto-dismiss-seconds" type="number" min="1" max="60" step="1" value="3">
+                </label>
+              </section>
+            </div>
+          </div>
           <div class="setting-control">
             <div class="setting-toggle-line">
               <label id="grayscale-global-row" class="toggle-field setting-toggle" title="Show more settings">
@@ -178,6 +212,13 @@
             <span>Website</span>
             <input id="site-domain" type="text" inputmode="url" autocomplete="off" placeholder="instagram.com" required>
           </label>
+          <label id="override-global-settings-row" class="toggle-field global-override-toggle">
+            <input id="override-global-settings" type="checkbox">
+            <span>
+              <strong>Override global settings</strong>
+              <small>Use this website's own blocking, warning, access, and visual settings.</small>
+            </span>
+          </label>
 
           <section class="exceptions-panel" aria-labelledby="exceptions-title">
             <div class="exceptions-heading">
@@ -203,7 +244,7 @@
               </label>
               <button id="block-expander" class="setting-expander" type="button" aria-label="Hide blocking settings" aria-expanded="true" hidden>▴</button>
             </div>
-            <p id="block-global-note" class="field-note" hidden>Global Block all websites in list is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
+            <p id="block-global-note" class="field-note" hidden>Global Block all websites in list is on. This website will follow it unless Override global settings is enabled.</p>
             <div id="block-details" class="setting-details" hidden>
               <div id="block-mode-options" class="mode-options">
                 <label class="mode-option">
@@ -237,20 +278,55 @@
                 <span>Minutes</span>
                 <input id="daily-allowance" type="number" min="0" max="1440" step="1" value="0">
               </label>
-              <label id="limit-warnings-row" class="toggle-field">
-                <input id="limit-warnings-site" type="checkbox" checked>
-                <span>Show limit warnings</span>
-              </label>
+              <div class="setting-control warning-setting-control">
+                <div class="setting-toggle-line">
+                  <label id="limit-warnings-row" class="toggle-field setting-toggle" title="Show more settings">
+                    <input id="limit-warnings-site" type="checkbox" checked>
+                    <span>Show limit warnings</span>
+                  </label>
+                  <button id="limit-warnings-expander" class="setting-expander" type="button" aria-label="Hide warning settings" aria-expanded="true" hidden>▴</button>
+                </div>
+                <div id="limit-warnings-details" class="setting-details warning-setting-details" hidden>
+                  <section class="warning-position-control" aria-labelledby="site-warning-position-title">
+                    <strong id="site-warning-position-title">Warning position</strong>
+                    <div class="warning-position-grid" role="radiogroup" aria-label="Website warning position">
+                      <label class="warning-position-option" data-position="top-left" title="Upper left"><input type="radio" name="limit-warning-position" value="top-left"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                      <label class="warning-position-option" data-position="top-center" title="Upper center"><input type="radio" name="limit-warning-position" value="top-center" checked><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                      <label class="warning-position-option" data-position="top-right" title="Upper right"><input type="radio" name="limit-warning-position" value="top-right"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                      <label class="warning-position-option" data-position="center-left" title="Middle left"><input type="radio" name="limit-warning-position" value="center-left"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                      <label class="warning-position-option" data-position="center" title="Middle"><input type="radio" name="limit-warning-position" value="center"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                      <label class="warning-position-option" data-position="center-right" title="Middle right"><input type="radio" name="limit-warning-position" value="center-right"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                      <label class="warning-position-option" data-position="bottom-left" title="Lower left"><input type="radio" name="limit-warning-position" value="bottom-left"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                      <label class="warning-position-option" data-position="bottom-center" title="Lower center"><input type="radio" name="limit-warning-position" value="bottom-center"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                      <label class="warning-position-option" data-position="bottom-right" title="Lower right"><input type="radio" name="limit-warning-position" value="bottom-right"><span class="warning-position-preview" aria-hidden="true"><i></i></span></label>
+                    </div>
+                  </section>
+                  <section class="warning-auto-dismiss-panel" aria-label="Auto disappear warning">
+                    <label id="limit-warning-auto-dismiss-row" class="toggle-field warning-auto-dismiss-toggle">
+                      <input id="limit-warning-auto-dismiss" type="checkbox">
+                      <span>
+                        <strong>Auto disappear</strong>
+                        <small>Hide this website's warning automatically.</small>
+                      </span>
+                    </label>
+                    <label id="limit-warning-auto-dismiss-seconds-row" class="field warning-seconds-field">
+                      <span>Seconds</span>
+                      <input id="limit-warning-auto-dismiss-seconds" type="number" min="1" max="60" step="1" value="3">
+                    </label>
+                  </section>
+                </div>
+              </div>
+              <p id="limit-warnings-global-note" class="field-note" hidden>Global Show limit warnings is on. This website will follow it unless Override global settings is enabled.</p>
               <label id="require-pin-extra-row" class="toggle-field">
                 <input id="require-pin-extra" type="checkbox">
                 <span>Require PIN before adding time</span>
               </label>
-              <p id="pin-global-note" class="field-note" hidden>Global PIN requirement is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
+              <p id="pin-global-note" class="field-note" hidden>Global PIN requirement is on. This website will follow it unless Override global settings is enabled.</p>
               <label class="toggle-field">
                 <input id="allow-extra-time" type="checkbox">
                 <span>Allow extra time</span>
               </label>
-              <p id="extra-time-global-note" class="field-note" hidden>Global Allow extra time is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
+              <p id="extra-time-global-note" class="field-note" hidden>Global Allow extra time is on. This website will follow it unless Override global settings is enabled.</p>
             </div>
           </section>
 
@@ -287,7 +363,7 @@
                 </div>
                 <div id="grayscale-interval-list" class="interval-list" hidden></div>
               </div>
-              <p id="grayscale-global-note" class="field-note" hidden>Global Grayscale websites is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
+              <p id="grayscale-global-note" class="field-note" hidden>Global Grayscale websites is on. This website will follow it unless Override global settings is enabled.</p>
             </div>
             <div class="setting-control">
               <div class="setting-toggle-line">
@@ -326,7 +402,7 @@
                   <input id="red-light-intensity" type="range" min="0" max="100" step="5" value="55" aria-label="Night light intensity">
                 </label>
               </div>
-              <p id="red-light-global-note" class="field-note" hidden>Global Night light is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.</p>
+              <p id="red-light-global-note" class="field-note" hidden>Global Night light is on. This website will follow it unless Override global settings is enabled.</p>
             </div>
           </section>
           <p id="form-error" class="form-error" aria-live="polite"></p>

@@ -14,15 +14,17 @@ The schedule is saved in Chrome storage from the popup. The extension refreshes 
 ## Edit The Schedule
 
 1. Click the extension icon.
-2. Click **New site** or choose an existing website.
-3. Choose **Always blocked** or **Time slots**.
-4. Use **Add slot** for each blocked interval when time slots are enabled.
-5. Click a slot row to open the clock editor.
-6. Drag or click the clock dials to adjust start and end times, or type the `HH:MM` value directly.
-7. Set **Daily allowance** if the site should be usable for a few minutes while it is blocked.
-8. Turn on extra time if the blocked page should offer buttons to add more minutes.
-9. Optionally enable **Use for all websites** in the popup settings panel to allow extra-time buttons across every website.
-10. Click **Save**.
+2. Click **Add website** or choose an existing website.
+3. Turn on **Block** to enable blocking for that website.
+4. Choose **Always** or **Time slots**.
+5. Use **Add slot** for each blocked interval when time slots are enabled.
+6. Click a slot row to open the clock editor.
+7. Drag or click the clock dials to adjust start and end times, or type the `HH:MM` value directly.
+8. Set **Daily allowance** if the site should be usable for a few minutes while it is blocked.
+9. Turn on extra time if the blocked page should offer buttons to add more minutes.
+10. Optionally enable **Grayscale** and/or **Red light**, and choose **Always** or **Time slots** for each.
+11. Optionally enable the global overrides in **Global Settings** (for example, block all websites in the list).
+12. Click **Save**.
 
 Intervals use browser local time. Overnight intervals work, so a slot from `22:00` to `07:00` blocks through midnight.
 

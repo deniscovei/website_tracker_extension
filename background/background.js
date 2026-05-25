@@ -19,6 +19,8 @@ const MAX_TRACKING_GAP_SECONDS = 2 * 60;
 const MAX_EXTRA_TIME_MINUTES = 240;
 const LIMIT_WARNING_YELLOW_SECONDS = 5 * 60;
 const LIMIT_WARNING_RED_SECONDS = 60;
+const DEFAULT_LIMIT_WARNING_POSITION = "top-center";
+const DEFAULT_LIMIT_WARNING_AUTO_DISMISS_SECONDS = 3;
 const DEFAULT_NIGHT_LIGHT_INTENSITY = 55;
 const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 let extensionPopupOpenCount = 0;
@@ -417,6 +419,15 @@ async function saveSettings(value = {}) {
   const limitWarnings = hasOwn("limitWarnings")
     ? value.limitWarnings !== false
     : current.limitWarnings !== false;
+  const limitWarningPosition = hasOwn("limitWarningPosition")
+    ? normalizeLimitWarningPosition(value.limitWarningPosition)
+    : normalizeLimitWarningPosition(current.limitWarningPosition);
+  const limitWarningAutoDismiss = hasOwn("limitWarningAutoDismiss")
+    ? Boolean(value.limitWarningAutoDismiss)
+    : Boolean(current.limitWarningAutoDismiss);
+  const limitWarningAutoDismissSeconds = hasOwn("limitWarningAutoDismissSeconds")
+    ? normalizeLimitWarningAutoDismissSeconds(value.limitWarningAutoDismissSeconds)
+    : normalizeLimitWarningAutoDismissSeconds(current.limitWarningAutoDismissSeconds);
   const blockAllForAll = hasOwn("blockAllForAll")
     ? Boolean(value.blockAllForAll)
     : Boolean(current.blockAllForAll);
@@ -456,6 +467,9 @@ async function saveSettings(value = {}) {
     requirePinForAllExtraTime,
     allowExtraTimeForAll,
     limitWarnings,
+    limitWarningPosition,
+    limitWarningAutoDismiss,
+    limitWarningAutoDismissSeconds,
     blockAllForAll,
     grayscaleForAll,
     grayscaleApplyToAllWebsites,
@@ -805,6 +819,9 @@ function normalizeSettingsForStorage(value = {}) {
     requirePinForAllExtraTime: Boolean(value.requirePinForAllExtraTime),
     allowExtraTimeForAll: Boolean(value.allowExtraTimeForAll),
     limitWarnings: value.limitWarnings !== false,
+    limitWarningPosition: normalizeLimitWarningPosition(value.limitWarningPosition),
+    limitWarningAutoDismiss: Boolean(value.limitWarningAutoDismiss),
+    limitWarningAutoDismissSeconds: normalizeLimitWarningAutoDismissSeconds(value.limitWarningAutoDismissSeconds),
     blockAllForAll: Boolean(value.blockAllForAll),
     grayscaleForAll: Boolean(value.grayscaleForAll),
     grayscaleApplyToAllWebsites: Boolean(value.grayscaleApplyToAllWebsites),
@@ -825,6 +842,9 @@ function publicSettings(settings) {
     requirePinForAllExtraTime: Boolean(settings.pinHash && settings.requirePinForAllExtraTime),
     allowExtraTimeForAll: Boolean(settings.allowExtraTimeForAll),
     limitWarnings: settings.limitWarnings !== false,
+    limitWarningPosition: normalizeLimitWarningPosition(settings.limitWarningPosition),
+    limitWarningAutoDismiss: Boolean(settings.limitWarningAutoDismiss),
+    limitWarningAutoDismissSeconds: normalizeLimitWarningAutoDismissSeconds(settings.limitWarningAutoDismissSeconds),
     blockAllForAll: Boolean(settings.blockAllForAll),
     grayscaleForAll: Boolean(settings.grayscaleForAll),
     grayscaleApplyToAllWebsites: Boolean(settings.grayscaleApplyToAllWebsites),
@@ -936,7 +956,11 @@ function normalizeSiteForStorage(site) {
     exceptions: normalizeExceptionDomains(site.exceptions ?? site.allowlist ?? site.allowList ?? site.allowedDomains, uniqueDomains),
     intervals: normalizeIntervalsForStorage(site.intervals),
     dailyAllowanceMinutes: normalizeDailyAllowance(site.dailyAllowanceMinutes ?? site.allowanceMinutes),
+    overrideGlobalSettings: Boolean(site.overrideGlobalSettings || site.limitWarningOverrideGlobal),
     limitWarnings: site.limitWarnings !== false,
+    limitWarningPosition: normalizeLimitWarningPosition(site.limitWarningPosition),
+    limitWarningAutoDismiss: Boolean(site.limitWarningAutoDismiss),
+    limitWarningAutoDismissSeconds: normalizeLimitWarningAutoDismissSeconds(site.limitWarningAutoDismissSeconds),
     allowExtraTime: Boolean(site.allowExtraTime),
     grayscale: Boolean(site.grayscale),
     grayscaleMode: normalizeEffectMode(site.grayscaleMode),
@@ -1025,12 +1049,10 @@ function getNormalizedScheduleSites(schedule, settings = {}) {
     : Array.isArray(schedule.websites)
       ? schedule.websites
       : [];
-  const blockAllForAll = Boolean(settings.blockAllForAll);
-
   return sites
     .map((site) => normalizeSite(site))
     .map((site) => applyGlobalBlockOverride(site, settings))
-    .filter((site) => (site.enabled || blockAllForAll) && site.domains.length > 0);
+    .filter((site) => site.enabled && site.domains.length > 0);
 }
 
 function toActiveSite(site, settings = {}) {
@@ -1059,7 +1081,11 @@ function normalizeSite(site) {
     exceptions: normalizeExceptionDomains(site.exceptions ?? site.allowlist ?? site.allowList ?? site.allowedDomains, domains),
     intervals,
     dailyAllowanceMinutes: normalizeDailyAllowance(site.dailyAllowanceMinutes ?? site.allowanceMinutes),
+    overrideGlobalSettings: Boolean(site.overrideGlobalSettings || site.limitWarningOverrideGlobal),
     limitWarnings: site.limitWarnings !== false,
+    limitWarningPosition: normalizeLimitWarningPosition(site.limitWarningPosition),
+    limitWarningAutoDismiss: Boolean(site.limitWarningAutoDismiss),
+    limitWarningAutoDismissSeconds: normalizeLimitWarningAutoDismissSeconds(site.limitWarningAutoDismissSeconds),
     allowExtraTime: Boolean(site.allowExtraTime),
     grayscale: Boolean(site.grayscale),
     grayscaleMode: normalizeEffectMode(site.grayscaleMode),
@@ -1074,7 +1100,7 @@ function normalizeSite(site) {
 }
 
 function applyGlobalBlockOverride(site, settings = {}) {
-  if (!settings?.blockAllForAll) {
+  if (!settings?.blockAllForAll || site?.overrideGlobalSettings) {
     return site;
   }
 
@@ -1194,7 +1220,7 @@ function siteMatchesHost(site, host, { respectExceptions = true } = {}) {
   return !respectExceptions || !hostMatchesException(normalizedHost, site.exceptions);
 }
 
-function shouldBlockSite(site, now, usage, host = "") {
+function shouldBlockSite(site, now, usage, host = "", currentTime = Date.now()) {
   if (!isSiteInBlockedSlot(site, now)) {
     return false;
   }
@@ -1203,7 +1229,7 @@ function shouldBlockSite(site, now, usage, host = "") {
     return false;
   }
 
-  if (hasTemporaryUnblock(site, usage)) {
+  if (hasTemporaryUnblock(site, usage, currentTime)) {
     return false;
   }
 
@@ -1524,6 +1550,7 @@ async function enforceActiveTabBlock(state) {
   }
 
   const host = getHostname(tab.url);
+  const tabReadyForPageInjection = isTabReadyForPageInjection(tab);
 
   if (state.pomodoro?.active && state.pomodoro.mode === "strict") {
     if (!isStrictPomodoroAllowed(host, state.pomodoro)) {
@@ -1531,9 +1558,11 @@ async function enforceActiveTabBlock(state) {
       await cleanupStatePreservingBlock(tab.id);
       await chrome.tabs.update(tab.id, { url: getPomodoroBlockedPageUrl(tab.url) });
     } else {
-      await cleanupStatePreservingBlock(tab.id);
-      await hideTabLimitWarning(tab.id);
-      await syncTabVisualEffects(tab.id, host);
+      if (tabReadyForPageInjection) {
+        await cleanupStatePreservingBlock(tab.id);
+        await hideTabLimitWarning(tab.id);
+        await syncTabVisualEffects(tab.id, host);
+      }
     }
 
     return;
@@ -1545,9 +1574,11 @@ async function enforceActiveTabBlock(state) {
   });
 
   if (!blockedSite) {
-    await cleanupStatePreservingBlock(tab.id);
-    await syncTabVisualEffects(tab.id, host);
-    await syncTabLimitWarning(tab.id, host);
+    if (tabReadyForPageInjection) {
+      await cleanupStatePreservingBlock(tab.id);
+      await syncTabVisualEffects(tab.id, host);
+      await syncTabLimitWarning(tab.id, host);
+    }
     return;
   }
 
@@ -1559,6 +1590,10 @@ async function enforceActiveTabBlock(state) {
     await cleanupStatePreservingBlock(tab.id);
     await chrome.tabs.update(tab.id, { url: getBlockedPageUrl(blockedDomain, tab.url) });
   }
+}
+
+function isTabReadyForPageInjection(tab) {
+  return tab?.status === "complete";
 }
 
 async function showStatePreservingBlock(tabId, domain) {
@@ -1625,11 +1660,12 @@ async function syncTabVisualEffects(tabId, host) {
   }
 
   const site = findSiteForVisualEffects(schedule, normalizedHost);
+  const siteUsesGlobalSettings = !site?.overrideGlobalSettings;
   const grayscaleGlobalApplies = Boolean(
-    settings.grayscaleForAll && (site || settings.grayscaleApplyToAllWebsites)
+    settings.grayscaleForAll && ((site && siteUsesGlobalSettings) || (!site && settings.grayscaleApplyToAllWebsites))
   );
   const redLightGlobalApplies = Boolean(
-    settings.redLightForAll && (site || settings.redLightApplyToAllWebsites)
+    settings.redLightForAll && ((site && siteUsesGlobalSettings) || (!site && settings.redLightApplyToAllWebsites))
   );
 
   if (!site && !grayscaleGlobalApplies && !redLightGlobalApplies) {
@@ -1683,6 +1719,10 @@ async function syncAllTabVisualEffects() {
 
   await Promise.all(tabs.map(async (tab) => {
     if (typeof tab?.id !== "number" || !/^https?:\/\//.test(tab.url || "")) {
+      return;
+    }
+
+    if (!isTabReadyForPageInjection(tab)) {
       return;
     }
 
@@ -1802,6 +1842,10 @@ async function syncAllTabLimitWarnings() {
       return;
     }
 
+    if (!isTabReadyForPageInjection(tab)) {
+      return;
+    }
+
     await syncTabLimitWarning(tab.id, getHostname(tab.url));
   }));
 }
@@ -1820,40 +1864,34 @@ async function getLimitWarningForHost(host) {
     loadPomodoroState()
   ]);
 
-  if (pomodoro.active || settings.limitWarnings === false) {
+  if (pomodoro.active) {
     return null;
   }
 
   const now = getTimeParts(schedule.timezone);
   const site = findSiteForHost(schedule, normalizedHost, settings);
 
-  if (!site || site.limitWarnings === false || !isSiteInBlockedSlot(site, now)) {
+  if (!site || !isLimitWarningAllowed(site, settings) || !isSiteInBlockedSlot(site, now)) {
     return null;
   }
 
-  if (shouldBlockSite(site, now, usage, normalizedHost)) {
+  const currentTime = Date.now();
+
+  if (shouldBlockSite(site, now, usage, normalizedHost, currentTime)) {
     return null;
   }
 
-  const entry = getSiteUsageEntry(usage, site.domain);
-  const extraRemainingSeconds = getExtraRemainingSeconds(entry);
-  const hasExtraTime = extraRemainingSeconds > 0;
+  const remainingSeconds = getRemainingSeconds(site, usage, currentTime);
 
-  if (!hasExtraTime && normalizeDailyAllowance(site.dailyAllowanceMinutes) <= 0) {
-    return null;
-  }
-
-  const remainingSeconds = Math.ceil(hasExtraTime
-    ? extraRemainingSeconds
-    : getAllowanceRemainingSeconds(site, usage));
-
-  if (remainingSeconds <= 0 || remainingSeconds > LIMIT_WARNING_YELLOW_SECONDS) {
+  if (remainingSeconds <= 0) {
     return null;
   }
 
   return {
     domain: site.domain,
     remainingSeconds,
+    position: getEffectiveLimitWarningPosition(site, settings),
+    autoDismissSeconds: getEffectiveLimitWarningAutoDismissSeconds(site, settings),
     severity: remainingSeconds <= LIMIT_WARNING_RED_SECONDS ? "danger" : "warning"
   };
 }
@@ -1880,28 +1918,45 @@ async function setTabLimitWarning(tabId, warning) {
 function setFocusTrackerLimitWarning(warning) {
   const hostId = "focus-tracker-limit-warning";
   const stateKey = "__focusTrackerLimitWarningState";
+  const yellowThresholdSeconds = 5 * 60;
+  const redThresholdSeconds = 60;
   const existingState = globalThis[stateKey] || {};
   const state = {
     host: existingState.host || null,
     shadow: existingState.shadow || null,
     timer: existingState.timer || 0,
+    autoTimer: existingState.autoTimer || 0,
+    showTimer: existingState.showTimer || 0,
     expiresAt: existingState.expiresAt || 0,
     domain: existingState.domain || "",
+    position: existingState.position || "top-center",
+    autoDismissSeconds: existingState.autoDismissSeconds || 0,
     dismissedDomain: existingState.dismissedDomain || "",
     dismissedSeverity: existingState.dismissedSeverity || ""
   };
 
-  function removeHost() {
-    if (state.timer) {
-      clearInterval(state.timer);
+  function clearTimer(name, clearFn) {
+    if (state[name]) {
+      clearFn(state[name]);
+      state[name] = 0;
     }
+  }
 
-    state.timer = 0;
+  function removeHost({ resetWarning = true } = {}) {
+    clearTimer("timer", clearInterval);
+    clearTimer("autoTimer", clearTimeout);
+
     state.host?.remove();
     state.host = null;
     state.shadow = null;
-    state.expiresAt = 0;
-    state.domain = "";
+
+    if (resetWarning) {
+      clearTimer("showTimer", clearTimeout);
+      state.expiresAt = 0;
+      state.domain = "";
+      state.autoDismissSeconds = 0;
+    }
+
     globalThis[stateKey] = state;
   }
 
@@ -1911,12 +1966,29 @@ function setFocusTrackerLimitWarning(warning) {
     removeHost();
   }
 
+  function removeVisibleWarning() {
+    if (state.timer) {
+      clearInterval(state.timer);
+    }
+
+    if (state.autoTimer) {
+      clearTimeout(state.autoTimer);
+    }
+
+    state.timer = 0;
+    state.autoTimer = 0;
+    state.host?.remove();
+    state.host = null;
+    state.shadow = null;
+    globalThis[stateKey] = state;
+  }
+
   if (!warning || !Number.isFinite(Number(warning.remainingSeconds))) {
     hide();
     return;
   }
 
-  const remainingSeconds = Math.max(0, Math.ceil(Number(warning.remainingSeconds)));
+  const remainingSeconds = Math.max(0, Number(warning.remainingSeconds));
 
   if (remainingSeconds <= 0) {
     hide();
@@ -1924,15 +1996,38 @@ function setFocusTrackerLimitWarning(warning) {
   }
 
   const nextDomain = String(warning.domain || "").trim();
-  const nextSeverity = remainingSeconds <= 60 ? "danger" : "warning";
+  const nextPosition = normalizePosition(warning.position);
+  const autoDismissSeconds = Math.max(0, Math.min(60, Math.round(Number(warning.autoDismissSeconds) || 0)));
 
   if (state.dismissedDomain && state.dismissedDomain !== nextDomain) {
     state.dismissedDomain = "";
     state.dismissedSeverity = "";
   }
 
+  state.expiresAt = Date.now() + remainingSeconds * 1000;
+  state.domain = nextDomain;
+  state.position = nextPosition;
+  state.autoDismissSeconds = autoDismissSeconds;
+
+  const nextShowAtSeconds = getNextShowAtSeconds(remainingSeconds);
+
+  if (nextShowAtSeconds <= 0) {
+    removeHost({ resetWarning: false });
+    return;
+  }
+
+  const nextSeverity = getSeverity(nextShowAtSeconds);
+
   if (state.dismissedDomain === nextDomain && state.dismissedSeverity === nextSeverity) {
-    removeHost();
+    removeHost({ resetWarning: false });
+    return;
+  }
+
+  const showDelayMs = Math.max(0, (remainingSeconds - nextShowAtSeconds) * 1000);
+
+  if (showDelayMs > 0) {
+    scheduleWarning(showDelayMs);
+    globalThis[stateKey] = state;
     return;
   }
 
@@ -1941,21 +2036,49 @@ function setFocusTrackerLimitWarning(warning) {
     state.dismissedSeverity = "";
   }
 
-  state.expiresAt = Date.now() + remainingSeconds * 1000;
-  state.domain = nextDomain;
+  showWarning();
 
-  ensureHost();
-  render();
+  globalThis[stateKey] = state;
 
-  if (state.timer) {
-    clearInterval(state.timer);
+  function scheduleWarning(delayMs) {
+    removeVisibleWarning();
+    clearTimer("showTimer", clearTimeout);
+
+    state.showTimer = setTimeout(() => {
+      state.showTimer = 0;
+
+      if (document.visibilityState === "hidden") {
+        globalThis[stateKey] = state;
+        return;
+      }
+
+      showWarning();
+    }, delayMs);
   }
 
-  state.timer = setInterval(render, 1000);
-  globalThis[stateKey] = state;
+  function showWarning() {
+    clearTimer("showTimer", clearTimeout);
+    ensureHost();
+    render();
+    clearTimer("timer", clearInterval);
+    state.timer = setInterval(render, 1000);
+    scheduleAutoDismiss();
+    globalThis[stateKey] = state;
+  }
+
+  function scheduleAutoDismiss() {
+    clearTimer("autoTimer", clearTimeout);
+
+    if (state.autoDismissSeconds > 0) {
+      state.autoTimer = setTimeout(() => {
+        dismissCurrentWarning();
+      }, state.autoDismissSeconds * 1000);
+    }
+  }
 
   function ensureHost() {
     if (state.host?.isConnected && state.shadow) {
+      applyHostPosition();
       return;
     }
 
@@ -1967,20 +2090,56 @@ function setFocusTrackerLimitWarning(warning) {
 
     const host = document.createElement("div");
     host.id = hostId;
-    host.style.cssText = [
-      "position:fixed",
-      "top:22px",
-      "left:50%",
-      "transform:translateX(-50%)",
-      "z-index:2147483646",
-      "width:min(420px,calc(100vw - 32px))",
-      "pointer-events:none"
-    ].join(";");
     const root = host.attachShadow({ mode: "open" });
 
     (document.body || document.documentElement).appendChild(host);
     state.host = host;
     state.shadow = root;
+    applyHostPosition();
+  }
+
+  function applyHostPosition() {
+    if (!state.host) {
+      return;
+    }
+
+    state.host.style.cssText = getHostStyle(state.position);
+  }
+
+  function getHostStyle(position) {
+    const edge = "22px";
+    const styles = [
+      "position:fixed",
+      "z-index:2147483646",
+      "width:min(420px,calc(100vw - 32px))",
+      "pointer-events:none"
+    ];
+
+    if (position.startsWith("top")) {
+      styles.push(`top:${edge}`);
+    } else if (position.startsWith("bottom")) {
+      styles.push(`bottom:${edge}`);
+    } else {
+      styles.push("top:50%");
+    }
+
+    if (position.endsWith("left")) {
+      styles.push(`left:${edge}`);
+    } else if (position.endsWith("right")) {
+      styles.push(`right:${edge}`);
+    } else {
+      styles.push("left:50%");
+    }
+
+    if (position === "center") {
+      styles.push("transform:translate(-50%,-50%)");
+    } else if (position.startsWith("center")) {
+      styles.push("transform:translateY(-50%)");
+    } else if (position.endsWith("center")) {
+      styles.push("transform:translateX(-50%)");
+    }
+
+    return styles.join(";");
   }
 
   function render() {
@@ -1993,9 +2152,37 @@ function setFocusTrackerLimitWarning(warning) {
 
     ensureHost();
 
-    const severity = secondsLeft <= 60 ? "danger" : "warning";
+    const severity = getSeverity(secondsLeft);
     const label = severity === "danger" ? "Under 1 minute left" : "Under 5 minutes left";
-    const domain = state.domain ? `<span class="domain">${escapeHtml(state.domain)}</span>` : "";
+    ensureWarningShell();
+
+    const warningElement = state.shadow.querySelector(".warning");
+    const titleElement = state.shadow.querySelector("[data-warning-title]");
+    const remainingElement = state.shadow.querySelector("[data-warning-remaining]");
+    const domainElement = state.shadow.querySelector("[data-warning-domain]");
+
+    if (warningElement) {
+      warningElement.className = severity === "danger" ? "warning danger" : "warning";
+    }
+
+    if (titleElement) {
+      titleElement.textContent = label;
+    }
+
+    if (remainingElement) {
+      remainingElement.textContent = `${formatRemaining(secondsLeft)} before blocking`;
+    }
+
+    if (domainElement) {
+      domainElement.textContent = state.domain;
+      domainElement.hidden = !state.domain;
+    }
+  }
+
+  function ensureWarningShell() {
+    if (!state.shadow || state.shadow.querySelector(".warning")) {
+      return;
+    }
 
     state.shadow.innerHTML = `
       <style>
@@ -2113,22 +2300,94 @@ function setFocusTrackerLimitWarning(warning) {
           }
         }
       </style>
-      <section class="warning ${severity}" role="status" aria-live="polite">
+      <section class="warning" role="status" aria-live="polite">
         <span class="dot" aria-hidden="true"></span>
         <span class="copy">
-          <strong>${label}</strong>
-          <span>${formatRemaining(secondsLeft)} before blocking</span>
-          ${domain}
+          <strong data-warning-title></strong>
+          <span data-warning-remaining></span>
+          <span class="domain" data-warning-domain hidden></span>
         </span>
         <button class="close" type="button" aria-label="Dismiss limit warning" title="Dismiss limit warning">&times;</button>
       </section>
     `;
 
-    state.shadow.querySelector(".close")?.addEventListener("click", () => {
-      state.dismissedDomain = state.domain;
-      state.dismissedSeverity = severity;
-      removeHost();
-    });
+    const closeButton = state.shadow.querySelector(".close");
+    let closeHandled = false;
+    const handleClose = (event) => {
+      if (event.type === "pointerdown" && event.button !== 0) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (closeHandled) {
+        return;
+      }
+
+      closeHandled = true;
+      dismissCurrentWarning();
+    };
+
+    closeButton?.addEventListener("pointerdown", handleClose);
+    closeButton?.addEventListener("click", handleClose);
+  }
+
+  function dismissCurrentWarning() {
+    const secondsLeft = Math.max(0, (state.expiresAt - Date.now()) / 1000);
+
+    state.dismissedDomain = state.domain;
+    state.dismissedSeverity = getSeverity(secondsLeft);
+    removeVisibleWarning();
+
+    const nextShowAtSeconds = getNextShowAtSeconds(secondsLeft);
+
+    if (nextShowAtSeconds > 0) {
+      const delayMs = Math.max(0, (secondsLeft - nextShowAtSeconds) * 1000);
+
+      if (delayMs > 0) {
+        scheduleWarning(delayMs);
+      } else {
+        showWarning();
+      }
+    }
+  }
+
+  function getNextShowAtSeconds(secondsLeft) {
+    if (secondsLeft > yellowThresholdSeconds) {
+      return yellowThresholdSeconds;
+    }
+
+    if (secondsLeft > redThresholdSeconds) {
+      return state.dismissedDomain === nextDomain && state.dismissedSeverity === "warning"
+        ? redThresholdSeconds
+        : secondsLeft;
+    }
+
+    return state.dismissedDomain === nextDomain && state.dismissedSeverity === "danger"
+      ? 0
+      : secondsLeft;
+  }
+
+  function getSeverity(secondsLeft) {
+    return secondsLeft <= redThresholdSeconds ? "danger" : "warning";
+  }
+
+  function normalizePosition(value) {
+    const position = String(value || "").trim();
+    const allowed = new Set([
+      "top-left",
+      "top-center",
+      "top-right",
+      "center-left",
+      "center",
+      "center-right",
+      "bottom-left",
+      "bottom-center",
+      "bottom-right"
+    ]);
+
+    return allowed.has(position) ? position : "top-center";
   }
 
   function formatRemaining(seconds) {
@@ -2143,14 +2402,6 @@ function setFocusTrackerLimitWarning(warning) {
     return `${safeSeconds}s`;
   }
 
-  function escapeHtml(value) {
-    return String(value || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-  }
 }
 
 async function broadcastBlockStateUpdated(reason = "state") {
@@ -2258,12 +2509,10 @@ function findSiteForHost(schedule, host, settings = {}) {
   }
 
   const sites = Array.isArray(schedule.sites) ? schedule.sites : [];
-  const blockAllForAll = Boolean(settings?.blockAllForAll);
-
   return sites
     .map((site) => normalizeSite(site))
     .map((site) => applyGlobalBlockOverride(site, settings))
-    .find((site) => (site.enabled || blockAllForAll) && siteMatchesHost(site, host)) || null;
+    .find((site) => site.enabled && siteMatchesHost(site, host)) || null;
 }
 
 function findSiteForVisualEffects(schedule, host) {
@@ -2672,12 +2921,10 @@ function getExtraRemainingSeconds(entry, now = Date.now()) {
 
 function getSiteUsageStates(schedule, now, usage, settings, pomodoro = normalizePomodoroState()) {
   const sites = Array.isArray(schedule.sites) ? schedule.sites : [];
-  const blockAllForAll = Boolean(settings?.blockAllForAll);
-
   return sites
     .map((site) => normalizeSite(site))
     .map((site) => applyGlobalBlockOverride(site, settings))
-    .filter((site) => (site.enabled || blockAllForAll) && site.domain)
+    .filter((site) => site.enabled && site.domain)
     .map((site) => buildSiteUsageState(site, now, usage, settings, pomodoro));
 }
 
@@ -2710,11 +2957,75 @@ function isPomodoroBlockingSite(site, pomodoro = normalizePomodoroState()) {
 }
 
 function isExtraTimePinRequired(site, settings = {}) {
+  if (site?.overrideGlobalSettings) {
+    return Boolean(settings.pinHash && site.requirePinForExtraTime);
+  }
+
   return Boolean(settings.pinHash && (settings.requirePinForAllExtraTime || site.requirePinForExtraTime));
 }
 
 function isExtraTimeAllowed(site, settings = {}) {
+  if (site?.overrideGlobalSettings) {
+    return Boolean(site.allowExtraTime);
+  }
+
   return Boolean(settings.allowExtraTimeForAll || site.allowExtraTime);
+}
+
+function isLimitWarningAllowed(site, settings = {}) {
+  if (site?.overrideGlobalSettings) {
+    return site.limitWarnings !== false;
+  }
+
+  return Boolean(settings.limitWarnings !== false || site.limitWarnings !== false);
+}
+
+function getEffectiveLimitWarningPosition(site, settings = {}) {
+  return settings.limitWarnings !== false && !site?.overrideGlobalSettings
+    ? normalizeLimitWarningPosition(settings.limitWarningPosition)
+    : normalizeLimitWarningPosition(site?.limitWarningPosition);
+}
+
+function getEffectiveLimitWarningAutoDismissSeconds(site, settings = {}) {
+  const useGlobal = settings.limitWarnings !== false && !site?.overrideGlobalSettings;
+  const autoDismissEnabled = useGlobal
+    ? Boolean(settings.limitWarningAutoDismiss)
+    : Boolean(site?.limitWarningAutoDismiss);
+
+  if (!autoDismissEnabled) {
+    return 0;
+  }
+
+  return useGlobal
+    ? normalizeLimitWarningAutoDismissSeconds(settings.limitWarningAutoDismissSeconds)
+    : normalizeLimitWarningAutoDismissSeconds(site?.limitWarningAutoDismissSeconds);
+}
+
+function normalizeLimitWarningPosition(value) {
+  const position = String(value || "").trim();
+  const allowed = new Set([
+    "top-left",
+    "top-center",
+    "top-right",
+    "center-left",
+    "center",
+    "center-right",
+    "bottom-left",
+    "bottom-center",
+    "bottom-right"
+  ]);
+
+  return allowed.has(position) ? position : DEFAULT_LIMIT_WARNING_POSITION;
+}
+
+function normalizeLimitWarningAutoDismissSeconds(value) {
+  const seconds = Number(value);
+
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return DEFAULT_LIMIT_WARNING_AUTO_DISMISS_SECONDS;
+  }
+
+  return Math.max(1, Math.min(60, Math.round(seconds)));
 }
 
 function getTimeParts(timezone = "local") {

@@ -20,8 +20,21 @@ const DEFAULT_INTERVAL = {
   start: "09:00",
   end: "17:00"
 };
+const DEFAULT_LIMIT_WARNING_POSITION = "top-center";
+const DEFAULT_LIMIT_WARNING_AUTO_DISMISS_SECONDS = 3;
 const DEFAULT_NIGHT_LIGHT_INTENSITY = 55;
 const MAX_WHITELIST_AUTO_ROWS = 5;
+const LIMIT_WARNING_POSITIONS = [
+  "top-left",
+  "top-center",
+  "top-right",
+  "center-left",
+  "center",
+  "center-right",
+  "bottom-left",
+  "bottom-center",
+  "bottom-right"
+];
 
 const summary = document.getElementById("summary");
 const activeSites = document.getElementById("active-sites");
@@ -39,6 +52,7 @@ const siteList = document.getElementById("site-list");
 const newSite = document.getElementById("new-site");
 const siteForm = document.getElementById("site-form");
 const siteDomain = document.getElementById("site-domain");
+const overrideGlobalSettings = document.getElementById("override-global-settings");
 const exceptionInput = document.getElementById("exception-input");
 const addException = document.getElementById("add-exception");
 const exceptionWarning = document.getElementById("exception-warning");
@@ -51,6 +65,11 @@ const blockModeOptions = document.getElementById("block-mode-options");
 const blockGlobalNote = document.getElementById("block-global-note");
 const dailyAllowance = document.getElementById("daily-allowance");
 const limitWarningsSite = document.getElementById("limit-warnings-site");
+const limitWarningsDetails = document.getElementById("limit-warnings-details");
+const limitWarningsExpander = document.getElementById("limit-warnings-expander");
+const limitWarningPositionRadios = Array.from(document.querySelectorAll('input[name="limit-warning-position"]'));
+const limitWarningAutoDismiss = document.getElementById("limit-warning-auto-dismiss");
+const limitWarningAutoDismissSeconds = document.getElementById("limit-warning-auto-dismiss-seconds");
 const allowExtraTime = document.getElementById("allow-extra-time");
 const grayscaleSite = document.getElementById("grayscale-site");
 const grayscaleDetails = document.getElementById("grayscale-details");
@@ -86,6 +105,11 @@ const globalExtraTime = document.getElementById("global-extra-time");
 const globalExtraTimeRow = document.getElementById("extra-time-global-row");
 const globalLimitWarnings = document.getElementById("global-limit-warnings");
 const globalLimitWarningsRow = document.getElementById("global-limit-warnings-row");
+const globalLimitWarningsDetails = document.getElementById("global-limit-warnings-details");
+const globalLimitWarningsExpander = document.getElementById("global-limit-warnings-expander");
+const globalLimitWarningPositionRadios = Array.from(document.querySelectorAll('input[name="global-limit-warning-position"]'));
+const globalLimitWarningAutoDismiss = document.getElementById("global-limit-warning-auto-dismiss");
+const globalLimitWarningAutoDismissSeconds = document.getElementById("global-limit-warning-auto-dismiss-seconds");
 const globalGrayscale = document.getElementById("global-grayscale");
 const globalGrayscaleDetails = document.getElementById("global-grayscale-details");
 const globalGrayscaleExpander = document.getElementById("global-grayscale-expander");
@@ -111,6 +135,7 @@ const globalRedLightIntervalList = document.getElementById("global-red-light-int
 const addGlobalRedLightInterval = document.getElementById("add-global-red-light-interval");
 const globalSettingsStatus = document.getElementById("global-settings-status");
 const extraTimeGlobalNote = document.getElementById("extra-time-global-note");
+const limitWarningsGlobalNote = document.getElementById("limit-warnings-global-note");
 const pinGlobalNote = document.getElementById("pin-global-note");
 const grayscaleGlobalNote = document.getElementById("grayscale-global-note");
 const redLightGlobalNote = document.getElementById("red-light-global-note");
@@ -243,6 +268,9 @@ let settings = {
   requirePinForAllExtraTime: false,
   allowExtraTimeForAll: false,
   limitWarnings: true,
+  limitWarningPosition: DEFAULT_LIMIT_WARNING_POSITION,
+  limitWarningAutoDismiss: false,
+  limitWarningAutoDismissSeconds: DEFAULT_LIMIT_WARNING_AUTO_DISMISS_SECONDS,
   grayscaleForAll: false,
   grayscaleApplyToAllWebsites: false,
   grayscaleForAllMode: "always",
@@ -289,8 +317,10 @@ let extraTimeTickTimer = 0;
 let pomodoroMutationStartedAt = 0;
 let pomodoroStatsVisible = false;
 let blockDetailsExpanded = false;
+let limitWarningsDetailsExpanded = false;
 let grayscaleDetailsExpanded = false;
 let redLightDetailsExpanded = false;
+let globalLimitWarningsDetailsExpanded = false;
 let globalGrayscaleDetailsExpanded = false;
 let globalRedLightDetailsExpanded = false;
 let selectedPomodoroStatsDay = dateToDayKey(new Date());
@@ -379,6 +409,33 @@ globalExtraTime?.addEventListener("change", () => {
 });
 
 globalLimitWarnings?.addEventListener("change", () => {
+  if (globalLimitWarnings.checked) {
+    globalLimitWarningsDetailsExpanded = true;
+  }
+  syncGlobalLimitWarningMenu();
+  void saveGlobalSettingsToggle();
+});
+
+globalLimitWarningPositionRadios.forEach((radio) => {
+  radio.addEventListener("change", () => {
+    syncWarningPositionRadios(globalLimitWarningPositionRadios);
+    void saveGlobalSettingsToggle();
+  });
+});
+
+globalLimitWarningAutoDismiss?.addEventListener("change", () => {
+  void saveGlobalSettingsToggle();
+});
+
+globalLimitWarningAutoDismissSeconds?.addEventListener("input", () => {
+  void saveGlobalSettingsToggle();
+});
+
+globalLimitWarningAutoDismissSeconds?.addEventListener("change", () => {
+  setLimitWarningAutoDismissSecondsControl(
+    globalLimitWarningAutoDismissSeconds,
+    getLimitWarningAutoDismissSeconds(globalLimitWarningAutoDismissSeconds)
+  );
   void saveGlobalSettingsToggle();
 });
 
@@ -469,6 +526,15 @@ siteDomain?.addEventListener("input", () => {
   queueEditorAutosave();
 });
 
+overrideGlobalSettings?.addEventListener("change", () => {
+  clearFormError();
+  syncEditorGlobalOverrideView();
+  syncSiteVisualEffectMenus();
+  syncBlockingModeView();
+  renderSiteList();
+  queueEditorAutosave({ immediate: true });
+});
+
 exceptionInput?.addEventListener("input", () => {
   clearFormError();
   clearExceptionWarning();
@@ -510,6 +576,38 @@ dailyAllowance?.addEventListener("input", () => {
 });
 
 limitWarningsSite?.addEventListener("change", () => {
+  if (limitWarningsSite.checked) {
+    limitWarningsDetailsExpanded = true;
+  }
+  syncSiteLimitWarningMenu();
+  clearFormError();
+  queueEditorAutosave({ immediate: true });
+});
+
+limitWarningPositionRadios.forEach((radio) => {
+  radio.addEventListener("change", () => {
+    syncWarningPositionRadios(limitWarningPositionRadios);
+    clearFormError();
+    queueEditorAutosave({ immediate: true });
+  });
+});
+
+limitWarningAutoDismiss?.addEventListener("change", () => {
+  syncSiteLimitWarningMenu();
+  clearFormError();
+  queueEditorAutosave({ immediate: true });
+});
+
+limitWarningAutoDismissSeconds?.addEventListener("input", () => {
+  clearFormError();
+  queueEditorAutosave();
+});
+
+limitWarningAutoDismissSeconds?.addEventListener("change", () => {
+  setLimitWarningAutoDismissSecondsControl(
+    limitWarningAutoDismissSeconds,
+    getLimitWarningAutoDismissSeconds(limitWarningAutoDismissSeconds)
+  );
   clearFormError();
   queueEditorAutosave({ immediate: true });
 });
@@ -666,9 +764,14 @@ newSite?.addEventListener("click", () => {
   openEditor({
     domain: "",
     enabled: true,
+    overrideGlobalSettings: false,
     blockMode: "slots",
     exceptions: [],
     dailyAllowanceMinutes: 0,
+    limitWarnings: true,
+    limitWarningPosition: DEFAULT_LIMIT_WARNING_POSITION,
+    limitWarningAutoDismiss: false,
+    limitWarningAutoDismissSeconds: DEFAULT_LIMIT_WARNING_AUTO_DISMISS_SECONDS,
     allowExtraTime: false,
     grayscale: false,
     grayscaleMode: "always",
@@ -762,6 +865,11 @@ blockExpander?.addEventListener("click", () => {
   syncBlockingModeView();
 });
 
+limitWarningsExpander?.addEventListener("click", () => {
+  limitWarningsDetailsExpanded = !limitWarningsDetailsExpanded;
+  syncSiteLimitWarningMenu();
+});
+
 grayscaleExpander?.addEventListener("click", () => {
   grayscaleDetailsExpanded = !grayscaleDetailsExpanded;
   syncSiteVisualEffectMenus();
@@ -775,6 +883,11 @@ redLightExpander?.addEventListener("click", () => {
 globalGrayscaleExpander?.addEventListener("click", () => {
   globalGrayscaleDetailsExpanded = !globalGrayscaleDetailsExpanded;
   syncGlobalVisualEffectMenus();
+});
+
+globalLimitWarningsExpander?.addEventListener("click", () => {
+  globalLimitWarningsDetailsExpanded = !globalLimitWarningsDetailsExpanded;
+  syncGlobalLimitWarningMenu();
 });
 
 globalRedLightExpander?.addEventListener("click", () => {
@@ -871,6 +984,15 @@ async function saveGlobalSettingsToggle() {
   const nextAllowExtraTime = Boolean(globalExtraTime.checked);
   const nextBlockAll = Boolean(blockAll?.checked);
   const nextLimitWarnings = globalLimitWarnings ? Boolean(globalLimitWarnings.checked) : previousSettings.limitWarnings !== false;
+  const nextLimitWarningPosition = getLimitWarningPositionFromRadios(
+    globalLimitWarningPositionRadios,
+    previousSettings.limitWarningPosition
+  );
+  const nextLimitWarningAutoDismiss = Boolean(globalLimitWarningAutoDismiss?.checked);
+  const nextLimitWarningAutoDismissSeconds = getLimitWarningAutoDismissSeconds(
+    globalLimitWarningAutoDismissSeconds,
+    previousSettings.limitWarningAutoDismissSeconds
+  );
   const nextGrayscale = Boolean(globalGrayscale.checked);
   const nextGrayscaleApplyToAllWebsites = Boolean(globalGrayscaleAllWebsites?.checked);
   const nextGrayscaleMode = getModeFromRadios(globalGrayscaleModeRadios, previousSettings.grayscaleForAllMode);
@@ -907,6 +1029,9 @@ async function saveGlobalSettingsToggle() {
     requirePinForAllExtraTime: nextRequirePin,
     allowExtraTimeForAll: nextAllowExtraTime,
     limitWarnings: nextLimitWarnings,
+    limitWarningPosition: nextLimitWarningPosition,
+    limitWarningAutoDismiss: nextLimitWarningAutoDismiss,
+    limitWarningAutoDismissSeconds: nextLimitWarningAutoDismissSeconds,
     grayscaleForAll: nextGrayscale,
     grayscaleApplyToAllWebsites: nextGrayscaleApplyToAllWebsites,
     grayscaleForAllMode: nextGrayscaleMode,
@@ -928,6 +1053,11 @@ async function saveGlobalSettingsToggle() {
   if (globalLimitWarnings) {
     globalLimitWarnings.checked = nextLimitWarnings;
   }
+  setLimitWarningPositionRadios(globalLimitWarningPositionRadios, nextLimitWarningPosition);
+  if (globalLimitWarningAutoDismiss) {
+    globalLimitWarningAutoDismiss.checked = nextLimitWarningAutoDismiss;
+  }
+  setLimitWarningAutoDismissSecondsControl(globalLimitWarningAutoDismissSeconds, nextLimitWarningAutoDismissSeconds);
   globalGrayscale.checked = nextGrayscale;
   if (globalGrayscaleAllWebsites) {
     globalGrayscaleAllWebsites.checked = nextGrayscaleApplyToAllWebsites;
@@ -956,6 +1086,9 @@ async function saveGlobalSettingsToggle() {
         requirePinForAllExtraTime: nextRequirePin,
         allowExtraTimeForAll: nextAllowExtraTime,
         limitWarnings: nextLimitWarnings,
+        limitWarningPosition: nextLimitWarningPosition,
+        limitWarningAutoDismiss: nextLimitWarningAutoDismiss,
+        limitWarningAutoDismissSeconds: nextLimitWarningAutoDismissSeconds,
         grayscaleForAll: nextGrayscale,
         grayscaleApplyToAllWebsites: nextGrayscaleApplyToAllWebsites,
         grayscaleForAllMode: nextGrayscaleMode,
@@ -1008,6 +1141,11 @@ async function saveGlobalSettingsToggle() {
     if (globalLimitWarnings) {
       globalLimitWarnings.checked = previousSettings.limitWarnings !== false;
     }
+    setLimitWarningPositionRadios(globalLimitWarningPositionRadios, previousSettings.limitWarningPosition);
+    if (globalLimitWarningAutoDismiss) {
+      globalLimitWarningAutoDismiss.checked = Boolean(previousSettings.limitWarningAutoDismiss);
+    }
+    setLimitWarningAutoDismissSecondsControl(globalLimitWarningAutoDismissSeconds, previousSettings.limitWarningAutoDismissSeconds);
     globalGrayscale.checked = Boolean(previousSettings.grayscaleForAll);
     if (globalGrayscaleAllWebsites) {
       globalGrayscaleAllWebsites.checked = Boolean(previousSettings.grayscaleApplyToAllWebsites);
@@ -1070,6 +1208,12 @@ async function persistPinSettings({
   if (globalLimitWarnings) {
     globalLimitWarnings.disabled = true;
   }
+  if (globalLimitWarningAutoDismiss) {
+    globalLimitWarningAutoDismiss.disabled = true;
+  }
+  if (globalLimitWarningAutoDismissSeconds) {
+    globalLimitWarningAutoDismissSeconds.disabled = true;
+  }
   if (globalGrayscale) {
     globalGrayscale.disabled = true;
   }
@@ -1106,6 +1250,9 @@ async function persistPinSettings({
         blockAllForAll: Boolean(blockAll?.checked),
         allowExtraTimeForAll: Boolean(globalExtraTime?.checked),
         limitWarnings: globalLimitWarnings ? Boolean(globalLimitWarnings.checked) : settings.limitWarnings !== false,
+        limitWarningPosition: getLimitWarningPositionFromRadios(globalLimitWarningPositionRadios, settings.limitWarningPosition),
+        limitWarningAutoDismiss: Boolean(globalLimitWarningAutoDismiss?.checked),
+        limitWarningAutoDismissSeconds: getLimitWarningAutoDismissSeconds(globalLimitWarningAutoDismissSeconds, settings.limitWarningAutoDismissSeconds),
         grayscaleForAll: Boolean(globalGrayscale?.checked),
         grayscaleApplyToAllWebsites: Boolean(globalGrayscaleAllWebsites?.checked),
         grayscaleForAllMode: getModeFromRadios(globalGrayscaleModeRadios, settings.grayscaleForAllMode),
@@ -1204,6 +1351,11 @@ function renderGlobalSettings(message = "") {
   if (globalLimitWarnings) {
     globalLimitWarnings.checked = settings.limitWarnings !== false;
   }
+  setLimitWarningPositionRadios(globalLimitWarningPositionRadios, settings.limitWarningPosition);
+  if (globalLimitWarningAutoDismiss) {
+    globalLimitWarningAutoDismiss.checked = Boolean(settings.limitWarningAutoDismiss);
+  }
+  setLimitWarningAutoDismissSecondsControl(globalLimitWarningAutoDismissSeconds, settings.limitWarningAutoDismissSeconds);
 
   if (globalGrayscale) {
     globalGrayscale.checked = Boolean(settings.grayscaleForAll);
@@ -1298,6 +1450,22 @@ function syncGlobalSettingsView() {
     globalLimitWarnings.disabled = controlsBusy;
   }
 
+  globalLimitWarningPositionRadios.forEach((radio) => {
+    radio.disabled = controlsBusy;
+  });
+
+  if (globalLimitWarningAutoDismiss) {
+    globalLimitWarningAutoDismiss.disabled = controlsBusy;
+  }
+
+  if (globalLimitWarningAutoDismissSeconds) {
+    globalLimitWarningAutoDismissSeconds.disabled = controlsBusy;
+  }
+
+  if (globalLimitWarningsExpander) {
+    globalLimitWarningsExpander.disabled = controlsBusy;
+  }
+
   if (blockAll) {
     blockAll.disabled = controlsBusy;
   }
@@ -1343,8 +1511,10 @@ function syncGlobalSettingsView() {
 }
 
 function syncEditorGlobalOverrideView(siteOverride = null) {
+  const globalOverrideDisabled = Boolean(overrideGlobalSettings?.checked || siteOverride?.overrideGlobalSettings);
   const blockEnforced = Boolean(settings.blockAllForAll);
   const extraTimeEnforced = Boolean(settings.allowExtraTimeForAll);
+  const limitWarningsEnforced = settings.limitWarnings !== false;
   const grayscaleEnforced = Boolean(settings.grayscaleForAll);
   const redLightEnforced = Boolean(settings.redLightForAll);
   const pinEnforced = Boolean(settings.hasPin && settings.requirePinForAllExtraTime);
@@ -1352,34 +1522,39 @@ function syncEditorGlobalOverrideView(siteOverride = null) {
 
   // Global settings still control the effective behavior, but they must not
   // lock the per-website checkboxes. Users can save a website's individual
-  // preference now, and it becomes effective when the global override is off.
+  // preference now, and it becomes effective when global settings are bypassed.
   if (allowExtraTime) {
     allowExtraTime.disabled = false;
     allowExtraTime.closest(".toggle-field")?.classList.remove("is-disabled");
   }
 
   if (extraTimeGlobalNote) {
-    extraTimeGlobalNote.hidden = !extraTimeEnforced;
-    extraTimeGlobalNote.textContent = "Global Allow extra time is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
+    extraTimeGlobalNote.hidden = !extraTimeEnforced || globalOverrideDisabled;
+    extraTimeGlobalNote.textContent = "Global Allow extra time is on. This website will follow it unless Override global settings is enabled.";
+  }
+
+  if (limitWarningsGlobalNote) {
+    limitWarningsGlobalNote.hidden = !limitWarningsEnforced || globalOverrideDisabled;
+    limitWarningsGlobalNote.textContent = "Global Show limit warnings is on. This website will follow it unless Override global settings is enabled.";
   }
 
   if (blockGlobalNote) {
-    blockGlobalNote.hidden = !blockEnforced;
-    blockGlobalNote.textContent = "Global Block all websites in list is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
+    blockGlobalNote.hidden = !blockEnforced || globalOverrideDisabled;
+    blockGlobalNote.textContent = "Global Block all websites in list is on. This website will follow it unless Override global settings is enabled.";
   }
 
   if (grayscaleGlobalNote) {
-    grayscaleGlobalNote.hidden = !grayscaleEnforced;
+    grayscaleGlobalNote.hidden = !grayscaleEnforced || globalOverrideDisabled;
     grayscaleGlobalNote.textContent = settings.grayscaleApplyToAllWebsites
-      ? "Global Grayscale is on for all websites. You can still toggle this website setting, but the global setting controls the current effect until it is turned off."
-      : "Global Grayscale websites is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
+      ? "Global Grayscale is on for all websites. This website will follow it unless Override global settings is enabled."
+      : "Global Grayscale websites is on. This website will follow it unless Override global settings is enabled.";
   }
 
   if (redLightGlobalNote) {
-    redLightGlobalNote.hidden = !redLightEnforced;
+    redLightGlobalNote.hidden = !redLightEnforced || globalOverrideDisabled;
     redLightGlobalNote.textContent = settings.redLightApplyToAllWebsites
-      ? "Global Night light is on for all websites. You can still toggle this website setting, but the global setting controls the current effect until it is turned off."
-      : "Global Night light is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
+      ? "Global Night light is on for all websites. This website will follow it unless Override global settings is enabled."
+      : "Global Night light is on. This website will follow it unless Override global settings is enabled.";
   }
 
   requirePinExtraRow?.classList.toggle("is-disabled", pinControlDisabled);
@@ -1393,8 +1568,8 @@ function syncEditorGlobalOverrideView(siteOverride = null) {
   }
 
   if (pinGlobalNote) {
-    pinGlobalNote.hidden = !pinEnforced;
-    pinGlobalNote.textContent = "Global PIN requirement is on. You can still toggle this website setting, but websites will follow the global setting until it is turned off.";
+    pinGlobalNote.hidden = !pinEnforced || globalOverrideDisabled;
+    pinGlobalNote.textContent = "Global PIN requirement is on. This website will follow it unless Override global settings is enabled.";
   }
 
   syncBlockingModeView();
@@ -1420,21 +1595,18 @@ function updateGlobalSettingsStatus() {
     settings.requirePinForAllExtraTime ? "PIN" : "",
     settings.blockAllForAll ? "block" : "",
     settings.allowExtraTimeForAll ? "extra time" : "",
+    settings.limitWarnings !== false ? "warnings" : "",
     settings.grayscaleForAll ? `grayscale${settings.grayscaleApplyToAllWebsites ? " everywhere" : ""}` : "",
     settings.redLightForAll ? `night light${settings.redLightApplyToAllWebsites ? " everywhere" : ""}` : ""
   ].filter(Boolean);
-  const warningStatus = settings.limitWarnings === false ? "Limit warnings are off globally." : "";
 
   globalSettingsStatus.classList.remove("error");
   if (enabled.length > 0) {
-    globalSettingsStatus.textContent = [
-      `Global ${enabled.join(" and ")} override${enabled.length === 1 ? " is" : "s are"} on.`,
-      warningStatus
-    ].filter(Boolean).join(" ");
+    globalSettingsStatus.textContent = `Global ${enabled.join(" and ")} override${enabled.length === 1 ? " is" : "s are"} on.`;
     return;
   }
 
-  globalSettingsStatus.textContent = warningStatus || "Website overrides are off.";
+  globalSettingsStatus.textContent = "Website overrides are off.";
 }
 
 function updatePinDraftStatus() {
@@ -2121,7 +2293,7 @@ function renderSiteList() {
   siteList.append(
     ...schedule.sites.map((site, index) => {
       const enabled = isSiteEnabled(site);
-      const blockingEnabled = enabled || Boolean(settings.blockAllForAll);
+      const blockingEnabled = enabled || Boolean(settings.blockAllForAll && !site.overrideGlobalSettings);
       const item = document.createElement("li");
       const button = document.createElement("button");
       const controls = document.createElement("div");
@@ -2526,11 +2698,13 @@ function readExceptionsForSave(domain) {
 
 function collapseEditorSettingDetails() {
   blockDetailsExpanded = false;
+  limitWarningsDetailsExpanded = false;
   grayscaleDetailsExpanded = false;
   redLightDetailsExpanded = false;
 }
 
 function collapseGlobalSettingDetails() {
+  globalLimitWarningsDetailsExpanded = false;
   globalGrayscaleDetailsExpanded = false;
   globalRedLightDetailsExpanded = false;
 }
@@ -2553,11 +2727,19 @@ function openEditor(site) {
   if (exceptionInput) {
     exceptionInput.value = "";
   }
+  if (overrideGlobalSettings) {
+    overrideGlobalSettings.checked = Boolean(site.overrideGlobalSettings);
+  }
   renderExceptionList(site.exceptions || []);
   dailyAllowance.value = String(site.dailyAllowanceMinutes || 0);
   if (limitWarningsSite) {
     limitWarningsSite.checked = site.limitWarnings !== false;
   }
+  setLimitWarningPositionRadios(limitWarningPositionRadios, site.limitWarningPosition);
+  if (limitWarningAutoDismiss) {
+    limitWarningAutoDismiss.checked = Boolean(site.limitWarningAutoDismiss);
+  }
+  setLimitWarningAutoDismissSecondsControl(limitWarningAutoDismissSeconds, site.limitWarningAutoDismissSeconds);
   allowExtraTime.checked = Boolean(site.allowExtraTime);
   if (blockEnabled) {
     blockEnabled.checked = isSiteEnabled(site);
@@ -2599,6 +2781,7 @@ function openEditor(site) {
   });
 
   syncSiteVisualEffectMenus();
+  syncSiteLimitWarningMenu();
   syncBlockingModeView();
 
   listView.hidden = true;
@@ -2656,6 +2839,57 @@ function getModeFromRadios(radios, fallback = "always") {
   return normalizeEffectMode(radios.find((radio) => radio.checked)?.value || fallback);
 }
 
+function normalizeLimitWarningPosition(value) {
+  const position = String(value || "").trim();
+  return LIMIT_WARNING_POSITIONS.includes(position) ? position : DEFAULT_LIMIT_WARNING_POSITION;
+}
+
+function setLimitWarningPositionRadios(radios, value) {
+  const position = normalizeLimitWarningPosition(value);
+  let selected = false;
+
+  radios.forEach((radio) => {
+    radio.checked = radio.value === position;
+    selected ||= radio.checked;
+  });
+
+  if (!selected && radios.length > 0) {
+    radios[0].checked = true;
+  }
+
+  syncWarningPositionRadios(radios);
+}
+
+function getLimitWarningPositionFromRadios(radios, fallback = DEFAULT_LIMIT_WARNING_POSITION) {
+  return normalizeLimitWarningPosition(radios.find((radio) => radio.checked)?.value || fallback);
+}
+
+function syncWarningPositionRadios(radios) {
+  radios.forEach((radio) => {
+    radio.closest(".warning-position-option")?.classList.toggle("is-selected", radio.checked);
+  });
+}
+
+function normalizeLimitWarningAutoDismissSeconds(value) {
+  const seconds = Number(value);
+
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return DEFAULT_LIMIT_WARNING_AUTO_DISMISS_SECONDS;
+  }
+
+  return Math.max(1, Math.min(60, Math.round(seconds)));
+}
+
+function getLimitWarningAutoDismissSeconds(input, fallback = DEFAULT_LIMIT_WARNING_AUTO_DISMISS_SECONDS) {
+  return normalizeLimitWarningAutoDismissSeconds(input?.value || fallback);
+}
+
+function setLimitWarningAutoDismissSecondsControl(input, value) {
+  if (input) {
+    input.value = String(normalizeLimitWarningAutoDismissSeconds(value));
+  }
+}
+
 function normalizeNightLightIntensity(value, fallback = DEFAULT_NIGHT_LIGHT_INTENSITY) {
   const number = Number(value);
   const fallbackNumber = Number(fallback);
@@ -2685,7 +2919,32 @@ function syncNightLightIntensityControls() {
   setNightLightIntensityControl(globalRedLightIntensity, getNightLightIntensity(globalRedLightIntensity, settings.redLightIntensityForAll));
 }
 
+function syncGlobalLimitWarningMenu() {
+  syncSettingDetails(
+    globalLimitWarnings,
+    globalLimitWarningsDetails,
+    globalLimitWarningsExpander,
+    globalLimitWarningsDetailsExpanded,
+    "warning"
+  );
+  syncWarningPositionRadios(globalLimitWarningPositionRadios);
+}
+
+function syncSiteLimitWarningMenu() {
+  const globalOverrideDisabled = Boolean(overrideGlobalSettings?.checked);
+  syncSettingDetails(
+    limitWarningsSite,
+    limitWarningsDetails,
+    limitWarningsExpander,
+    limitWarningsDetailsExpanded,
+    "warning",
+    Boolean(limitWarningsSite?.checked || (settings.limitWarnings !== false && !globalOverrideDisabled))
+  );
+  syncWarningPositionRadios(limitWarningPositionRadios);
+}
+
 function syncGlobalVisualEffectMenus() {
+  syncGlobalLimitWarningMenu();
   syncSettingDetails(globalGrayscale, globalGrayscaleDetails, globalGrayscaleExpander, globalGrayscaleDetailsExpanded, "grayscale");
   globalGrayscaleModeRadios.forEach((radio) => {
     radio.closest(".mode-option")?.classList.toggle("is-selected", radio.checked);
@@ -2701,6 +2960,7 @@ function syncGlobalVisualEffectMenus() {
 }
 
 function syncSiteVisualEffectMenus() {
+  syncSiteLimitWarningMenu();
   syncSettingDetails(grayscaleSite, grayscaleDetails, grayscaleExpander, grayscaleDetailsExpanded, "grayscale");
   grayscaleModeRadios.forEach((radio) => {
     radio.closest(".mode-option")?.classList.toggle("is-selected", radio.checked);
@@ -2861,7 +3121,7 @@ function readEffectIntervalsForSave(listElement, { enabled, mode, fallback = [],
 
 function syncBlockingModeView() {
   const isBlocked = blockEnabled ? blockEnabled.checked : true;
-  const isEffectiveBlocked = isBlocked || Boolean(settings.blockAllForAll);
+  const isEffectiveBlocked = isBlocked || Boolean(settings.blockAllForAll && !overrideGlobalSettings?.checked);
 
   syncSettingDetails(blockEnabled, blockDetails, blockExpander, blockDetailsExpanded, "blocking", isEffectiveBlocked);
 
@@ -4740,10 +5000,14 @@ function readSiteForm() {
   return {
     domain,
     enabled,
+    overrideGlobalSettings: Boolean(overrideGlobalSettings?.checked),
     blockMode,
     exceptions,
     dailyAllowanceMinutes,
     limitWarnings: limitWarningsSite ? Boolean(limitWarningsSite.checked) : true,
+    limitWarningPosition: getLimitWarningPositionFromRadios(limitWarningPositionRadios),
+    limitWarningAutoDismiss: Boolean(limitWarningAutoDismiss?.checked),
+    limitWarningAutoDismissSeconds: getLimitWarningAutoDismissSeconds(limitWarningAutoDismissSeconds),
     allowExtraTime: Boolean(allowExtraTime?.checked),
     grayscale: grayscaleEnabled,
     grayscaleMode,
@@ -4925,10 +5189,14 @@ function normalizeSchedule(value) {
         return {
           domain,
           enabled: site.enabled !== false && site.disabled !== true,
+          overrideGlobalSettings: Boolean(site.overrideGlobalSettings || site.limitWarningOverrideGlobal),
           blockMode: normalizeBlockMode(site.blockMode, site.intervals),
           exceptions: normalizeExceptionList(site.exceptions ?? site.allowlist ?? site.allowList ?? site.allowedDomains, domain),
           dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
           limitWarnings: site.limitWarnings !== false,
+          limitWarningPosition: normalizeLimitWarningPosition(site.limitWarningPosition),
+          limitWarningAutoDismiss: Boolean(site.limitWarningAutoDismiss),
+          limitWarningAutoDismissSeconds: normalizeLimitWarningAutoDismissSeconds(site.limitWarningAutoDismissSeconds),
           allowExtraTime: Boolean(site.allowExtraTime),
           grayscale: Boolean(site.grayscale),
           grayscaleMode: normalizeEffectMode(site.grayscaleMode),
@@ -4961,6 +5229,9 @@ function normalizeSettings(value) {
     requirePinForAllExtraTime: Boolean(value?.requirePinForAllExtraTime),
     allowExtraTimeForAll: Boolean(value?.allowExtraTimeForAll),
     limitWarnings: value?.limitWarnings !== false,
+    limitWarningPosition: normalizeLimitWarningPosition(value?.limitWarningPosition),
+    limitWarningAutoDismiss: Boolean(value?.limitWarningAutoDismiss),
+    limitWarningAutoDismissSeconds: normalizeLimitWarningAutoDismissSeconds(value?.limitWarningAutoDismissSeconds),
     grayscaleForAll: Boolean(value?.grayscaleForAll),
     grayscaleApplyToAllWebsites: Boolean(value?.grayscaleApplyToAllWebsites),
     grayscaleForAllMode: normalizeEffectMode(value?.grayscaleForAllMode),
@@ -4996,6 +5267,18 @@ function applyStoredGlobalSettings(storedSettings) {
 
   if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "limitWarnings")) {
     settings.limitWarnings = stored.limitWarnings !== false;
+  }
+
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "limitWarningPosition")) {
+    settings.limitWarningPosition = normalizeLimitWarningPosition(stored.limitWarningPosition);
+  }
+
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "limitWarningAutoDismiss")) {
+    settings.limitWarningAutoDismiss = Boolean(stored.limitWarningAutoDismiss);
+  }
+
+  if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "limitWarningAutoDismissSeconds")) {
+    settings.limitWarningAutoDismissSeconds = normalizeLimitWarningAutoDismissSeconds(stored.limitWarningAutoDismissSeconds);
   }
 
   if (stored && typeof stored === "object" && Object.prototype.hasOwnProperty.call(stored, "grayscaleForAll")) {
@@ -5055,6 +5338,11 @@ function applyStoredGlobalSettings(storedSettings) {
   if (globalLimitWarnings) {
     globalLimitWarnings.checked = settings.limitWarnings !== false;
   }
+  setLimitWarningPositionRadios(globalLimitWarningPositionRadios, settings.limitWarningPosition);
+  if (globalLimitWarningAutoDismiss) {
+    globalLimitWarningAutoDismiss.checked = Boolean(settings.limitWarningAutoDismiss);
+  }
+  setLimitWarningAutoDismissSecondsControl(globalLimitWarningAutoDismissSeconds, settings.limitWarningAutoDismissSeconds);
 
   if (globalGrayscale) {
     globalGrayscale.checked = Boolean(settings.grayscaleForAll);
@@ -5277,10 +5565,14 @@ function cloneSite(site) {
   return {
     domain: site.domain,
     enabled: isSiteEnabled(site),
+    overrideGlobalSettings: Boolean(site.overrideGlobalSettings),
     blockMode: normalizeBlockMode(site.blockMode, site.intervals),
     exceptions: normalizeExceptionList(site.exceptions, site.domain),
     dailyAllowanceMinutes: normalizeAllowanceMinutes(site.dailyAllowanceMinutes),
     limitWarnings: site.limitWarnings !== false,
+    limitWarningPosition: normalizeLimitWarningPosition(site.limitWarningPosition),
+    limitWarningAutoDismiss: Boolean(site.limitWarningAutoDismiss),
+    limitWarningAutoDismissSeconds: normalizeLimitWarningAutoDismissSeconds(site.limitWarningAutoDismissSeconds),
     allowExtraTime: Boolean(site.allowExtraTime),
     grayscale: Boolean(site.grayscale),
     grayscaleMode: normalizeEffectMode(site.grayscaleMode),
@@ -5301,7 +5593,8 @@ function cloneSite(site) {
 }
 
 function siteSummary(site, usage = null) {
-  const blockAllEnforced = Boolean(settings.blockAllForAll);
+  const globalOverrideDisabled = Boolean(site.overrideGlobalSettings);
+  const blockAllEnforced = Boolean(settings.blockAllForAll && !globalOverrideDisabled);
 
   if (!isSiteEnabled(site) && !blockAllEnforced) {
     return "blocking paused";
@@ -5317,19 +5610,19 @@ function siteSummary(site, usage = null) {
     parts.push(`${site.dailyAllowanceMinutes} min/day`);
   }
 
-  if (settings.allowExtraTimeForAll || site.allowExtraTime) {
+  if ((settings.allowExtraTimeForAll && !globalOverrideDisabled) || site.allowExtraTime) {
     parts.push("extra time allowed");
   }
 
-  if (settings.grayscaleForAll || site.grayscale) {
+  if ((settings.grayscaleForAll && !globalOverrideDisabled) || site.grayscale) {
     parts.push("grayscale");
   }
 
-  if (settings.redLightForAll || site.redLight) {
+  if ((settings.redLightForAll && !globalOverrideDisabled) || site.redLight) {
     parts.push("night light");
   }
 
-  if (settings.hasPin && (site.requirePinForExtraTime || settings.requirePinForAllExtraTime)) {
+  if (settings.hasPin && (site.requirePinForExtraTime || (settings.requirePinForAllExtraTime && !globalOverrideDisabled))) {
     parts.push("PIN required for extra time");
   }
 
@@ -5341,7 +5634,7 @@ function siteSummary(site, usage = null) {
 }
 
 function isBlockedNow(site) {
-  if (!isSiteEnabled(site) && !settings.blockAllForAll) {
+  if (!isSiteEnabled(site) && !(settings.blockAllForAll && !site.overrideGlobalSettings)) {
     return false;
   }
 

@@ -270,12 +270,21 @@ function updatePomodoroTimer(pomodoro) {
 function renderPomodoroEnded() {
   clearPomodoroTimer();
 
+  if (navigateToSite()) {
+    return;
+  }
+
+  if (window.history.length > 1) {
+    window.history.back();
+    return;
+  }
+
   if (blockedTitle) {
     blockedTitle.textContent = "Focus session ended";
   }
 
   if (blockedMessage) {
-    blockedMessage.textContent = "Reload the page or return to your tab to continue.";
+    blockedMessage.textContent = "Open the website again to continue.";
   }
 
   if (pomodoroBlock) {
@@ -619,7 +628,10 @@ function navigateToSite(targetUrl = "") {
 
   if (nextUrl) {
     window.location.replace(nextUrl);
+    return true;
   }
+
+  return false;
 }
 
 function returnToSelection() {
@@ -662,6 +674,10 @@ function getResumeTarget() {
 
   if (target) {
     const targetHost = getHostname(target);
+
+    if (isPomodoroOnlyPage && targetHost) {
+      return target;
+    }
 
     if (targetHost && site && domainMatches(targetHost, site)) {
       return target;
