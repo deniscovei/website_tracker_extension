@@ -166,7 +166,8 @@
 
       .showcase {
         align-self: center;
-        justify-self: stretch;
+        justify-self: center;
+        width: min(100%, 660px);
       }
 
       .browser-frame,
@@ -240,15 +241,16 @@
       }
 
       .article h2 {
-        width: 330px;
+        width: 204px;
         margin: 0 0 18px;
         color: #2d332e;
-        font-size: 33px;
+        font-size: 29px;
         font-weight: 950;
-        line-height: 1.03;
+        line-height: 1.04;
       }
 
       .article-line {
+        width: 204px;
         height: 12px;
         margin: 13px 0;
         border-radius: 999px;
@@ -256,15 +258,15 @@
       }
 
       .article-line.short {
-        width: 62%;
+        width: 136px;
       }
 
       .article-line.mid {
-        width: 78%;
+        width: 174px;
       }
 
       .hero-tile {
-        width: 310px;
+        width: 204px;
         height: 164px;
         margin-top: 28px;
         border-radius: 16px;
@@ -992,7 +994,7 @@
       .focus-scene,
       .settings-scene {
         display: grid;
-        grid-template-columns: 1fr 342px;
+        grid-template-columns: 282px 1fr;
         gap: 18px;
         height: 646px;
         padding: 24px;
@@ -1090,7 +1092,7 @@
       }
 
       .settings-scene {
-        grid-template-columns: 374px 1fr;
+        grid-template-columns: 350px 1fr;
       }
 
       .toggle-list {
@@ -1201,25 +1203,25 @@
 
       .filter-preview-inner {
         height: 100%;
-        padding: 24px;
+        padding: 22px;
         color: white;
         background: linear-gradient(90deg, rgba(18, 111, 102, 0.52), rgba(230, 98, 79, 0.42));
       }
 
       .filter-preview-inner strong {
         display: block;
-        font-size: 30px;
+        font-size: 28px;
         font-weight: 950;
-        line-height: 1.06;
+        line-height: 1;
       }
 
       .filter-preview-inner span {
         display: block;
-        width: 260px;
-        margin-top: 13px;
-        font-size: 15px;
+        width: auto;
+        margin-top: 10px;
+        font-size: 13px;
         font-weight: 850;
-        line-height: 1.38;
+        line-height: 1.28;
       }
 
       .promo-inner {
@@ -1261,9 +1263,9 @@
       }
 
       .promo-small .promo-title {
-        max-width: 278px;
+        max-width: 270px;
         margin-top: 22px;
-        font-size: 31px;
+        font-size: 30px;
         line-height: 1.02;
       }
 
@@ -1277,7 +1279,7 @@
       }
 
       .promo-small .promo-caption {
-        max-width: 296px;
+        max-width: 250px;
         margin-top: 12px;
         font-size: 13px;
         line-height: 1.28;
@@ -1353,12 +1355,33 @@
 
       .promo-small .mini-signal {
         position: absolute;
-        top: 178px;
-        right: 24px;
-        width: 116px;
-        height: 34px;
-        padding: 7px;
-        border-radius: 14px;
+        top: 194px;
+        right: 20px;
+        width: 124px;
+        height: 46px;
+        gap: 6px;
+        padding: 9px;
+        border-radius: 16px;
+      }
+
+      .promo-small .mini-signal span {
+        min-height: 7px;
+      }
+
+      .promo-small .mini-signal span:nth-child(2) {
+        height: 25px;
+      }
+
+      .promo-small .mini-signal span:nth-child(3) {
+        height: 16px;
+      }
+
+      .promo-small .mini-signal span:nth-child(4) {
+        height: 29px;
+      }
+
+      .promo-small .mini-signal span:nth-child(5) {
+        height: 22px;
       }
     </style>
   </head>
@@ -1410,7 +1433,7 @@
           </div>
           <div class="browser-body">
             <article class="article">
-              <h2>A quiet browser day, protected by rules you chose.</h2>
+              <h2>github.com stays open for work.</h2>
               <div class="article-line"></div>
               <div class="article-line mid"></div>
               <div class="article-line short"></div>
@@ -1438,7 +1461,7 @@
           </div>
           <div class="browser-body">
             <article class="article">
-              <h2>Temporary access stays visible until you revoke it.</h2>
+              <h2>reddit.com blocks again when time is revoked.</h2>
               <div class="article-line"></div>
               <div class="article-line mid"></div>
               <div class="article-line short"></div>
@@ -1595,7 +1618,7 @@
               <div class="warning-cell"><i></i></div><div class="warning-cell"><i></i></div><div class="warning-cell"><i></i></div>
               <div class="warning-cell"><i></i></div><div class="warning-cell"><i></i></div><div class="warning-cell"><i></i></div>
             </div>
-            <div class="filter-preview"><div class="filter-preview-inner"><strong>Grayscale and night light</strong><span>Make distracting pages feel less rewarding while keeping useful sites readable.</span></div></div>
+            <div class="filter-preview"><div class="filter-preview-inner"><strong>Visual filters</strong><span>Grayscale and night light soften distracting pages while keeping sites readable.</span></div></div>
           </section>
         </div>
       `;
