@@ -1,0 +1,1273 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Focus Tracker Presentation Assets</title>
+    <style>
+      :root {
+        --ink: #16201a;
+        --muted: #657166;
+        --paper: #fffdf8;
+        --line: #dfe5da;
+        --teal: #0f9b8e;
+        --green: #3f8f46;
+        --coral: #e6624f;
+        --gold: #d7a928;
+        --blue: #3277b8;
+        --charcoal: #20251f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #f4f0e7;
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      body {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .asset {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(247, 250, 246, 0.78)),
+          repeating-linear-gradient(135deg, rgba(22, 32, 26, 0.035) 0 1px, transparent 1px 34px),
+          linear-gradient(155deg, #eff8ef 0%, #fff5ec 48%, #eef7fb 100%);
+      }
+
+      .asset::before {
+        content: "";
+        position: absolute;
+        inset: auto 0 0 0;
+        height: 198px;
+        background: linear-gradient(90deg, rgba(15, 155, 142, 0.18), rgba(230, 98, 79, 0.14), rgba(215, 169, 40, 0.16));
+        clip-path: polygon(0 40%, 100% 0, 100% 100%, 0 100%);
+      }
+
+      .screenshot {
+        width: 1280px;
+        height: 800px;
+      }
+
+      .promo-small {
+        width: 440px;
+        height: 280px;
+      }
+
+      .promo-marquee {
+        width: 1400px;
+        height: 560px;
+      }
+
+      .slide-inner {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: 412px 1fr;
+        gap: 48px;
+        width: 100%;
+        height: 100%;
+        padding: 54px 64px;
+      }
+
+      .slide-copy {
+        align-self: center;
+      }
+
+      .brand-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 30px;
+      }
+
+      .brand-row img {
+        width: 50px;
+        height: 50px;
+        border-radius: 14px;
+        box-shadow: 0 14px 34px rgba(32, 37, 31, 0.18);
+      }
+
+      .brand-name {
+        margin: 0;
+        color: var(--charcoal);
+        font-size: 20px;
+        font-weight: 900;
+        line-height: 1;
+      }
+
+      .kicker {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        margin: 0 0 18px;
+        padding: 6px 12px;
+        border: 1px solid rgba(15, 155, 142, 0.28);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        color: #126f66;
+        font-size: 13px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 395px;
+        margin: 0;
+        color: var(--ink);
+        font-size: 58px;
+        font-weight: 950;
+        line-height: 0.98;
+      }
+
+      .slide-copy p {
+        max-width: 360px;
+        margin: 24px 0 0;
+        color: #566156;
+        font-size: 20px;
+        font-weight: 650;
+        line-height: 1.42;
+      }
+
+      .feature-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        max-width: 360px;
+        margin-top: 26px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: #fffdf8;
+        border: 1px solid rgba(101, 113, 102, 0.22);
+        box-shadow: 0 10px 20px rgba(32, 37, 31, 0.06);
+        color: #3f4a40;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .showcase {
+        align-self: center;
+        justify-self: stretch;
+      }
+
+      .browser-frame,
+      .device-frame,
+      .blocked-scene,
+      .analytics-scene,
+      .focus-scene,
+      .settings-scene {
+        border: 1px solid rgba(32, 37, 31, 0.12);
+        background: rgba(255, 255, 255, 0.88);
+        box-shadow: 0 34px 74px rgba(32, 37, 31, 0.18);
+        backdrop-filter: blur(14px);
+      }
+
+      .browser-frame {
+        height: 646px;
+        border-radius: 26px;
+        overflow: hidden;
+      }
+
+      .browser-top {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 46px;
+        padding: 0 18px;
+        background: #20251f;
+      }
+
+      .dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: #e75d4b;
+      }
+
+      .dot:nth-child(2) {
+        background: #dbb441;
+      }
+
+      .dot:nth-child(3) {
+        background: #53aa64;
+      }
+
+      .url-bar {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        height: 26px;
+        flex: 1;
+        margin-left: 8px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: #f6f3eb;
+        color: #58625a;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .browser-body {
+        position: relative;
+        height: calc(100% - 46px);
+        background:
+          linear-gradient(90deg, #fffdf8 0 58%, #edf6f2 58% 100%);
+      }
+
+      .article {
+        width: 58%;
+        height: 100%;
+        padding: 42px 44px;
+      }
+
+      .article h2 {
+        width: 330px;
+        margin: 0 0 18px;
+        color: #2d332e;
+        font-size: 33px;
+        font-weight: 950;
+        line-height: 1.03;
+      }
+
+      .article-line {
+        height: 12px;
+        margin: 13px 0;
+        border-radius: 999px;
+        background: #e1e6df;
+      }
+
+      .article-line.short {
+        width: 62%;
+      }
+
+      .article-line.mid {
+        width: 78%;
+      }
+
+      .hero-tile {
+        width: 310px;
+        height: 164px;
+        margin-top: 28px;
+        border-radius: 16px;
+        background:
+          linear-gradient(135deg, rgba(15, 155, 142, 0.9), rgba(63, 143, 70, 0.82)),
+          repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.24) 0 2px, transparent 2px 18px);
+      }
+
+      .extension-popover {
+        position: absolute;
+        top: 36px;
+        right: 44px;
+        width: 368px;
+        max-height: 536px;
+        overflow: hidden;
+        border: 1px solid rgba(32, 37, 31, 0.14);
+        border-radius: 22px;
+        background: #fffdf8;
+        box-shadow: 0 30px 70px rgba(32, 37, 31, 0.22);
+      }
+
+      .popover-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 18px 20px 14px;
+      }
+
+      .popover-head img {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+      }
+
+      .popover-head strong {
+        display: block;
+        font-size: 19px;
+        font-weight: 950;
+      }
+
+      .tabs {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        padding: 0 18px 14px;
+      }
+
+      .tab {
+        display: grid;
+        place-items: center;
+        min-height: 34px;
+        border-radius: 12px;
+        background: #eef1ea;
+        color: #546050;
+        font-size: 12px;
+        font-weight: 950;
+      }
+
+      .tab.active {
+        background: #16201a;
+        color: #fffdf8;
+      }
+
+      .status-box {
+        margin: 0 18px 16px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: #fff7e2;
+        border: 1px solid rgba(215, 169, 40, 0.28);
+      }
+
+      .status-box strong {
+        display: block;
+        font-size: 15px;
+        font-weight: 950;
+      }
+
+      .status-box span {
+        display: block;
+        margin-top: 5px;
+        color: #6f633e;
+        font-size: 12px;
+        font-weight: 750;
+      }
+
+      .section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 18px 10px;
+      }
+
+      .section-title strong {
+        font-size: 17px;
+        font-weight: 950;
+      }
+
+      .pill-button {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: var(--teal);
+        color: white;
+        font-size: 12px;
+        font-weight: 950;
+      }
+
+      .site-list {
+        display: grid;
+        gap: 10px;
+        padding: 0 18px 20px;
+      }
+
+      .site-row {
+        display: grid;
+        grid-template-columns: 36px 1fr auto;
+        align-items: center;
+        gap: 12px;
+        min-height: 62px;
+        padding: 10px 12px;
+        border-radius: 16px;
+        background: #ffffff;
+        border: 1px solid rgba(101, 113, 102, 0.16);
+        box-shadow: 0 10px 24px rgba(32, 37, 31, 0.06);
+      }
+
+      .check {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 10px;
+        background: #e8f5ea;
+        color: var(--green);
+        font-weight: 950;
+      }
+
+      .site-row.blocked .check {
+        background: #ffe8e2;
+        color: var(--coral);
+      }
+
+      .site-row strong {
+        display: block;
+        font-size: 15px;
+        font-weight: 950;
+      }
+
+      .site-row span {
+        display: block;
+        margin-top: 3px;
+        color: #6b7469;
+        font-size: 12px;
+        font-weight: 750;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 0 9px;
+        border-radius: 999px;
+        background: #e9f2ff;
+        color: #2e6ca8;
+        font-size: 11px;
+        font-weight: 950;
+      }
+
+      .badge.hot {
+        background: #ffe9e3;
+        color: #b54434;
+      }
+
+      .blocked-scene {
+        display: grid;
+        place-items: center;
+        height: 646px;
+        border-radius: 28px;
+        background:
+          linear-gradient(135deg, rgba(32, 37, 31, 0.96), rgba(48, 59, 50, 0.95)),
+          repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.045) 0 2px, transparent 2px 20px);
+      }
+
+      .blocked-card {
+        width: 472px;
+        padding: 34px 34px 32px;
+        border-radius: 26px;
+        background: #fffdf8;
+        box-shadow: 0 40px 90px rgba(0, 0, 0, 0.28);
+      }
+
+      .block-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .block-brand img {
+        width: 38px;
+        height: 38px;
+        border-radius: 11px;
+      }
+
+      .block-brand strong {
+        font-size: 16px;
+        font-weight: 950;
+      }
+
+      .blocked-card h2 {
+        margin: 0;
+        color: var(--ink);
+        font-size: 36px;
+        font-weight: 950;
+        line-height: 1.05;
+      }
+
+      .blocked-card p {
+        margin: 12px 0 22px;
+        color: #5e685e;
+        font-size: 17px;
+        font-weight: 700;
+        line-height: 1.42;
+      }
+
+      .time-box {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 14px;
+        margin: 18px 0;
+        padding: 17px 18px;
+        border-radius: 18px;
+        background: #f3f8f2;
+        border: 1px solid rgba(63, 143, 70, 0.22);
+      }
+
+      .time-box strong {
+        display: block;
+        font-size: 22px;
+        font-weight: 950;
+      }
+
+      .time-box span {
+        color: #637063;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .button-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .button {
+        display: grid;
+        place-items: center;
+        min-height: 46px;
+        border-radius: 14px;
+        background: var(--charcoal);
+        color: #fffdf8;
+        font-size: 14px;
+        font-weight: 950;
+      }
+
+      .button.secondary {
+        background: #f0f2ed;
+        color: #3a433c;
+      }
+
+      .revoke-strip {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 16px;
+        padding: 13px 14px;
+        border-radius: 15px;
+        background: #fff2ef;
+        color: #8f3d31;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .analytics-scene {
+        height: 646px;
+        border-radius: 28px;
+        padding: 28px;
+        background: #fffdf8;
+      }
+
+      .analytics-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+
+      .analytics-head h2,
+      .panel h2 {
+        margin: 0;
+        color: var(--ink);
+        font-size: 25px;
+        font-weight: 950;
+      }
+
+      .date-chip {
+        min-height: 36px;
+        padding: 9px 13px;
+        border-radius: 999px;
+        background: #edf6f2;
+        color: #126f66;
+        font-size: 12px;
+        font-weight: 950;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+
+      .metric {
+        min-height: 112px;
+        padding: 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(101, 113, 102, 0.15);
+        background: #ffffff;
+        box-shadow: 0 14px 30px rgba(32, 37, 31, 0.06);
+      }
+
+      .metric span {
+        display: block;
+        color: #657166;
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 11px;
+        font-size: 32px;
+        font-weight: 950;
+      }
+
+      .chart-card {
+        height: 286px;
+        padding: 18px 18px 16px;
+        border-radius: 20px;
+        background: #fbfaf5;
+        border: 1px solid rgba(101, 113, 102, 0.16);
+      }
+
+      .bars {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        align-items: end;
+        gap: 13px;
+        height: 190px;
+        margin-top: 18px;
+      }
+
+      .bar {
+        position: relative;
+        min-height: 30px;
+        border-radius: 12px 12px 5px 5px;
+        background: linear-gradient(180deg, var(--teal), #68b96f);
+      }
+
+      .bar:nth-child(2),
+      .bar:nth-child(5) {
+        background: linear-gradient(180deg, #3277b8, #74a7ce);
+      }
+
+      .bar:nth-child(3),
+      .bar:nth-child(7) {
+        background: linear-gradient(180deg, #e6624f, #f2a092);
+      }
+
+      .bar span {
+        position: absolute;
+        inset: auto 0 -30px;
+        color: #657166;
+        font-size: 12px;
+        font-weight: 900;
+        text-align: center;
+      }
+
+      .breakdown {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 18px;
+      }
+
+      .mini-list {
+        display: grid;
+        gap: 9px;
+      }
+
+      .mini-row {
+        display: grid;
+        grid-template-columns: 1fr 72px;
+        align-items: center;
+        min-height: 34px;
+        color: #3d473f;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .meter {
+        height: 8px;
+        border-radius: 999px;
+        background: #e5e9e1;
+        overflow: hidden;
+      }
+
+      .meter i {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--coral);
+      }
+
+      .focus-scene,
+      .settings-scene {
+        display: grid;
+        grid-template-columns: 1fr 342px;
+        gap: 18px;
+        height: 646px;
+        padding: 24px;
+        border-radius: 28px;
+        background: #fffdf8;
+      }
+
+      .panel {
+        border-radius: 22px;
+        background: #f9faf5;
+        border: 1px solid rgba(101, 113, 102, 0.16);
+        padding: 22px;
+      }
+
+      .timer {
+        display: grid;
+        place-items: center;
+        height: 266px;
+        margin: 24px 0;
+        border-radius: 26px;
+        background:
+          linear-gradient(135deg, rgba(15, 155, 142, 0.95), rgba(50, 119, 184, 0.88)),
+          repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.16) 0 2px, transparent 2px 18px);
+        color: white;
+      }
+
+      .timer strong {
+        font-size: 76px;
+        font-weight: 950;
+        line-height: 1;
+      }
+
+      .timer span {
+        display: block;
+        margin-top: 12px;
+        font-size: 17px;
+        font-weight: 900;
+        text-align: center;
+      }
+
+      .whitelist {
+        display: grid;
+        gap: 10px;
+      }
+
+      .allow-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        min-height: 48px;
+        padding: 0 14px;
+        border-radius: 14px;
+        background: white;
+        border: 1px solid rgba(101, 113, 102, 0.16);
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .mode-card {
+        display: grid;
+        gap: 13px;
+      }
+
+      .mode-option {
+        padding: 15px;
+        border-radius: 16px;
+        background: white;
+        border: 1px solid rgba(101, 113, 102, 0.16);
+      }
+
+      .mode-option.active {
+        border-color: rgba(15, 155, 142, 0.38);
+        background: #eef8f4;
+      }
+
+      .mode-option strong {
+        display: block;
+        font-size: 15px;
+        font-weight: 950;
+      }
+
+      .mode-option span {
+        display: block;
+        margin-top: 5px;
+        color: #657166;
+        font-size: 12px;
+        font-weight: 750;
+        line-height: 1.35;
+      }
+
+      .settings-scene {
+        grid-template-columns: 374px 1fr;
+      }
+
+      .toggle-list {
+        display: grid;
+        gap: 11px;
+        margin-top: 18px;
+      }
+
+      .toggle-row {
+        display: grid;
+        grid-template-columns: 44px 1fr;
+        align-items: center;
+        gap: 12px;
+        min-height: 58px;
+        padding: 10px 13px;
+        border-radius: 16px;
+        background: white;
+        border: 1px solid rgba(101, 113, 102, 0.16);
+      }
+
+      .switch {
+        width: 42px;
+        height: 24px;
+        border-radius: 999px;
+        background: #cbd3c8;
+        padding: 3px;
+      }
+
+      .switch.on {
+        background: var(--teal);
+      }
+
+      .switch::before {
+        content: "";
+        display: block;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: white;
+        box-shadow: 0 3px 8px rgba(32, 37, 31, 0.18);
+      }
+
+      .switch.on::before {
+        transform: translateX(18px);
+      }
+
+      .toggle-row strong {
+        display: block;
+        font-size: 14px;
+        font-weight: 950;
+      }
+
+      .toggle-row span {
+        display: block;
+        margin-top: 3px;
+        color: #657166;
+        font-size: 12px;
+        font-weight: 750;
+      }
+
+      .warning-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 11px;
+        margin-top: 18px;
+      }
+
+      .warning-cell {
+        height: 72px;
+        border-radius: 16px;
+        border: 1px solid rgba(101, 113, 102, 0.18);
+        background: white;
+        position: relative;
+      }
+
+      .warning-cell.active {
+        border-color: rgba(230, 98, 79, 0.45);
+        background: #fff3ef;
+      }
+
+      .warning-cell i {
+        position: absolute;
+        width: 22px;
+        height: 12px;
+        border-radius: 999px;
+        background: var(--coral);
+      }
+
+      .warning-cell:nth-child(1) i { top: 10px; left: 10px; }
+      .warning-cell:nth-child(2) i { top: 10px; left: 50%; transform: translateX(-50%); }
+      .warning-cell:nth-child(3) i { top: 10px; right: 10px; }
+      .warning-cell:nth-child(4) i { top: 50%; left: 10px; transform: translateY(-50%); }
+      .warning-cell:nth-child(5) i { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+      .warning-cell:nth-child(6) i { top: 50%; right: 10px; transform: translateY(-50%); }
+      .warning-cell:nth-child(7) i { bottom: 10px; left: 10px; }
+      .warning-cell:nth-child(8) i { bottom: 10px; left: 50%; transform: translateX(-50%); }
+      .warning-cell:nth-child(9) i { right: 10px; bottom: 10px; }
+
+      .filter-preview {
+        height: 284px;
+        margin-top: 20px;
+        border-radius: 22px;
+        overflow: hidden;
+        background:
+          linear-gradient(90deg, rgba(22, 32, 26, 0.46), rgba(22, 32, 26, 0.12)),
+          linear-gradient(135deg, #f1c48a, #73b68c 42%, #6ba0c9);
+      }
+
+      .filter-preview-inner {
+        height: 100%;
+        padding: 26px;
+        color: white;
+        background: linear-gradient(90deg, rgba(18, 111, 102, 0.52), rgba(230, 98, 79, 0.42));
+      }
+
+      .filter-preview-inner strong {
+        display: block;
+        font-size: 33px;
+        font-weight: 950;
+        line-height: 1.06;
+      }
+
+      .filter-preview-inner span {
+        display: block;
+        width: 260px;
+        margin-top: 13px;
+        font-size: 15px;
+        font-weight: 850;
+        line-height: 1.38;
+      }
+
+      .promo-inner {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        height: 100%;
+        padding: 28px 34px;
+      }
+
+      .promo-small .promo-inner {
+        padding: 24px;
+      }
+
+      .promo-lockup {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+      }
+
+      .promo-lockup img {
+        width: 54px;
+        height: 54px;
+        border-radius: 15px;
+        box-shadow: 0 14px 32px rgba(32, 37, 31, 0.22);
+      }
+
+      .promo-lockup strong {
+        font-size: 25px;
+        font-weight: 950;
+      }
+
+      .promo-title {
+        max-width: 810px;
+        margin: 34px 0 0;
+        font-size: 60px;
+        font-weight: 950;
+        line-height: 0.98;
+      }
+
+      .promo-small .promo-title {
+        max-width: 278px;
+        margin-top: 22px;
+        font-size: 31px;
+        line-height: 1.02;
+      }
+
+      .promo-caption {
+        max-width: 520px;
+        margin: 18px 0 0;
+        color: #566156;
+        font-size: 20px;
+        font-weight: 750;
+        line-height: 1.35;
+      }
+
+      .promo-small .promo-caption {
+        max-width: 296px;
+        margin-top: 12px;
+        font-size: 13px;
+        line-height: 1.28;
+      }
+
+      .promo-small .promo-lockup img {
+        width: 50px;
+        height: 50px;
+      }
+
+      .promo-small .promo-lockup strong {
+        font-size: 23px;
+      }
+
+      .promo-card {
+        position: absolute;
+        right: 68px;
+        top: 68px;
+        width: 330px;
+        border-radius: 24px;
+        background: #fffdf8;
+        box-shadow: 0 32px 74px rgba(32, 37, 31, 0.2);
+        padding: 18px;
+      }
+
+      .promo-card .site-row {
+        grid-template-columns: 32px 1fr;
+        margin-top: 10px;
+      }
+
+      .mini-signal {
+        position: absolute;
+        right: 24px;
+        bottom: 22px;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        align-items: end;
+        gap: 7px;
+        width: 132px;
+        height: 64px;
+        padding: 12px;
+        border-radius: 18px;
+        background: rgba(255, 253, 248, 0.92);
+        box-shadow: 0 18px 38px rgba(32, 37, 31, 0.15);
+      }
+
+      .mini-signal span {
+        display: block;
+        min-height: 10px;
+        border-radius: 999px;
+        background: var(--teal);
+      }
+
+      .mini-signal span:nth-child(2) {
+        height: 32px;
+        background: var(--blue);
+      }
+
+      .mini-signal span:nth-child(3) {
+        height: 22px;
+        background: var(--coral);
+      }
+
+      .mini-signal span:nth-child(4) {
+        height: 40px;
+        background: var(--green);
+      }
+
+      .mini-signal span:nth-child(5) {
+        height: 28px;
+        background: var(--gold);
+      }
+
+      .promo-small .mini-signal {
+        position: absolute;
+        top: 178px;
+        right: 24px;
+        width: 116px;
+        height: 34px;
+        padding: 7px;
+        border-radius: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="asset" class="asset screenshot"></main>
+    <script>
+      const icon = "../assets/icons/icon128.png";
+      const asset = new URLSearchParams(window.location.search).get("asset") || "screenshot-1";
+      const root = document.getElementById("asset");
+
+      const sites = [
+        ["youtube.com", "Blocked until 6:00 PM", "Blocked"],
+        ["instagram.com", "12 min daily limit left", "Warning"],
+        ["reddit.com", "5 min added time remaining", "Revoke"],
+        ["news.ycombinator.com", "Allowed after 5:00 PM", "Rules"]
+      ];
+
+      const rows = sites.map(([domain, meta, badge], index) => `
+        <div class="site-row ${index === 0 ? "blocked" : ""}">
+          <div class="check">${index === 0 ? "!" : "✓"}</div>
+          <div><strong>${domain}</strong><span>${meta}</span></div>
+          <div class="badge ${index === 0 ? "hot" : ""}">${badge}</div>
+        </div>
+      `).join("");
+
+      function shell(kicker, title, copy, tags, showcase) {
+        return `
+          <div class="slide-inner">
+            <section class="slide-copy">
+              <div class="brand-row">
+                <img src="${icon}" alt="">
+                <p class="brand-name">Focus Tracker</p>
+              </div>
+              <p class="kicker">${kicker}</p>
+              <h1>${title}</h1>
+              <p>${copy}</p>
+              <div class="feature-tags">${tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
+            </section>
+            <section class="showcase">${showcase}</section>
+          </div>
+        `;
+      }
+
+      const browser = `
+        <div class="browser-frame">
+          <div class="browser-top">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <div class="url-bar">https://example.com/deep-work-dashboard</div>
+          </div>
+          <div class="browser-body">
+            <article class="article">
+              <h2>A quiet browser day, protected by rules you chose.</h2>
+              <div class="article-line"></div>
+              <div class="article-line mid"></div>
+              <div class="article-line short"></div>
+              <div class="hero-tile"></div>
+            </article>
+            <aside class="extension-popover">
+              <div class="popover-head">
+                <img src="${icon}" alt="">
+                <div><strong>Focus Tracker</strong></div>
+              </div>
+              <div class="tabs"><div class="tab active">Websites</div><div class="tab">Usage</div><div class="tab">Focus</div></div>
+              <div class="status-box"><strong>2 websites blocked right now</strong><span>Limits, schedules, and extra time are active.</span></div>
+              <div class="section-title"><strong>Websites</strong><div class="pill-button">Add website</div></div>
+              <div class="site-list">${rows}</div>
+            </aside>
+          </div>
+        </div>
+      `;
+
+      const blocked = `
+        <div class="blocked-scene">
+          <section class="blocked-card">
+            <div class="block-brand"><img src="${icon}" alt=""><strong>Focus Tracker</strong></div>
+            <h2>This website is blocked</h2>
+            <p>Your time is up for reddit.com. Add a small amount of intentional time, or revoke it instantly when you are done.</p>
+            <div class="time-box"><div><strong>04m 58s</strong><span>added time remaining</span></div><div class="badge hot">Live</div></div>
+            <div class="button-row"><div class="button">Add 10 minutes</div><div class="button secondary">Back to focus</div></div>
+            <div class="revoke-strip"><span>Revoke added time</span><span>Blocks immediately</span></div>
+          </section>
+        </div>
+      `;
+
+      const analytics = `
+        <div class="analytics-scene">
+          <div class="analytics-head"><h2>Usage insights</h2><div class="date-chip">This week</div></div>
+          <div class="metric-grid">
+            <div class="metric"><span>Time saved</span><strong>7h 20m</strong></div>
+            <div class="metric"><span>Blocked visits</span><strong>42</strong></div>
+            <div class="metric"><span>Focus sessions</span><strong>9</strong></div>
+          </div>
+          <div class="chart-card">
+            <strong>Daily distracting time</strong>
+            <div class="bars">
+              <div class="bar" style="height: 116px"><span>Mon</span></div>
+              <div class="bar" style="height: 76px"><span>Tue</span></div>
+              <div class="bar" style="height: 154px"><span>Wed</span></div>
+              <div class="bar" style="height: 62px"><span>Thu</span></div>
+              <div class="bar" style="height: 134px"><span>Fri</span></div>
+              <div class="bar" style="height: 44px"><span>Sat</span></div>
+              <div class="bar" style="height: 88px"><span>Sun</span></div>
+            </div>
+          </div>
+          <div class="breakdown">
+            <div class="mini-list">
+              <div class="mini-row"><span>youtube.com</span><span>2h 11m</span></div>
+              <div class="meter"><i style="width: 76%"></i></div>
+              <div class="mini-row"><span>instagram.com</span><span>1h 24m</span></div>
+              <div class="meter"><i style="width: 48%; background: var(--blue)"></i></div>
+            </div>
+            <div class="mini-list">
+              <div class="mini-row"><span>reddit.com</span><span>58m</span></div>
+              <div class="meter"><i style="width: 38%; background: var(--gold)"></i></div>
+              <div class="mini-row"><span>x.com</span><span>32m</span></div>
+              <div class="meter"><i style="width: 24%; background: var(--green)"></i></div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const focus = `
+        <div class="focus-scene">
+          <section class="panel">
+            <div class="analytics-head"><h2>Focus session</h2><div class="date-chip">Strict mode</div></div>
+            <div class="timer"><div><strong>24:18</strong><span>until distractions unlock</span></div></div>
+            <div class="button-row"><div class="button">Keep focusing</div><div class="button secondary">Stop session</div></div>
+          </section>
+          <aside class="panel">
+            <h2>Allowed now</h2>
+            <div class="whitelist" style="margin-top: 18px">
+              <div class="allow-row"><span>docs.google.com</span><span>Allowed</span></div>
+              <div class="allow-row"><span>github.com</span><span>Allowed</span></div>
+              <div class="allow-row"><span>notion.so</span><span>Allowed</span></div>
+            </div>
+            <div class="mode-card" style="margin-top: 24px">
+              <div class="mode-option active"><strong>Standard focus</strong><span>Only blocks websites in your list.</span></div>
+              <div class="mode-option"><strong>Strict focus</strong><span>Blocks the web except your whitelist.</span></div>
+            </div>
+          </aside>
+        </div>
+      `;
+
+      const settings = `
+        <div class="settings-scene">
+          <section class="panel">
+            <h2>Global controls</h2>
+            <div class="toggle-list">
+              <div class="toggle-row"><div class="switch on"></div><div><strong>Block all websites in list</strong><span>One switch for the full schedule.</span></div></div>
+              <div class="toggle-row"><div class="switch on"></div><div><strong>Require PIN</strong><span>Protect extra time from impulse.</span></div></div>
+              <div class="toggle-row"><div class="switch on"></div><div><strong>Allow extra time</strong><span>Intentional breaks, never endless drift.</span></div></div>
+              <div class="toggle-row"><div class="switch on"></div><div><strong>Show limit warnings</strong><span>Warn before a limit runs out.</span></div></div>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="analytics-head"><h2>Warnings and visual filters</h2><div class="date-chip">Website overrides ready</div></div>
+            <div class="warning-grid">
+              <div class="warning-cell"><i></i></div><div class="warning-cell active"><i></i></div><div class="warning-cell"><i></i></div>
+              <div class="warning-cell"><i></i></div><div class="warning-cell"><i></i></div><div class="warning-cell"><i></i></div>
+              <div class="warning-cell"><i></i></div><div class="warning-cell"><i></i></div><div class="warning-cell"><i></i></div>
+            </div>
+            <div class="filter-preview"><div class="filter-preview-inner"><strong>Grayscale and night light</strong><span>Make distracting pages feel less rewarding while keeping useful sites readable.</span></div></div>
+          </section>
+        </div>
+      `;
+
+      const scenes = {
+        "screenshot-1": () => shell("Scheduled website blocking", "Set boundaries before the scroll starts.", "Mock websites show how Focus Tracker keeps distracting tabs blocked, limited, or intentionally available.", ["Schedules", "Daily limits", "Site exceptions"], browser),
+        "screenshot-2": () => shell("Extra time with control", "Add a little time, then cut it off instantly.", "Extra minutes are deliberate and reversible. Revoke added time and the site blocks immediately.", ["Instant revoke", "PIN ready", "Temporary access"], blocked),
+        "screenshot-3": () => shell("Usage that tells the truth", "See where your attention actually went.", "Mock weekly analytics reveal blocked visits, saved time, and the websites pulling the most focus.", ["Weekly charts", "Site totals", "Focus history"], analytics),
+        "screenshot-4": () => shell("Pomodoro focus mode", "Protect deep work with strict or standard focus.", "Start a session, keep essential tools available, and let the extension guard the rest of the web.", ["Strict mode", "Whitelist", "Session timer"], focus),
+        "screenshot-5": () => shell("Global settings", "Tune the web to match the workday.", "Use global rules, warnings, grayscale, night light, and website overrides to make focus feel automatic.", ["Warnings", "Visual filters", "Overrides"], settings)
+      };
+
+      function promoSmall() {
+        root.className = "asset promo-small";
+        return `
+          <div class="promo-inner">
+            <div class="promo-lockup"><img src="${icon}" alt=""><strong>Focus Tracker</strong></div>
+            <h1 class="promo-title">Block distractions. Keep momentum.</h1>
+            <p class="promo-caption">Schedules, limits, focus sessions, and intentional extra time.</p>
+            <div class="mini-signal" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+          </div>
+        `;
+      }
+
+      function promoMarquee() {
+        root.className = "asset promo-marquee";
+        return `
+          <div class="promo-inner">
+            <div class="promo-lockup"><img src="${icon}" alt=""><strong>Focus Tracker</strong></div>
+            <h1 class="promo-title">A calmer browser for serious focus.</h1>
+            <p class="promo-caption">Block distracting websites by schedule, monitor usage, run Pomodoro focus sessions, and keep extra time under control.</p>
+            <aside class="promo-card">
+              <div class="status-box"><strong>2 websites blocked now</strong><span>Mock data for store presentation.</span></div>
+              <div class="site-row blocked"><div class="check">!</div><div><strong>youtube.com</strong><span>Blocked until 6:00 PM</span></div></div>
+              <div class="site-row"><div class="check">✓</div><div><strong>github.com</strong><span>Allowed during focus</span></div></div>
+            </aside>
+          </div>
+        `;
+      }
+
+      if (asset === "promo-small") {
+        root.innerHTML = promoSmall();
+      } else if (asset === "promo-marquee") {
+        root.innerHTML = promoMarquee();
+      } else {
+        root.className = "asset screenshot";
+        root.innerHTML = (scenes[asset] || scenes["screenshot-1"])();
+      }
+    </script>
+  </body>
+</html>

@@ -2406,7 +2406,15 @@ function renderSiteList() {
                 throw new Error(response?.error || "Could not revoke added minutes.");
               }
 
-              await loadData();
+              if (response.state) {
+                state = response.state;
+                pomodoro = normalizePomodoro(state.pomodoro || pomodoro);
+                renderPomodoro();
+                renderStatus();
+                renderSiteList();
+              } else {
+                await loadData();
+              }
             } catch (error) {
               renderError(cleanError(error));
             } finally {

@@ -200,9 +200,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "cut-off-site") {
     cutOffSite(message.domain)
-      .then(() => refreshRulesAndNotify("extra-time"))
-      .then(() => getSiteStatus(message.domain))
-      .then((status) => sendResponse({ ok: true, status }))
+      .then(async () => {
+        const state = await refreshRulesAndNotify("extra-time");
+        await enforceDomainTabsBlock(state, message.domain);
+        return state;
+      })
+      .then(async (state) => {
+        const status = await getSiteStatus(message.domain);
+        return { state, status };
+      })
+      .then((data) => sendResponse({ ok: true, ...data }))
       .catch((error) => sendResponse({ ok: false, error: serializeError(error) }));
 
     return true;
@@ -1549,6 +1556,59 @@ async function enforceActiveTabBlock(state) {
     return;
   }
 
+  await enforceTabBlock(tab, state);
+}
+
+async function enforceDomainTabsBlock(state, domain) {
+  const normalizedDomain = normalizeDomain(domain);
+
+  if (!normalizedDomain) {
+    return;
+  }
+
+  let schedule = null;
+  let settings = null;
+
+  try {
+    [schedule, settings] = await Promise.all([loadSchedule(), loadSettings()]);
+  } catch (_error) {
+  }
+
+  const site = schedule && settings ? findSiteForHost(schedule, normalizedDomain, settings) : null;
+  const targetDomains = Array.from(new Set(
+    (Array.isArray(site?.domains) && site.domains.length > 0 ? site.domains : [normalizedDomain])
+      .map((targetDomain) => normalizeDomain(targetDomain))
+      .filter(Boolean)
+  ));
+
+  let tabs = [];
+
+  try {
+    tabs = await chrome.tabs.query({});
+  } catch (_error) {
+    return;
+  }
+
+  await Promise.all(tabs.map(async (tab) => {
+    if (typeof tab?.id !== "number" || !/^https?:\/\//.test(tab.url || "")) {
+      return;
+    }
+
+    const host = getHostname(tab.url);
+
+    if (!targetDomains.some((targetDomain) => domainMatches(host, targetDomain))) {
+      return;
+    }
+
+    await enforceTabBlock(tab, state);
+  }));
+}
+
+async function enforceTabBlock(tab, state) {
+  if (typeof tab?.id !== "number" || !/^https?:\/\//.test(tab.url || "")) {
+    return;
+  }
+
   const host = getHostname(tab.url);
   const tabReadyForPageInjection = isTabReadyForPageInjection(tab);
 
@@ -1920,20 +1980,22 @@ function setFocusTrackerLimitWarning(warning) {
   const stateKey = "__focusTrackerLimitWarningState";
   const yellowThresholdSeconds = 5 * 60;
   const redThresholdSeconds = 60;
-  const existingState = globalThis[stateKey] || {};
-  const state = {
-    host: existingState.host || null,
-    shadow: existingState.shadow || null,
-    timer: existingState.timer || 0,
-    autoTimer: existingState.autoTimer || 0,
-    showTimer: existingState.showTimer || 0,
-    expiresAt: existingState.expiresAt || 0,
-    domain: existingState.domain || "",
-    position: existingState.position || "top-center",
-    autoDismissSeconds: existingState.autoDismissSeconds || 0,
-    dismissedDomain: existingState.dismissedDomain || "",
-    dismissedSeverity: existingState.dismissedSeverity || ""
-  };
+  const existingState = globalThis[stateKey];
+  // Keep one mutable state object because timers and close handlers outlive each injection refresh.
+  const state = existingState && typeof existingState === "object" ? existingState : {};
+
+  state.host = state.host || null;
+  state.shadow = state.shadow || null;
+  state.timer = state.timer || 0;
+  state.autoTimer = state.autoTimer || 0;
+  state.showTimer = state.showTimer || 0;
+  state.expiresAt = state.expiresAt || 0;
+  state.domain = state.domain || "";
+  state.position = state.position || "top-center";
+  state.autoDismissSeconds = state.autoDismissSeconds || 0;
+  state.dismissedDomain = state.dismissedDomain || "";
+  state.dismissedSeverity = state.dismissedSeverity || "";
+  globalThis[stateKey] = state;
 
   function clearTimer(name, clearFn) {
     if (state[name]) {
@@ -2189,6 +2251,7 @@ function setFocusTrackerLimitWarning(warning) {
         :host {
           all: initial;
           color-scheme: light;
+          font-size: 16px;
           font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
@@ -2239,14 +2302,14 @@ function setFocusTrackerLimitWarning(warning) {
         }
 
         strong {
-          font-size: 1rem;
+          font-size: 1em;
           font-weight: 950;
           letter-spacing: 0;
           line-height: 1.15;
         }
 
-        span {
-          font-size: 0.82rem;
+        .copy > span {
+          font-size: 0.82em;
           font-weight: 800;
           line-height: 1.2;
         }
@@ -2269,7 +2332,7 @@ function setFocusTrackerLimitWarning(warning) {
           color: currentColor;
           cursor: pointer;
           font: inherit;
-          font-size: 1rem;
+          font-size: 1em;
           font-weight: 950;
           line-height: 1;
           opacity: 0.82;
@@ -2296,7 +2359,7 @@ function setFocusTrackerLimitWarning(warning) {
           }
 
           strong {
-            font-size: 0.92rem;
+            font-size: 0.92em;
           }
         }
       </style>
@@ -2354,17 +2417,19 @@ function setFocusTrackerLimitWarning(warning) {
   }
 
   function getNextShowAtSeconds(secondsLeft) {
+    const wasCurrentDomainDismissed = state.dismissedDomain === state.domain;
+
     if (secondsLeft > yellowThresholdSeconds) {
       return yellowThresholdSeconds;
     }
 
     if (secondsLeft > redThresholdSeconds) {
-      return state.dismissedDomain === nextDomain && state.dismissedSeverity === "warning"
+      return wasCurrentDomainDismissed && state.dismissedSeverity === "warning"
         ? redThresholdSeconds
         : secondsLeft;
     }
 
-    return state.dismissedDomain === nextDomain && state.dismissedSeverity === "danger"
+    return wasCurrentDomainDismissed && state.dismissedSeverity === "danger"
       ? 0
       : secondsLeft;
   }

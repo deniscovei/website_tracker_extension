@@ -1,0 +1,36 @@
+Focus Tracker
+
+A calmer browser for people who want their attention back.
+
+Focus Tracker turns distracting websites into deliberate choices. Build a schedule for the sites that pull you away, set daily allowances, protect extra time with a PIN, and start Pomodoro focus sessions when you need a clean stretch of work. The extension keeps the rules close to the browser, so you can make fast decisions without opening a separate dashboard.
+
+Short store description
+Block distracting websites by schedule, track usage, run Pomodoro sessions, and keep extra time under control.
+
+Long store description
+Focus Tracker helps you create a browser that respects your plans. Add distracting websites, choose when they should be blocked, set daily allowances, and get limit warnings before time runs out. When you truly need a few extra minutes, you can grant temporary access, require a PIN, and revoke that added time instantly.
+
+The extension also includes Focus mode for Pomodoro-style sessions. Standard mode blocks only the websites in your list, while Strict mode blocks the web except for the sites you whitelist. Usage views show where your attention went across the day and week, making it easier to tune your rules without guessing.
+
+Key features
+- Scheduled website blocking with per-site rules.
+- Daily allowances for controlled access.
+- Extra time that can be granted, protected by PIN, and revoked immediately.
+- Pomodoro Focus mode with standard and strict options.
+- Website exceptions and global overrides.
+- Usage analytics for daily and weekly attention patterns.
+- Limit warnings with configurable screen position and auto-dismiss timing.
+- Optional grayscale and night light filters to reduce the pull of distracting pages.
+- Local-first storage for schedules, usage, and preferences.
+
+Suggested Chrome Web Store listing title
+Focus Tracker - Website Blocker and Focus Timer
+
+Suggested category
+Productivity
+
+Suggested keywords
+focus, website blocker, pomodoro, productivity, time limit, distraction blocker, usage tracker, digital wellbeing, site blocker, focus timer
+
+Presentation asset notes
+The screenshots in this folder use mock websites and mock usage data. They are designed for extension presentation and store publishing assets, while showing the real product concepts: scheduled blocking, extra time revoke, usage insights, focus sessions, and global settings.
