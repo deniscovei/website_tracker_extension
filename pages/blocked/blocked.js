@@ -87,7 +87,12 @@ async function loadExtraTimeStatus({ preserveInteraction = false } = {}) {
       return;
     }
 
-    if (!response?.ok || !response.status?.found) {
+    if (response?.ok && !response.status?.found) {
+      navigateToSite();
+      return;
+    }
+
+    if (!response?.ok) {
       extraTime.hidden = true;
       return;
     }

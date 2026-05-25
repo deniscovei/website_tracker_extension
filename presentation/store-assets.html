@@ -555,7 +555,7 @@
       .analytics-scene {
         height: 646px;
         border-radius: 28px;
-        padding: 28px;
+        padding: 22px;
         background: #fffdf8;
       }
 
@@ -563,7 +563,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 20px;
+        margin-bottom: 12px;
       }
 
       .analytics-head h2,
@@ -692,6 +692,300 @@
         height: 100%;
         border-radius: inherit;
         background: var(--coral);
+      }
+
+      .site-row-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: -2px 0 2px 48px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: #fff2ef;
+        color: #8f3d31;
+        font-size: 12px;
+        font-weight: 950;
+      }
+
+      .analytics-sections {
+        display: grid;
+        gap: 10px;
+      }
+
+      .analytics-group-card {
+        padding: 10px;
+        border-radius: 18px;
+        border: 1px solid rgba(101, 113, 102, 0.16);
+        background: #fbfaf5;
+      }
+
+      .analytics-group-card h3 {
+        margin: 0 0 8px;
+        color: var(--ink);
+        font-size: 16px;
+        font-weight: 950;
+      }
+
+      .overview-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+      }
+
+      .overview-card {
+        min-height: 62px;
+        padding: 9px 10px;
+        border-radius: 14px;
+        background: #ffffff;
+        border: 1px solid rgba(101, 113, 102, 0.14);
+      }
+
+      .overview-card span {
+        display: block;
+        color: #657166;
+        font-size: 10px;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+
+      .overview-card strong {
+        display: block;
+        margin-top: 5px;
+        color: var(--ink);
+        font-size: 18px;
+        font-weight: 950;
+      }
+
+      .overview-card small {
+        display: block;
+        margin-top: 3px;
+        color: #687268;
+        font-size: 10px;
+        font-weight: 750;
+      }
+
+      .usage-two-col {
+        display: grid;
+        grid-template-columns: 1.08fr 0.92fr;
+        gap: 14px;
+      }
+
+      .week-mini {
+        padding: 10px;
+        border-radius: 18px;
+        background: #ffffff;
+        border: 1px solid rgba(101, 113, 102, 0.16);
+      }
+
+      .week-mini-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+
+      .week-mini h3,
+      .compact-panel h3 {
+        margin: 0;
+        color: var(--ink);
+        font-size: 16px;
+        font-weight: 950;
+      }
+
+      .week-stats-mock {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .week-stats-mock div,
+      .total-card {
+        padding: 10px;
+        border-radius: 13px;
+        background: #edf6f2;
+      }
+
+      .week-stats-mock span,
+      .total-card span {
+        display: block;
+        color: #657166;
+        font-size: 10px;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+
+      .week-stats-mock strong,
+      .total-card strong {
+        display: block;
+        margin-top: 5px;
+        font-size: 21px;
+        font-weight: 950;
+      }
+
+      .hourly-card {
+        padding: 10px;
+        border-radius: 18px;
+        background: #fbfaf5;
+        border: 1px solid rgba(101, 113, 102, 0.16);
+      }
+
+      .hour-bars {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        align-items: end;
+        gap: 5px;
+        height: 68px;
+        margin-top: 8px;
+      }
+
+      .hour-bars span {
+        min-height: 10px;
+        border-radius: 999px 999px 4px 4px;
+        background: linear-gradient(180deg, var(--teal), #70b76e);
+      }
+
+      .share-mock {
+        display: grid;
+        grid-template-columns: 74px 1fr;
+        gap: 11px;
+        align-items: center;
+        padding: 10px;
+        border-radius: 18px;
+        background: #ffffff;
+        border: 1px solid rgba(101, 113, 102, 0.16);
+      }
+
+      .pie-mock {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: conic-gradient(var(--teal) 0 38%, var(--blue) 38% 62%, var(--coral) 62% 82%, var(--gold) 82% 100%);
+        box-shadow: inset 0 0 0 14px #fffdf8;
+      }
+
+      .website-list-mock {
+        display: grid;
+        gap: 8px;
+      }
+
+      .website-usage-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 950;
+      }
+
+      .clock-mock {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 224px;
+        height: 224px;
+        margin: 16px auto;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at center, #fffdf8 0 46%, transparent 47%),
+          conic-gradient(var(--teal) 0 25%, #e7ece4 25% 100%);
+        border: 12px solid #f0f4ec;
+        box-shadow: 0 20px 42px rgba(32, 37, 31, 0.12);
+      }
+
+      .clock-mock strong {
+        display: block;
+        font-size: 54px;
+        font-weight: 950;
+        line-height: 1;
+        text-align: center;
+      }
+
+      .clock-mock small {
+        display: block;
+        color: #657166;
+        font-size: 14px;
+        font-weight: 950;
+        text-align: center;
+      }
+
+      .clock-mock span {
+        position: absolute;
+        color: #657166;
+        font-size: 11px;
+        font-weight: 950;
+      }
+
+      .clock-mock .mark-120 { top: 16px; left: 50%; transform: translateX(-50%); }
+      .clock-mock .mark-30 { right: 16px; top: 50%; transform: translateY(-50%); }
+      .clock-mock .mark-60 { bottom: 16px; left: 50%; transform: translateX(-50%); }
+      .clock-mock .mark-90 { left: 16px; top: 50%; transform: translateY(-50%); }
+
+      .whitelist-field-mock {
+        margin-top: 13px;
+        padding: 12px;
+        border-radius: 14px;
+        background: #fffdf8;
+        border: 1px solid rgba(101, 113, 102, 0.18);
+      }
+
+      .whitelist-field-mock span {
+        display: block;
+        color: #657166;
+        font-size: 11px;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+
+      .whitelist-field-mock strong {
+        display: block;
+        margin-top: 6px;
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .stats-grid-mock {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .stat-card-mock {
+        padding: 12px;
+        border-radius: 14px;
+        background: #ffffff;
+        border: 1px solid rgba(101, 113, 102, 0.15);
+      }
+
+      .stat-card-mock span {
+        display: block;
+        color: #657166;
+        font-size: 10px;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+
+      .stat-card-mock strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 20px;
+        font-weight: 950;
+      }
+
+      .session-row-mock {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 38px;
+        margin-top: 9px;
+        padding: 0 12px;
+        border-radius: 12px;
+        background: #fffdf8;
+        border: 1px solid rgba(101, 113, 102, 0.15);
+        font-size: 12px;
+        font-weight: 900;
       }
 
       .focus-scene,
@@ -1072,7 +1366,7 @@
         ["youtube.com", "Blocked until 6:00 PM", "Blocked"],
         ["instagram.com", "12 min daily limit left", "Warning"],
         ["reddit.com", "5 min added time remaining", "Revoke"],
-        ["news.ycombinator.com", "Allowed after 5:00 PM", "Rules"]
+        ["x.com", "Allowed after 5:00 PM", "Rules"]
       ];
 
       const rows = sites.map(([domain, meta, badge], index) => `
@@ -1105,7 +1399,7 @@
         <div class="browser-frame">
           <div class="browser-top">
             <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-            <div class="url-bar">https://example.com/deep-work-dashboard</div>
+            <div class="url-bar">https://github.com/pulls</div>
           </div>
           <div class="browser-body">
             <article class="article">
@@ -1130,50 +1424,102 @@
       `;
 
       const blocked = `
-        <div class="blocked-scene">
-          <section class="blocked-card">
-            <div class="block-brand"><img src="${icon}" alt=""><strong>Focus Tracker</strong></div>
-            <h2>This website is blocked</h2>
-            <p>Your time is up for reddit.com. Add a small amount of intentional time, or revoke it instantly when you are done.</p>
-            <div class="time-box"><div><strong>04m 58s</strong><span>added time remaining</span></div><div class="badge hot">Live</div></div>
-            <div class="button-row"><div class="button">Add 10 minutes</div><div class="button secondary">Back to focus</div></div>
-            <div class="revoke-strip"><span>Revoke added time</span><span>Blocks immediately</span></div>
-          </section>
+        <div class="browser-frame">
+          <div class="browser-top">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <div class="url-bar">https://reddit.com/r/productivity</div>
+          </div>
+          <div class="browser-body">
+            <article class="article">
+              <h2>Temporary access stays visible until you revoke it.</h2>
+              <div class="article-line"></div>
+              <div class="article-line mid"></div>
+              <div class="article-line short"></div>
+              <div class="hero-tile"></div>
+            </article>
+            <aside class="extension-popover">
+              <div class="popover-head">
+                <img src="${icon}" alt="">
+                <div><strong>Focus Tracker</strong></div>
+              </div>
+              <div class="tabs"><div class="tab active">Websites</div><div class="tab">Usage</div><div class="tab">Focus</div></div>
+              <div class="status-box"><strong>Extra time is active</strong><span>reddit.com can be cut off immediately from the website list.</span></div>
+              <div class="section-title"><strong>Websites</strong><div class="pill-button">Add website</div></div>
+              <div class="site-list">
+                <div class="site-row">
+                  <div class="check">✓</div>
+                  <div><strong>reddit.com</strong><span>extra time allowed, PIN required for extra time</span></div>
+                  <div class="badge">Live</div>
+                </div>
+                <div class="site-row-actions"><span>5m added time remaining</span><span>Revoke added time</span></div>
+                <div class="site-row blocked">
+                  <div class="check">!</div>
+                  <div><strong>youtube.com</strong><span>blocked until 6:00 PM</span></div>
+                  <div class="badge hot">Blocked</div>
+                </div>
+              </div>
+            </aside>
+          </div>
         </div>
       `;
 
       const analytics = `
         <div class="analytics-scene">
-          <div class="analytics-head"><h2>Usage insights</h2><div class="date-chip">This week</div></div>
-          <div class="metric-grid">
-            <div class="metric"><span>Time saved</span><strong>7h 20m</strong></div>
-            <div class="metric"><span>Blocked visits</span><strong>42</strong></div>
-            <div class="metric"><span>Focus sessions</span><strong>9</strong></div>
-          </div>
-          <div class="chart-card">
-            <strong>Daily distracting time</strong>
-            <div class="bars">
-              <div class="bar" style="height: 116px"><span>Mon</span></div>
-              <div class="bar" style="height: 76px"><span>Tue</span></div>
-              <div class="bar" style="height: 154px"><span>Wed</span></div>
-              <div class="bar" style="height: 62px"><span>Thu</span></div>
-              <div class="bar" style="height: 134px"><span>Fri</span></div>
-              <div class="bar" style="height: 44px"><span>Sat</span></div>
-              <div class="bar" style="height: 88px"><span>Sun</span></div>
-            </div>
-          </div>
-          <div class="breakdown">
-            <div class="mini-list">
-              <div class="mini-row"><span>youtube.com</span><span>2h 11m</span></div>
-              <div class="meter"><i style="width: 76%"></i></div>
-              <div class="mini-row"><span>instagram.com</span><span>1h 24m</span></div>
-              <div class="meter"><i style="width: 48%; background: var(--blue)"></i></div>
-            </div>
-            <div class="mini-list">
-              <div class="mini-row"><span>reddit.com</span><span>58m</span></div>
-              <div class="meter"><i style="width: 38%; background: var(--gold)"></i></div>
-              <div class="mini-row"><span>x.com</span><span>32m</span></div>
-              <div class="meter"><i style="width: 24%; background: var(--green)"></i></div>
+          <div class="analytics-head"><h2>Screen time</h2><div class="date-chip">Today</div></div>
+          <div class="analytics-sections">
+            <section class="analytics-group-card">
+              <h3>All-Time Overview</h3>
+              <div class="overview-grid">
+                <div class="overview-card"><span>All tracked</span><strong>18h 42m</strong><small>12 active days</small></div>
+                <div class="overview-card"><span>This week</span><strong>5h 16m</strong><small>Average 45m</small></div>
+                <div class="overview-card"><span>Daily average</span><strong>1h 33m</strong><small>Across active days</small></div>
+                <div class="overview-card"><span>Websites</span><strong>6</strong><small>Recorded so far</small></div>
+              </div>
+            </section>
+            <section class="analytics-group-card">
+              <h3>Today's Overview</h3>
+              <div class="overview-grid" style="grid-template-columns: repeat(2, 1fr)">
+                <div class="overview-card"><span>Selected day</span><strong>2h 14m</strong><small>Today</small></div>
+                <div class="overview-card"><span>Top website</span><strong>youtube.com</strong><small>48m</small></div>
+              </div>
+            </section>
+            <div class="usage-two-col">
+              <section class="week-mini">
+                <div class="week-mini-head"><h3>Week</h3><div class="date-chip">May 20 - May 26</div></div>
+                <div class="week-stats-mock">
+                  <div><span>Today</span><strong>2h 14m</strong></div>
+                  <div><span>Daily average</span><strong>45m</strong></div>
+                </div>
+                <div class="bars" style="height: 84px; margin-top: 8px">
+                  <div class="bar" style="height: 58px"><span>Mon</span></div>
+                  <div class="bar" style="height: 38px"><span>Tue</span></div>
+                  <div class="bar" style="height: 76px"><span>Wed</span></div>
+                  <div class="bar" style="height: 44px"><span>Thu</span></div>
+                  <div class="bar" style="height: 64px"><span>Fri</span></div>
+                  <div class="bar" style="height: 30px"><span>Sat</span></div>
+                  <div class="bar" style="height: 52px"><span>Sun</span></div>
+                </div>
+              </section>
+              <div class="analytics-sections">
+                <section class="total-card"><span>Total</span><strong>2h 14m</strong></section>
+                <section class="hourly-card">
+                  <div class="week-mini-head"><h3>Hourly usage</h3><span class="badge">9 PM peak</span></div>
+                  <div class="hour-bars">
+                    <span style="height: 20px"></span><span style="height: 28px"></span><span style="height: 14px"></span><span style="height: 38px"></span>
+                    <span style="height: 32px"></span><span style="height: 58px"></span><span style="height: 45px"></span><span style="height: 25px"></span>
+                    <span style="height: 50px"></span><span style="height: 66px"></span><span style="height: 31px"></span><span style="height: 18px"></span>
+                  </div>
+                </section>
+                <section class="share-mock">
+                  <div class="pie-mock"></div>
+                  <div class="website-list-mock">
+                    <div class="website-usage-row"><span>Website share</span><strong>Top sites</strong></div>
+                    <div class="website-usage-row"><span>youtube.com</span><strong>48m</strong></div>
+                    <div class="website-usage-row"><span>instagram.com</span><strong>34m</strong></div>
+                    <div class="website-usage-row"><span>reddit.com</span><strong>27m</strong></div>
+                  </div>
+                </section>
+              </div>
             </div>
           </div>
         </div>
@@ -1182,21 +1528,44 @@
       const focus = `
         <div class="focus-scene">
           <section class="panel">
-            <div class="analytics-head"><h2>Focus session</h2><div class="date-chip">Strict mode</div></div>
-            <div class="timer"><div><strong>24:18</strong><span>until distractions unlock</span></div></div>
-            <div class="button-row"><div class="button">Keep focusing</div><div class="button secondary">Stop session</div></div>
+            <div class="analytics-head"><div><p class="kicker" style="margin: 0 0 8px">Deep Work</p><h2>Focus session</h2></div><div class="date-chip">30 min</div></div>
+            <div class="clock-mock">
+              <span class="mark-120">120</span><span class="mark-30">30</span><span class="mark-60">60</span><span class="mark-90">90</span>
+              <div><strong>30</strong><small>min</small></div>
+            </div>
+            <div class="mode-card">
+              <div class="mode-option active"><strong>Standard</strong><span>Block websites in selected slots.</span></div>
+              <div class="mode-option"><strong>Strict</strong><span>Only whitelist stays open.</span></div>
+            </div>
+            <div class="whitelist-field-mock"><span>Whitelist domains</span><strong>docs.google.com, github.com, notion.so</strong></div>
+            <div class="button" style="margin-top: 14px">Start</div>
           </section>
           <aside class="panel">
-            <h2>Allowed now</h2>
-            <div class="whitelist" style="margin-top: 18px">
-              <div class="allow-row"><span>docs.google.com</span><span>Allowed</span></div>
-              <div class="allow-row"><span>github.com</span><span>Allowed</span></div>
-              <div class="allow-row"><span>notion.so</span><span>Allowed</span></div>
+            <div class="analytics-head"><h2>Focus statistics</h2><div class="date-chip">Today</div></div>
+            <div class="stats-grid-mock">
+              <div class="stat-card-mock"><span>Focused</span><strong>1h 30m</strong></div>
+              <div class="stat-card-mock"><span>Sessions</span><strong>3</strong></div>
+              <div class="stat-card-mock"><span>Completed / stopped</span><strong>2 / 1</strong></div>
+              <div class="stat-card-mock"><span>Streak</span><strong>4d</strong></div>
             </div>
-            <div class="mode-card" style="margin-top: 24px">
-              <div class="mode-option active"><strong>Standard focus</strong><span>Only blocks websites in your list.</span></div>
-              <div class="mode-option"><strong>Strict focus</strong><span>Blocks the web except your whitelist.</span></div>
-            </div>
+            <section class="week-mini" style="margin-top: 16px">
+              <div class="week-mini-head"><h3>Last 7 days</h3><strong>5h 45m</strong></div>
+              <div class="bars" style="height: 96px; margin-top: 4px">
+                <div class="bar" style="height: 44px"><span>Mon</span></div>
+                <div class="bar" style="height: 84px"><span>Tue</span></div>
+                <div class="bar" style="height: 38px"><span>Wed</span></div>
+                <div class="bar" style="height: 72px"><span>Thu</span></div>
+                <div class="bar" style="height: 58px"><span>Fri</span></div>
+                <div class="bar" style="height: 30px"><span>Sat</span></div>
+                <div class="bar" style="height: 64px"><span>Sun</span></div>
+              </div>
+            </section>
+            <section style="margin-top: 28px">
+              <div class="week-mini-head"><h3>Sessions</h3><span class="badge">3</span></div>
+              <div class="session-row-mock"><span>Strict focus</span><strong>30m</strong></div>
+              <div class="session-row-mock"><span>Standard focus</span><strong>45m</strong></div>
+              <div class="session-row-mock"><span>Standard focus</span><strong>15m</strong></div>
+            </section>
           </aside>
         </div>
       `;
@@ -1204,16 +1573,16 @@
       const settings = `
         <div class="settings-scene">
           <section class="panel">
-            <h2>Global controls</h2>
+            <h2>Global Settings</h2>
             <div class="toggle-list">
               <div class="toggle-row"><div class="switch on"></div><div><strong>Block all websites in list</strong><span>One switch for the full schedule.</span></div></div>
-              <div class="toggle-row"><div class="switch on"></div><div><strong>Require PIN</strong><span>Protect extra time from impulse.</span></div></div>
+              <div class="toggle-row"><div class="switch on"></div><div><strong>Require PIN for all websites</strong><span>Protect extra time from impulse.</span></div></div>
               <div class="toggle-row"><div class="switch on"></div><div><strong>Allow extra time</strong><span>Intentional breaks, never endless drift.</span></div></div>
               <div class="toggle-row"><div class="switch on"></div><div><strong>Show limit warnings</strong><span>Warn before a limit runs out.</span></div></div>
             </div>
           </section>
           <section class="panel">
-            <div class="analytics-head"><h2>Warnings and visual filters</h2><div class="date-chip">Website overrides ready</div></div>
+            <div class="analytics-head"><h2>Warning position</h2><div class="date-chip">Auto disappear</div></div>
             <div class="warning-grid">
               <div class="warning-cell"><i></i></div><div class="warning-cell active"><i></i></div><div class="warning-cell"><i></i></div>
               <div class="warning-cell"><i></i></div><div class="warning-cell"><i></i></div><div class="warning-cell"><i></i></div>
@@ -1227,8 +1596,8 @@
       const scenes = {
         "screenshot-1": () => shell("Scheduled website blocking", "Set boundaries before the scroll starts.", "Mock websites show how Focus Tracker keeps distracting tabs blocked, limited, or intentionally available.", ["Schedules", "Daily limits", "Site exceptions"], browser),
         "screenshot-2": () => shell("Extra time with control", "Add a little time, then cut it off instantly.", "Extra minutes are deliberate and reversible. Revoke added time and the site blocks immediately.", ["Instant revoke", "PIN ready", "Temporary access"], blocked),
-        "screenshot-3": () => shell("Usage that tells the truth", "See where your attention actually went.", "Mock weekly analytics reveal blocked visits, saved time, and the websites pulling the most focus.", ["Weekly charts", "Site totals", "Focus history"], analytics),
-        "screenshot-4": () => shell("Pomodoro focus mode", "Protect deep work with strict or standard focus.", "Start a session, keep essential tools available, and let the extension guard the rest of the web.", ["Strict mode", "Whitelist", "Session timer"], focus),
+        "screenshot-3": () => shell("Screen time analytics", "See where your attention actually went.", "The Usage view shows all-time totals, daily summaries, weekly charts, hourly usage, website share, and per-site rows.", ["All-Time Overview", "Hourly usage", "Website share"], analytics),
+        "screenshot-4": () => shell("Pomodoro focus mode", "Protect deep work with strict or standard focus.", "The Focus view includes the duration dial, Standard and Strict modes, whitelist domains, and focus statistics.", ["Duration dial", "Whitelist domains", "Focus statistics"], focus),
         "screenshot-5": () => shell("Global settings", "Tune the web to match the workday.", "Use global rules, warnings, grayscale, night light, and website overrides to make focus feel automatic.", ["Warnings", "Visual filters", "Overrides"], settings)
       };
 
