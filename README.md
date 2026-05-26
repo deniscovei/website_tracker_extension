@@ -1,8 +1,8 @@
-# Focus Tracker
+# Focus Tracker - Website Blocker and Focus Timer
 
 A calmer browser for people who want their attention back.
 
-Focus Tracker turns distracting websites into deliberate choices. Build a schedule for the sites that pull you away, set daily allowances, protect extra time with a PIN, and start Pomodoro focus sessions when you need a clean stretch of work. The extension keeps the rules close to the browser, so you can make fast decisions without opening a separate dashboard.
+Focus Tracker turns distracting websites into deliberate choices. Build rules for the sites that pull you away, see where your time goes, and start focused work sessions when you need a clean stretch of attention.
 
 ## Preview
 
@@ -10,35 +10,33 @@ Focus Tracker turns distracting websites into deliberate choices. Build a schedu
 | --- | --- | --- |
 | <img src="assets/readme/websites.png" alt="Focus Tracker website blocking view" width="260"> | <img src="assets/readme/usage.png" alt="Focus Tracker usage analytics view" width="260"> | <img src="assets/readme/focus.png" alt="Focus Tracker focus session view" width="260"> |
 
-## What It Does
+## Why Focus Tracker
 
-- Blocks distracting websites by schedule or all the time.
-- Tracks daily and weekly website usage locally.
-- Adds daily allowances so blocked sites can stay available for a controlled amount of time.
-- Lets you grant temporary extra time, protect it with a PIN, and revoke it immediately.
-- Includes Pomodoro-style Focus mode with Standard and Strict options.
-- Supports website exceptions, global overrides, limit warnings, grayscale, and night light filters.
+Most website blockers are either too rigid or too easy to ignore. Focus Tracker is built for the middle ground: block what distracts you, keep useful sites available, and make extra time intentional instead of automatic.
 
-## Install From Source
+The extension keeps the important controls close to your browser, so you can adjust rules, revoke added time, and check usage without opening a separate dashboard.
 
-1. Clone or download this repository.
-2. Open `chrome://extensions` in Chrome.
-3. Turn on **Developer mode**.
-4. Click **Load unpacked**.
-5. Choose the repository folder.
+## Key Features
 
-## How To Use It
+- Scheduled website blocking with per-site rules.
+- Always-blocked mode for sites you want fully restricted.
+- Daily allowances for controlled access.
+- Extra time that can be granted, protected by PIN, and revoked immediately.
+- Pomodoro Focus mode with Standard and Strict sessions.
+- Whitelist domains for strict focus sessions.
+- Usage analytics for daily and weekly attention patterns.
+- Limit warnings with configurable placement and auto-dismiss timing.
+- Optional grayscale and night light filters to make distracting pages less rewarding.
+- Global settings for website rules, visual filters, warnings, and overrides.
 
-Open the extension popup and add the websites you want to control. Each website can be blocked all the time or during selected time slots. Time slots use your browser's local time, including overnight schedules like `22:00` to `07:00`.
+## How It Helps
 
-Daily allowances are only spent while a site is active during a blocked period. If extra time is enabled, the blocked page can grant a few more minutes, and the popup can revoke that added time immediately.
+Use Focus Tracker to set boundaries before the scroll starts. Add websites like social media, video platforms, or forums, choose when they should be blocked, and decide whether limited access should be allowed.
 
-Switch to **Usage** to see totals, daily summaries, weekly charts, hourly usage, website share, and per-site rows. Switch to **Focus** to start a Standard session that blocks your configured sites, or a Strict session that keeps only whitelist domains available.
+When you need a short exception, extra time makes that choice visible and reversible. If the exception stops being useful, revoke it from the extension and the site blocks again immediately.
+
+Usage insights show where your attention actually went across the day and week, making it easier to tune your rules without guessing.
 
 ## Privacy
 
 Focus Tracker is local-first. Schedules, usage, extra time, and preferences are stored with Chrome extension storage on your device.
-
-## Store Assets
-
-Chrome Web Store screenshots, promotional images, and asset-generation scripts live in [presentation](presentation). The README uses smaller preview images from [assets/readme](assets/readme).
