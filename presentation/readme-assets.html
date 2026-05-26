@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Focus Tracker README Assets</title>
+    <style>
+      :root {
+        --ink: #16201a;
+        --muted: #657166;
+        --paper: #fffdf8;
+        --teal: #0f9b8e;
+        --green: #3f8f46;
+        --coral: #e6624f;
+        --gold: #d7a928;
+        --blue: #3277b8;
+        --line: rgba(101, 113, 102, 0.16);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        min-height: 100%;
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      body {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background: #f6f4ee;
+      }
+
+      .readme-shot {
+        display: grid;
+        width: 480px;
+        height: 720px;
+        place-items: center;
+        padding: 24px;
+        background:
+          radial-gradient(circle at 12% 8%, rgba(15, 155, 142, 0.16), transparent 31%),
+          radial-gradient(circle at 90% 14%, rgba(215, 169, 40, 0.2), transparent 34%),
+          linear-gradient(145deg, #fffdf8, #eff7f3 52%, #fff3ec);
+      }
+
+      .popup {
+        width: 408px;
+        min-height: 560px;
+        padding: 18px;
+        border: 1px solid rgba(32, 37, 31, 0.12);
+        border-radius: 24px;
+        background: var(--paper);
+        box-shadow: 0 28px 74px rgba(32, 37, 31, 0.18);
+      }
+
+      .head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .head img {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        box-shadow: 0 12px 28px rgba(32, 37, 31, 0.16);
+      }
+
+      .head strong {
+        font-size: 20px;
+        font-weight: 950;
+      }
+
+      .tabs {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+
+      .tab {
+        display: grid;
+        min-height: 36px;
+        place-items: center;
+        border-radius: 12px;
+        background: #eef1ea;
+        color: #566156;
+        font-size: 12px;
+        font-weight: 950;
+      }
+
+      .tab.active {
+        background: #16201a;
+        color: #fffdf8;
+      }
+
+      .status {
+        margin-bottom: 16px;
+        padding: 14px 16px;
+        border: 1px solid rgba(215, 169, 40, 0.3);
+        border-radius: 16px;
+        background: #fff7e2;
+      }
+
+      .status strong,
+      .section-head strong {
+        display: block;
+        font-size: 16px;
+        font-weight: 950;
+      }
+
+      .status span {
+        display: block;
+        margin-top: 4px;
+        color: #6f633e;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.25;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: var(--teal);
+        color: white;
+        font-size: 12px;
+        font-weight: 950;
+      }
+
+      .site-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .site-card {
+        position: relative;
+        display: grid;
+        gap: 8px;
+        min-height: 68px;
+        padding: 11px 44px 11px 66px;
+        border: 1px solid rgba(22, 32, 28, 0.12);
+        border-radius: 12px;
+        background: #f8fbff;
+      }
+
+      .toggle {
+        position: absolute;
+        top: 16px;
+        left: 12px;
+        width: 44px;
+        height: 24px;
+        border-radius: 999px;
+        background: var(--teal);
+      }
+
+      .toggle::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        right: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: white;
+        box-shadow: 0 2px 7px rgba(32, 37, 31, 0.18);
+      }
+
+      .site-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 6px 10px;
+        align-items: center;
+      }
+
+      .site-row strong {
+        font-size: 15px;
+        font-weight: 950;
+      }
+
+      .site-row span,
+      .note {
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.25;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        padding: 0 9px;
+        border-radius: 999px;
+        background: #e9f2ff;
+        color: #2e6ca8;
+        font-size: 11px;
+        font-weight: 950;
+      }
+
+      .badge.hot {
+        background: #ffe9e3;
+        color: #b54434;
+      }
+
+      .actions {
+        display: grid;
+        gap: 8px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(22, 32, 28, 0.08);
+      }
+
+      .revoke {
+        display: grid;
+        min-height: 34px;
+        place-items: center;
+        border: 1px solid rgba(190, 24, 93, 0.16);
+        border-radius: 6px;
+        background: rgba(190, 24, 93, 0.08);
+        color: #be185d;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .metric-grid,
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .metric,
+      .focus-stat {
+        min-height: 78px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: white;
+      }
+
+      .metric span,
+      .focus-stat span,
+      .week-stat span {
+        display: block;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+
+      .metric strong,
+      .focus-stat strong,
+      .week-stat strong {
+        display: block;
+        margin-top: 5px;
+        font-size: 21px;
+        font-weight: 950;
+      }
+
+      .panel {
+        margin-top: 10px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fbfaf5;
+      }
+
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+
+      .panel-head h2 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 950;
+      }
+
+      .chip {
+        padding: 8px 11px;
+        border-radius: 999px;
+        background: #edf6f2;
+        color: #126f66;
+        font-size: 12px;
+        font-weight: 950;
+      }
+
+      .week-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .week-stat {
+        padding: 10px;
+        border-radius: 13px;
+        background: #edf6f2;
+      }
+
+      .bars {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        align-items: end;
+        gap: 10px;
+        height: 92px;
+      }
+
+      .bar {
+        position: relative;
+        min-height: 28px;
+        border-radius: 11px 11px 5px 5px;
+        background: linear-gradient(180deg, var(--teal), #68b96f);
+      }
+
+      .bar:nth-child(2),
+      .bar:nth-child(5) {
+        background: linear-gradient(180deg, var(--blue), #74a7ce);
+      }
+
+      .bar:nth-child(3),
+      .bar:nth-child(7) {
+        background: linear-gradient(180deg, var(--coral), #f2a092);
+      }
+
+      .bar span {
+        position: absolute;
+        inset: auto 0 -24px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 900;
+        text-align: center;
+      }
+
+      .clock {
+        position: relative;
+        display: grid;
+        width: 188px;
+        height: 188px;
+        place-items: center;
+        margin: 6px auto 16px;
+        border: 10px solid #f0f4ec;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at center, #fffdf8 0 45%, transparent 46%),
+          conic-gradient(var(--teal) 0 25%, #e7ece4 25% 100%);
+      }
+
+      .clock strong {
+        display: block;
+        font-size: 48px;
+        font-weight: 950;
+        line-height: 1;
+        text-align: center;
+      }
+
+      .clock small {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 950;
+        text-align: center;
+      }
+
+      .mode {
+        padding: 13px 14px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: white;
+      }
+
+      .mode + .mode {
+        margin-top: 10px;
+      }
+
+      .mode.active {
+        border-color: rgba(15, 155, 142, 0.42);
+        background: #eef8f4;
+      }
+
+      .mode strong {
+        display: block;
+        font-size: 15px;
+        font-weight: 950;
+      }
+
+      .mode span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .button {
+        display: grid;
+        min-height: 44px;
+        margin-top: 12px;
+        place-items: center;
+        border-radius: 13px;
+        background: #16201a;
+        color: white;
+        font-size: 14px;
+        font-weight: 950;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="asset" class="readme-shot"></main>
+    <script>
+      const root = document.getElementById("asset");
+      const icon = "../assets/icons/icon128.png";
+      const params = new URLSearchParams(window.location.search);
+      const asset = params.get("asset") || "websites";
+
+      function chrome(active) {
+        return `
+          <div class="head"><img src="${icon}" alt=""><strong>Focus Tracker</strong></div>
+          <div class="tabs">
+            <div class="tab ${active === "websites" ? "active" : ""}">Websites</div>
+            <div class="tab ${active === "usage" ? "active" : ""}">Usage</div>
+            <div class="tab ${active === "focus" ? "active" : ""}">Focus</div>
+          </div>
+        `;
+      }
+
+      function websites() {
+        return `
+          <section class="popup">
+            ${chrome("websites")}
+            <div class="status"><strong>2 websites blocked right now</strong><span>Limits, schedules, and extra time are active.</span></div>
+            <div class="section-head"><strong>Websites</strong><span class="pill">Add website</span></div>
+            <div class="site-list">
+              <div class="site-card">
+                <span class="toggle" aria-hidden="true"></span>
+                <div class="site-row"><div><strong>youtube.com</strong><div class="note">Blocked until 6:00 PM</div></div><span class="badge hot">Blocked</span></div>
+              </div>
+              <div class="site-card">
+                <span class="toggle" aria-hidden="true"></span>
+                <div class="site-row"><div><strong>reddit.com</strong><div class="note">extra time allowed, PIN required</div></div><span class="badge">Live</span></div>
+                <div class="actions"><span class="note">5m added time remaining</span><span class="revoke">Revoke added time</span></div>
+              </div>
+              <div class="site-card">
+                <span class="toggle" aria-hidden="true"></span>
+                <div class="site-row"><div><strong>x.com</strong><div class="note">Allowed after 5:00 PM</div></div><span class="badge">Rules</span></div>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      function usage() {
+        return `
+          <section class="popup">
+            ${chrome("usage")}
+            <div class="section-head"><strong>Screen time</strong><span class="chip">Today</span></div>
+            <div class="metric-grid">
+              <div class="metric"><span>All tracked</span><strong>18h 42m</strong></div>
+              <div class="metric"><span>This week</span><strong>5h 16m</strong></div>
+              <div class="metric"><span>Daily average</span><strong>1h 33m</strong></div>
+              <div class="metric"><span>Websites</span><strong>6</strong></div>
+            </div>
+            <section class="panel">
+              <div class="panel-head"><h2>Week</h2><span class="chip">May 20 - May 26</span></div>
+              <div class="week-stats">
+                <div class="week-stat"><span>Today</span><strong>2h 14m</strong></div>
+                <div class="week-stat"><span>Daily average</span><strong>45m</strong></div>
+              </div>
+              <div class="bars">
+                <div class="bar" style="height: 58px"><span>Mon</span></div>
+                <div class="bar" style="height: 38px"><span>Tue</span></div>
+                <div class="bar" style="height: 66px"><span>Wed</span></div>
+                <div class="bar" style="height: 44px"><span>Thu</span></div>
+                <div class="bar" style="height: 64px"><span>Fri</span></div>
+                <div class="bar" style="height: 30px"><span>Sat</span></div>
+                <div class="bar" style="height: 52px"><span>Sun</span></div>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="panel-head"><h2>Top sites</h2><span class="badge">9 PM peak</span></div>
+              <div class="site-row"><strong>youtube.com</strong><span>48m</span></div>
+              <div class="site-row"><strong>instagram.com</strong><span>34m</span></div>
+              <div class="site-row"><strong>reddit.com</strong><span>27m</span></div>
+            </section>
+          </section>
+        `;
+      }
+
+      function focus() {
+        return `
+          <section class="popup">
+            ${chrome("focus")}
+            <div class="section-head"><strong>Focus session</strong><span class="chip">30 min</span></div>
+            <div class="clock"><div><strong>30</strong><small>min</small></div></div>
+            <div class="mode active"><strong>Standard</strong><span>Block websites in selected slots.</span></div>
+            <div class="mode"><strong>Strict</strong><span>Only whitelist stays open.</span></div>
+            <div class="button">Start</div>
+            <section class="panel">
+              <div class="panel-head"><h2>Focus statistics</h2><span class="chip">Today</span></div>
+              <div class="stats-grid">
+                <div class="focus-stat"><span>Focused</span><strong>1h 30m</strong></div>
+                <div class="focus-stat"><span>Sessions</span><strong>3</strong></div>
+              </div>
+            </section>
+          </section>
+        `;
+      }
+
+      const views = { websites, usage, focus };
+      root.innerHTML = (views[asset] || websites)();
+    </script>
+  </body>
+</html>

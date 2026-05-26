@@ -1,10 +1,14 @@
 # Focus Tracker
 
-![Focus Tracker promotional banner](presentation/promotional/marquee-promo-1400x560.png)
-
 A calmer browser for people who want their attention back.
 
 Focus Tracker turns distracting websites into deliberate choices. Build a schedule for the sites that pull you away, set daily allowances, protect extra time with a PIN, and start Pomodoro focus sessions when you need a clean stretch of work. The extension keeps the rules close to the browser, so you can make fast decisions without opening a separate dashboard.
+
+## Preview
+
+| Websites | Usage | Focus |
+| --- | --- | --- |
+| <img src="assets/readme/websites.png" alt="Focus Tracker website blocking view" width="260"> | <img src="assets/readme/usage.png" alt="Focus Tracker usage analytics view" width="260"> | <img src="assets/readme/focus.png" alt="Focus Tracker focus session view" width="260"> |
 
 ## What It Does
 
@@ -14,28 +18,6 @@ Focus Tracker turns distracting websites into deliberate choices. Build a schedu
 - Lets you grant temporary extra time, protect it with a PIN, and revoke it immediately.
 - Includes Pomodoro-style Focus mode with Standard and Strict options.
 - Supports website exceptions, global overrides, limit warnings, grayscale, and night light filters.
-
-## Screenshots
-
-### Scheduled Blocking
-
-![Scheduled website blocking dashboard](presentation/screenshots/01-website-blocking-dashboard.png)
-
-### Extra Time With Instant Revoke
-
-![Extra time instant revoke flow](presentation/screenshots/02-extra-time-instant-revoke.png)
-
-### Usage Insights
-
-![Usage analytics view](presentation/screenshots/03-usage-insights.png)
-
-### Pomodoro Focus Mode
-
-![Pomodoro focus mode](presentation/screenshots/04-pomodoro-focus-mode.png)
-
-### Global Settings And Filters
-
-![Global settings and visual filters](presentation/screenshots/05-global-settings-and-filters.png)
 
 ## Install From Source
 
@@ -57,6 +39,6 @@ Switch to **Usage** to see totals, daily summaries, weekly charts, hourly usage,
 
 Focus Tracker is local-first. Schedules, usage, extra time, and preferences are stored with Chrome extension storage on your device.
 
-## Presentation Assets
+## Store Assets
 
-Chrome Web Store screenshots and promotional images live in [presentation](presentation). The images use mock websites and mock usage data while showing the real product concepts.
+Chrome Web Store screenshots, promotional images, and asset-generation scripts live in [presentation](presentation). The README uses smaller preview images from [assets/readme](assets/readme).
