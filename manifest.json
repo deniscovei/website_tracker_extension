@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Focus Tracker",
-  "description": "Tracks website usage and blocks distracting sites by schedule.",
+  "description": "Block distracting websites by schedule, track usage, run Pomodoro sessions, and keep extra time under control.",
   "version": "0.10.35",
   "minimum_chrome_version": "101",
   "permissions": [
