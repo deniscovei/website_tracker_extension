@@ -46,6 +46,7 @@
   const mediaStates = new Map();
   let mediaGuardTimer = 0;
   let scrollLockActive = false;
+  let overlayRemovalObserver = null;
 
   document.addEventListener("play", handleMediaPlayWhileBlocked, true);
 
@@ -179,11 +180,13 @@
       root.id = ROOT_ID;
 
       shadowRoot.append(style, sharedStyles, root);
-      document.documentElement.append(overlayHost);
+      (document.body || document.documentElement).append(overlayHost);
       bindOverlayKeyboardGuards();
+      startOverlayRemovalObserver();
     } else {
       shadowRoot = overlayHost.shadowRoot;
       bindOverlayKeyboardGuards();
+      startOverlayRemovalObserver();
     }
   }
 
@@ -347,6 +350,8 @@
   }
 
   function hideOverlay(resumeMediaAfterHide = false) {
+    stopOverlayRemovalObserver();
+
     if (overlayHost?.isConnected) {
       overlayHost.remove();
     }
@@ -365,6 +370,32 @@
       resumeMedia();
     } else {
       mediaStates.clear();
+    }
+  }
+
+  function isOverlayActive() {
+    return Boolean(overlayHost?.isConnected);
+  }
+
+  function startOverlayRemovalObserver() {
+    stopOverlayRemovalObserver();
+
+    if (!overlayHost?.isConnected || typeof MutationObserver === "undefined") {
+      return;
+    }
+
+    overlayRemovalObserver = new MutationObserver(() => {
+      if (overlayHost && !overlayHost.isConnected) {
+        hideOverlay(false);
+      }
+    });
+    overlayRemovalObserver.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  function stopOverlayRemovalObserver() {
+    if (overlayRemovalObserver) {
+      overlayRemovalObserver.disconnect();
+      overlayRemovalObserver = null;
     }
   }
 
@@ -485,7 +516,7 @@
   }
 
   function enforceMediaSilence() {
-    if (!overlayHost) {
+    if (!isOverlayActive()) {
       return;
     }
 
@@ -495,7 +526,7 @@
   }
 
   function handleMediaPlayWhileBlocked(event) {
-    if (!overlayHost) {
+    if (!isOverlayActive()) {
       return;
     }
 
@@ -531,7 +562,7 @@
   }
 
   function preventBlockedScroll(event) {
-    if (!overlayHost) {
+    if (!isOverlayActive()) {
       return;
     }
 
@@ -540,7 +571,7 @@
   }
 
   function stopOverlayKeyboardPropagation(event) {
-    if (!overlayHost) {
+    if (!isOverlayActive()) {
       return;
     }
 
@@ -548,7 +579,7 @@
   }
 
   function preventBlockedPageKeyboard(event) {
-    if (!overlayHost || event.composedPath?.().includes(overlayHost)) {
+    if (!isOverlayActive() || event.composedPath?.().includes(overlayHost)) {
       return;
     }
 

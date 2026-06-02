@@ -26,6 +26,9 @@ const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 let extensionPopupOpenCount = 0;
 let cachedSchedule = null;
 let cachedSettings = null;
+const tabsWithStatePreservingBlocks = new Set();
+const tabsWithVisualEffects = new Set();
+const tabsWithLimitWarnings = new Set();
 
 const DAY_ALIASES = new Map([
   ["sun", 0],
@@ -71,6 +74,12 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
   if (changeInfo.url || changeInfo.status === "complete") {
     void tick({ requireCurrentMatch: !tab?.active });
   }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  tabsWithStatePreservingBlocks.delete(tabId);
+  tabsWithVisualEffects.delete(tabId);
+  tabsWithLimitWarnings.delete(tabId);
 });
 
 chrome.windows.onFocusChanged.addListener(() => {
@@ -255,6 +264,8 @@ async function initialize() {
   await restorePomodoroAlarm();
   await cleanupStatePreservingBlocks();
   await refreshRules();
+  await syncAllTabVisualEffects({ forceCleanup: true });
+  await syncAllTabLimitWarnings({ forceCleanup: true });
 }
 
 async function tick({ requireCurrentMatch = true } = {}) {
@@ -1614,8 +1625,11 @@ async function enforceTabBlock(tab, state) {
 
   if (state.pomodoro?.active && state.pomodoro.mode === "strict") {
     if (!isStrictPomodoroAllowed(host, state.pomodoro)) {
-      await hideTabLimitWarning(tab.id);
-      await cleanupStatePreservingBlock(tab.id);
+      if (tabReadyForPageInjection) {
+        await hideTabLimitWarning(tab.id);
+        await cleanupStatePreservingBlock(tab.id);
+      }
+
       await chrome.tabs.update(tab.id, { url: getPomodoroBlockedPageUrl(tab.url) });
     } else {
       if (tabReadyForPageInjection) {
@@ -1643,6 +1657,12 @@ async function enforceTabBlock(tab, state) {
   }
 
   const blockedDomain = blockedSite.domain || blockedSite.domains?.[0] || host;
+
+  if (!tabReadyForPageInjection) {
+    await chrome.tabs.update(tab.id, { url: getBlockedPageUrl(blockedDomain, tab.url) });
+    return;
+  }
+
   await hideTabLimitWarning(tab.id);
   const showedOverlay = await showStatePreservingBlock(tab.id, blockedDomain);
 
@@ -1666,6 +1686,10 @@ async function showStatePreservingBlock(tabId, domain) {
       status
     });
 
+    if (response?.ok) {
+      tabsWithStatePreservingBlocks.add(tabId);
+    }
+
     return Boolean(response?.ok);
   } catch (_error) {
     return false;
@@ -1688,7 +1712,7 @@ async function ensureStatePreservingContentScript(tabId) {
   });
 }
 
-async function syncTabVisualEffects(tabId, host) {
+async function syncTabVisualEffects(tabId, host, { forceCleanup = false } = {}) {
   if (typeof tabId !== "number") {
     return;
   }
@@ -1715,7 +1739,7 @@ async function syncTabVisualEffects(tabId, host) {
   }
 
   if (!normalizedHost || !schedule || !settings) {
-    await setTabVisualEffects(tabId, { grayscale: false, redLight: false });
+    await setTabVisualEffects(tabId, { grayscale: false, redLight: false }, { forceCleanup });
     return;
   }
 
@@ -1729,7 +1753,7 @@ async function syncTabVisualEffects(tabId, host) {
   );
 
   if (!site && !grayscaleGlobalApplies && !redLightGlobalApplies) {
-    await setTabVisualEffects(tabId, { grayscale: false, redLight: false });
+    await setTabVisualEffects(tabId, { grayscale: false, redLight: false }, { forceCleanup });
     return;
   }
 
@@ -1755,7 +1779,7 @@ async function syncTabVisualEffects(tabId, host) {
     ? settings.redLightIntensityForAll
     : site?.redLightIntensity;
 
-  await setTabVisualEffects(tabId, { grayscale, redLight, redLightIntensity });
+  await setTabVisualEffects(tabId, { grayscale, redLight, redLightIntensity }, { forceCleanup });
 }
 
 function createVisualEffectFallbackSite(host) {
@@ -1768,7 +1792,7 @@ function createVisualEffectFallbackSite(host) {
   };
 }
 
-async function syncAllTabVisualEffects() {
+async function syncAllTabVisualEffects({ forceCleanup = false } = {}) {
   let tabs = [];
 
   try {
@@ -1786,7 +1810,7 @@ async function syncAllTabVisualEffects() {
       return;
     }
 
-    await syncTabVisualEffects(tab.id, getHostname(tab.url));
+    await syncTabVisualEffects(tab.id, getHostname(tab.url), { forceCleanup });
   }));
 }
 
@@ -1821,8 +1845,14 @@ function isEffectInSlot(intervals, site, now) {
   return activeIntervals.some((interval) => isIntervalActive(interval, now));
 }
 
-async function setTabVisualEffects(tabId, { grayscale = false, redLight = false, redLightIntensity = DEFAULT_NIGHT_LIGHT_INTENSITY } = {}) {
+async function setTabVisualEffects(tabId, { grayscale = false, redLight = false, redLightIntensity = DEFAULT_NIGHT_LIGHT_INTENSITY } = {}, { forceCleanup = false } = {}) {
   if (typeof tabId !== "number") {
+    return;
+  }
+
+  const hasVisualEffects = Boolean(grayscale || redLight);
+
+  if (!hasVisualEffects && !forceCleanup && !tabsWithVisualEffects.has(tabId)) {
     return;
   }
 
@@ -1832,6 +1862,12 @@ async function setTabVisualEffects(tabId, { grayscale = false, redLight = false,
       func: setFocusTrackerVisualEffects,
       args: [Boolean(grayscale), Boolean(redLight), normalizeNightLightIntensity(redLightIntensity)]
     });
+
+    if (hasVisualEffects) {
+      tabsWithVisualEffects.add(tabId);
+    } else {
+      tabsWithVisualEffects.delete(tabId);
+    }
   } catch (_error) {
   }
 }
@@ -1875,20 +1911,20 @@ function setFocusTrackerVisualEffects(grayscaleEnabled, redLightEnabled, redLigh
   (document.head || document.documentElement).appendChild(style);
 }
 
-async function syncTabLimitWarning(tabId, host) {
+async function syncTabLimitWarning(tabId, host, { forceCleanup = false } = {}) {
   if (typeof tabId !== "number") {
     return;
   }
 
   try {
     const warning = await getLimitWarningForHost(host);
-    await setTabLimitWarning(tabId, warning);
+    await setTabLimitWarning(tabId, warning, { forceCleanup });
   } catch (_error) {
-    await hideTabLimitWarning(tabId);
+    await hideTabLimitWarning(tabId, { forceCleanup });
   }
 }
 
-async function syncAllTabLimitWarnings() {
+async function syncAllTabLimitWarnings({ forceCleanup = false } = {}) {
   let tabs = [];
 
   try {
@@ -1906,7 +1942,7 @@ async function syncAllTabLimitWarnings() {
       return;
     }
 
-    await syncTabLimitWarning(tab.id, getHostname(tab.url));
+    await syncTabLimitWarning(tab.id, getHostname(tab.url), { forceCleanup });
   }));
 }
 
@@ -1956,12 +1992,18 @@ async function getLimitWarningForHost(host) {
   };
 }
 
-async function hideTabLimitWarning(tabId) {
-  await setTabLimitWarning(tabId, null);
+async function hideTabLimitWarning(tabId, options = {}) {
+  await setTabLimitWarning(tabId, null, options);
 }
 
-async function setTabLimitWarning(tabId, warning) {
+async function setTabLimitWarning(tabId, warning, { forceCleanup = false } = {}) {
   if (typeof tabId !== "number") {
+    return;
+  }
+
+  const hasLimitWarning = Boolean(warning && Number.isFinite(Number(warning.remainingSeconds)));
+
+  if (!hasLimitWarning && !forceCleanup && !tabsWithLimitWarnings.has(tabId)) {
     return;
   }
 
@@ -1971,6 +2013,12 @@ async function setTabLimitWarning(tabId, warning) {
       func: setFocusTrackerLimitWarning,
       args: [warning]
     });
+
+    if (hasLimitWarning) {
+      tabsWithLimitWarnings.add(tabId);
+    } else {
+      tabsWithLimitWarnings.delete(tabId);
+    }
   } catch (_error) {
   }
 }
@@ -2515,12 +2563,22 @@ async function cleanupStatePreservingBlocks() {
       return;
     }
 
-    await cleanupStatePreservingBlock(tab.id);
+    if (!isTabReadyForPageInjection(tab)) {
+      return;
+    }
+
+    await cleanupStatePreservingBlock(tab.id, { forceMessage: true });
   }));
 }
 
-async function cleanupStatePreservingBlock(tabId) {
+async function cleanupStatePreservingBlock(tabId, { forceMessage = false } = {}) {
   if (typeof tabId !== "number") {
+    return;
+  }
+
+  const mayHaveBlock = tabsWithStatePreservingBlocks.has(tabId);
+
+  if (!forceMessage && !mayHaveBlock) {
     return;
   }
 
@@ -2529,13 +2587,17 @@ async function cleanupStatePreservingBlock(tabId) {
   } catch (_error) {
   }
 
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: removeStatePreservingBlockArtifacts
-    });
-  } catch (_error) {
+  if (forceMessage || mayHaveBlock) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        func: removeStatePreservingBlockArtifacts
+      });
+    } catch (_error) {
+    }
   }
+
+  tabsWithStatePreservingBlocks.delete(tabId);
 }
 
 function removeStatePreservingBlockArtifacts() {
@@ -2589,7 +2651,7 @@ function findSiteForVisualEffects(schedule, host) {
 
   return sites
     .map((site) => normalizeSite(site))
-    .find((site) => siteMatchesHost(site, host)) || null;
+    .find((site) => site.enabled && siteMatchesHost(site, host)) || null;
 }
 
 function domainMatches(host, domain) {

@@ -3,7 +3,7 @@
   "name": "Focus Tracker - Website Blocker and Focus Timer",
   "short_name": "Focus Tracker",
   "description": "Block distracting websites by schedule, track usage, run Pomodoro sessions, and keep extra time under control.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minimum_chrome_version": "101",
   "permissions": [
     "alarms",
