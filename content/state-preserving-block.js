@@ -319,6 +319,8 @@
       renderSelectView();
     }
 
+    primeMediaResumeForUserGesture();
+
     try {
       const response = await chrome.runtime.sendMessage({
         type: "add-extra-time",
@@ -339,6 +341,8 @@
       hideOverlay(true);
     } catch (error) {
       actionInFlight = false;
+      cancelPrimedMediaResume();
+      enforceMediaSilence();
       pinError = cleanError(error);
 
       if (currentStatus?.requiresPinForExtraTime) {
@@ -414,12 +418,30 @@
       return null;
     }
 
+    const currentTime = getMediaCurrentTime(media);
+    const source = getMediaSource(media);
+
     if (!mediaStates.has(media)) {
       mediaStates.set(media, {
         wasPlaying: Boolean(resumeAfterHide),
-        currentTime: getMediaCurrentTime(media),
-        source: getMediaSource(media)
+        wasMuted: Boolean(media.muted),
+        currentTime,
+        source
       });
+    } else {
+      const state = mediaStates.get(media);
+
+      if (resumeAfterHide) {
+        state.wasPlaying = true;
+      }
+
+      if (state.currentTime === null && currentTime !== null) {
+        state.currentTime = currentTime;
+      }
+
+      if (!state.source && source) {
+        state.source = source;
+      }
     }
 
     return mediaStates.get(media);
@@ -450,17 +472,72 @@
       restoreMediaCurrentTime(media, state);
 
       if (!state.wasPlaying) {
+        restoreMediaMuted(media, state);
+        return;
+      }
+
+      if (state.resumePrimed && !media.paused) {
+        restoreMediaMuted(media, state);
         return;
       }
 
       try {
+        media.muted = true;
         const playPromise = media.play?.();
 
         if (playPromise?.catch) {
-          playPromise.catch(() => {});
+          playPromise
+            .then(() => restoreMediaMuted(media, state))
+            .catch(() => restoreMediaMuted(media, state));
+        } else {
+          restoreMediaMuted(media, state);
         }
       } catch (_error) {
+        restoreMediaMuted(media, state);
       }
+    });
+  }
+
+  function primeMediaResumeForUserGesture() {
+    mediaStates.forEach((state, media) => {
+      if (!state?.wasPlaying || !media || !document.contains(media)) {
+        return;
+      }
+
+      restoreMediaCurrentTime(media, state);
+
+      try {
+        state.resumePrimed = true;
+        media.muted = true;
+        const playPromise = media.play?.();
+
+        if (playPromise?.catch) {
+          playPromise.catch(() => {
+            state.resumePrimed = false;
+            restoreMediaMuted(media, state);
+          });
+        }
+      } catch (_error) {
+        state.resumePrimed = false;
+        restoreMediaMuted(media, state);
+      }
+    });
+  }
+
+  function cancelPrimedMediaResume() {
+    mediaStates.forEach((state, media) => {
+      if (!state?.resumePrimed || !media || !document.contains(media)) {
+        return;
+      }
+
+      state.resumePrimed = false;
+
+      try {
+        media.pause();
+      } catch (_error) {
+      }
+
+      restoreMediaMuted(media, state);
     });
   }
 
@@ -494,6 +571,17 @@
     }
   }
 
+  function restoreMediaMuted(media, state) {
+    if (!(media instanceof HTMLMediaElement) || !state) {
+      return;
+    }
+
+    try {
+      media.muted = Boolean(state.wasMuted);
+    } catch (_error) {
+    }
+  }
+
   function focusWithoutScrolling(element) {
     try {
       element.focus({ preventScroll: true });
@@ -521,7 +609,13 @@
     }
 
     document.querySelectorAll("video, audio").forEach((media) => {
-      pauseMediaElement(media);
+      if (shouldAllowPrimedMediaPlayback(media)) {
+        return;
+      }
+
+      pauseMediaElement(media, {
+        resumeAfterHide: !media.paused && !media.ended
+      });
     });
   }
 
@@ -530,7 +624,19 @@
       return;
     }
 
-    pauseMediaElement(event.target);
+    if (shouldAllowPrimedMediaPlayback(event.target)) {
+      return;
+    }
+
+    pauseMediaElement(event.target, { resumeAfterHide: true });
+  }
+
+  function shouldAllowPrimedMediaPlayback(media) {
+    if (!actionInFlight || !(media instanceof HTMLMediaElement)) {
+      return false;
+    }
+
+    return Boolean(mediaStates.get(media)?.resumePrimed);
   }
 
   function lockPageScroll() {

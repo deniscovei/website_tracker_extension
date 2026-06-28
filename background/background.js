@@ -76,6 +76,14 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
   }
 });
 
+chrome.tabs.onZoomChange.addListener((zoomChangeInfo) => {
+  const tabId = zoomChangeInfo?.tabId;
+
+  if (typeof tabId === "number" && tabsWithLimitWarnings.has(tabId)) {
+    void refreshTabLimitWarning(tabId);
+  }
+});
+
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabsWithStatePreservingBlocks.delete(tabId);
   tabsWithVisualEffects.delete(tabId);
@@ -1946,6 +1954,19 @@ async function syncAllTabLimitWarnings({ forceCleanup = false } = {}) {
   }));
 }
 
+async function refreshTabLimitWarning(tabId) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+
+    if (!/^https?:\/\//.test(tab?.url || "") || !isTabReadyForPageInjection(tab)) {
+      return;
+    }
+
+    await syncTabLimitWarning(tabId, getHostname(tab.url));
+  } catch (_error) {
+  }
+}
+
 async function getLimitWarningForHost(host) {
   const normalizedHost = normalizeDomain(host);
 
@@ -2008,10 +2029,14 @@ async function setTabLimitWarning(tabId, warning, { forceCleanup = false } = {})
   }
 
   try {
+    const warningPayload = hasLimitWarning
+      ? { ...warning, zoomFactor: await getTabZoomFactor(tabId) }
+      : warning;
+
     await chrome.scripting.executeScript({
       target: { tabId },
       func: setFocusTrackerLimitWarning,
-      args: [warning]
+      args: [warningPayload]
     });
 
     if (hasLimitWarning) {
@@ -2023,11 +2048,33 @@ async function setTabLimitWarning(tabId, warning, { forceCleanup = false } = {})
   }
 }
 
+async function getTabZoomFactor(tabId) {
+  try {
+    return normalizeTabZoomFactor(await chrome.tabs.getZoom(tabId));
+  } catch (_error) {
+    return 1;
+  }
+}
+
+function normalizeTabZoomFactor(zoomFactor) {
+  const factor = Number(zoomFactor);
+
+  if (!Number.isFinite(factor) || factor <= 0) {
+    return 1;
+  }
+
+  return Math.max(0.25, Math.min(5, factor));
+}
+
 function setFocusTrackerLimitWarning(warning) {
   const hostId = "focus-tracker-limit-warning";
   const stateKey = "__focusTrackerLimitWarningState";
   const yellowThresholdSeconds = 5 * 60;
   const redThresholdSeconds = 60;
+  const baseWidthPx = 420;
+  const baseEdgePx = 22;
+  const baseGutterPx = 32;
+  const baseFontSizePx = 16;
   const existingState = globalThis[stateKey];
   // Keep one mutable state object because timers and close handlers outlive each injection refresh.
   const state = existingState && typeof existingState === "object" ? existingState : {};
@@ -2040,6 +2087,7 @@ function setFocusTrackerLimitWarning(warning) {
   state.expiresAt = state.expiresAt || 0;
   state.domain = state.domain || "";
   state.position = state.position || "top-center";
+  state.zoomFactor = normalizeZoomFactor(state.zoomFactor || 1);
   state.autoDismissSeconds = state.autoDismissSeconds || 0;
   state.dismissedDomain = state.dismissedDomain || "";
   state.dismissedSeverity = state.dismissedSeverity || "";
@@ -2107,6 +2155,7 @@ function setFocusTrackerLimitWarning(warning) {
 
   const nextDomain = String(warning.domain || "").trim();
   const nextPosition = normalizePosition(warning.position);
+  const nextZoomFactor = normalizeZoomFactor(warning.zoomFactor);
   const autoDismissSeconds = Math.max(0, Math.min(60, Math.round(Number(warning.autoDismissSeconds) || 0)));
 
   if (state.dismissedDomain && state.dismissedDomain !== nextDomain) {
@@ -2117,6 +2166,7 @@ function setFocusTrackerLimitWarning(warning) {
   state.expiresAt = Date.now() + remainingSeconds * 1000;
   state.domain = nextDomain;
   state.position = nextPosition;
+  state.zoomFactor = nextZoomFactor;
   state.autoDismissSeconds = autoDismissSeconds;
 
   const nextShowAtSeconds = getNextShowAtSeconds(remainingSeconds);
@@ -2217,39 +2267,75 @@ function setFocusTrackerLimitWarning(warning) {
   }
 
   function getHostStyle(position) {
-    const edge = "22px";
+    const scale = getVisualScale();
+    const edge = formatPx(baseEdgePx * scale);
+    const gutter = formatPx(baseGutterPx * scale);
+    const width = formatPx(baseWidthPx * scale);
+    const fontSize = formatPx(baseFontSizePx * scale);
     const styles = [
-      "position:fixed",
-      "z-index:2147483646",
-      "width:min(420px,calc(100vw - 32px))",
-      "pointer-events:none"
+      "all:initial!important",
+      "position:fixed!important",
+      "display:block!important",
+      "box-sizing:border-box!important",
+      "margin:0!important",
+      "min-width:0!important",
+      "max-width:none!important",
+      "height:auto!important",
+      "max-height:none!important",
+      "z-index:2147483646!important",
+      `width:min(${width},calc(100vw - ${gutter}))!important`,
+      `font-size:${fontSize}!important`,
+      "font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif!important",
+      "line-height:normal!important",
+      "color-scheme:light!important",
+      "contain:layout style paint!important",
+      "pointer-events:none!important"
     ];
 
     if (position.startsWith("top")) {
-      styles.push(`top:${edge}`);
+      styles.push(`top:${edge}!important`);
     } else if (position.startsWith("bottom")) {
-      styles.push(`bottom:${edge}`);
+      styles.push(`bottom:${edge}!important`);
     } else {
-      styles.push("top:50%");
+      styles.push("top:50%!important");
     }
 
     if (position.endsWith("left")) {
-      styles.push(`left:${edge}`);
+      styles.push(`left:${edge}!important`);
     } else if (position.endsWith("right")) {
-      styles.push(`right:${edge}`);
+      styles.push(`right:${edge}!important`);
     } else {
-      styles.push("left:50%");
+      styles.push("left:50%!important");
     }
 
     if (position === "center") {
-      styles.push("transform:translate(-50%,-50%)");
+      styles.push("transform:translate(-50%,-50%)!important");
     } else if (position.startsWith("center")) {
-      styles.push("transform:translateY(-50%)");
+      styles.push("transform:translateY(-50%)!important");
     } else if (position.endsWith("center")) {
-      styles.push("transform:translateX(-50%)");
+      styles.push("transform:translateX(-50%)!important");
     }
 
     return styles.join(";");
+  }
+
+  function getVisualScale() {
+    return 1 / normalizeZoomFactor(state.zoomFactor);
+  }
+
+  function normalizeZoomFactor(zoomFactor) {
+    const factor = Number(zoomFactor);
+
+    if (!Number.isFinite(factor) || factor <= 0) {
+      return 1;
+    }
+
+    return Math.max(0.25, Math.min(5, factor));
+  }
+
+  function formatPx(value) {
+    const rounded = Math.round(Number(value) * 1000) / 1000;
+    return `${rounded}px`;
   }
 
   function render() {
@@ -2299,8 +2385,8 @@ function setFocusTrackerLimitWarning(warning) {
         :host {
           all: initial;
           color-scheme: light;
-          font-size: 16px;
-          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          font-size: inherit;
+          font-family: inherit;
         }
 
         *, *::before, *::after {
@@ -2310,15 +2396,17 @@ function setFocusTrackerLimitWarning(warning) {
         .warning {
           display: grid;
           grid-template-columns: auto 1fr auto;
-          gap: 8px 12px;
+          gap: 0.5em 0.75em;
           align-items: center;
           width: 100%;
           border: 1px solid rgba(120, 53, 15, 0.22);
-          border-radius: 14px;
+          border-radius: 0.875em;
           background: rgba(254, 243, 199, 0.96);
-          box-shadow: 0 18px 42px rgba(15, 23, 42, 0.22);
+          box-shadow: 0 1.125em 2.625em rgba(15, 23, 42, 0.22);
           color: #78350f;
-          padding: 14px 14px 14px 16px;
+          font: inherit;
+          min-height: 3.625em;
+          padding: 0.875em 0.875em 0.875em 1em;
           pointer-events: auto;
           -webkit-backdrop-filter: blur(10px);
           backdrop-filter: blur(10px);
@@ -2331,21 +2419,21 @@ function setFocusTrackerLimitWarning(warning) {
         }
 
         .dot {
-          width: 12px;
-          height: 12px;
+          width: 0.75em;
+          height: 0.75em;
           border-radius: 999px;
           background: #f59e0b;
-          box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.2);
+          box-shadow: 0 0 0 0.375em rgba(245, 158, 11, 0.2);
         }
 
         .danger .dot {
           background: #ffffff;
-          box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.2);
+          box-shadow: 0 0 0 0.375em rgba(255, 255, 255, 0.2);
         }
 
         .copy {
           display: grid;
-          gap: 3px;
+          gap: 0.1875em;
           min-width: 0;
         }
 
@@ -2371,8 +2459,8 @@ function setFocusTrackerLimitWarning(warning) {
 
         .close {
           display: grid;
-          width: 28px;
-          height: 28px;
+          width: 1.75em;
+          height: 1.75em;
           place-items: center;
           border: 0;
           border-radius: 999px;
@@ -2398,17 +2486,6 @@ function setFocusTrackerLimitWarning(warning) {
 
         .danger .close:hover {
           background: rgba(255, 255, 255, 0.24);
-        }
-
-        @media (max-width: 520px) {
-          .warning {
-            border-radius: 12px;
-            padding: 12px;
-          }
-
-          strong {
-            font-size: 0.92em;
-          }
         }
       </style>
       <section class="warning" role="status" aria-live="polite">
