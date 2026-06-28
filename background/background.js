@@ -1881,8 +1881,8 @@ async function setTabVisualEffects(tabId, { grayscale = false, redLight = false,
 }
 
 function setFocusTrackerVisualEffects(grayscaleEnabled, redLightEnabled, redLightIntensity) {
-  const styleId = "focus-tracker-visual-effects";
-  const existing = document.getElementById(styleId);
+  const overlayId = "focus-tracker-visual-effects";
+  const existing = document.getElementById(overlayId);
 
   const filters = [];
   if (grayscaleEnabled) {
@@ -1906,17 +1906,35 @@ function setFocusTrackerVisualEffects(grayscaleEnabled, redLightEnabled, redLigh
     return;
   }
 
-  const css = `html{filter:${filter}!important;-webkit-filter:${filter}!important;}`;
+  // Apply the tint through a fixed, viewport-sized overlay that uses backdrop-filter
+  // instead of setting `filter` on the root <html> element. A filter on <html> forces
+  // the browser to rasterize the entire document as a single layer; on large pages and
+  // slow connections that leaves unpainted gray tiles and stalls streamed/lazy-loaded
+  // content, so pages appear to load incompletely. A viewport-bound backdrop-filter
+  // reproduces the same effect without the full-document repaint.
+  let overlay = existing;
 
-  if (existing) {
-    existing.textContent = css;
-    return;
+  if (!overlay || overlay.tagName !== "DIV") {
+    overlay?.remove();
+    overlay = document.createElement("div");
+    overlay.id = overlayId;
   }
 
-  const style = document.createElement("style");
-  style.id = styleId;
-  style.textContent = css;
-  (document.head || document.documentElement).appendChild(style);
+  overlay.setAttribute("aria-hidden", "true");
+  overlay.style.cssText = [
+    "all:initial!important",
+    "position:fixed!important",
+    "inset:0!important",
+    "z-index:2147483645!important",
+    "pointer-events:none!important",
+    "background:transparent!important",
+    `backdrop-filter:${filter}!important`,
+    `-webkit-backdrop-filter:${filter}!important`
+  ].join(";");
+
+  if (!overlay.isConnected) {
+    (document.documentElement || document.body).appendChild(overlay);
+  }
 }
 
 async function syncTabLimitWarning(tabId, host, { forceCleanup = false } = {}) {
