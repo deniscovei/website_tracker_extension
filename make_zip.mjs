@@ -7,6 +7,7 @@ import { basename, dirname, join } from "node:path";
 const ZIP_NAME = "focus_tracker.zip";
 const MANIFEST_PATH = "manifest.json";
 const PACKAGE_ROOTS = ["manifest.json", "assets", "background", "content", "pages", "shared"];
+const PACKAGE_EXCLUDES = ["assets/readme/"];
 const DEFAULT_BASE_REFS = ["origin/master", "master"];
 
 function main() {
@@ -165,6 +166,10 @@ function shouldPackageFile(file) {
   }
 
   if (basename(normalized).endsWith(".code-workspace")) {
+    return false;
+  }
+
+  if (PACKAGE_EXCLUDES.some((prefix) => normalized === prefix.replace(/\/$/, "") || normalized.startsWith(prefix))) {
     return false;
   }
 
